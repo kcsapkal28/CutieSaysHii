@@ -183,6 +183,45 @@ describe("renderBlock", () => {
     expect(out).toBe(`<figure class="df-diagram">${svg}</figure>`);
   });
 
+  it("stat trend is a named img with an aria-hidden svg", () => {
+    const out = renderBlock({ type: "Stat", value: "42%", label: "l", trend: "up" }, ctx());
+    expect(out).toContain(
+      '<span class="df-stat-trend" role="img" aria-label="Trend: up" data-trend="up"><svg viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path',
+    );
+    expect(out).toContain('fill="currentColor"');
+    expect(out).not.toMatch(/[▲▼▶]/);
+    const paths = (["up", "down", "flat"] as const).map((trend) => {
+      const html = renderBlock({ type: "Stat", value: "1", label: "l", trend }, ctx());
+      expect(html, trend).toContain(`aria-label="Trend: ${trend}"`);
+      return /<path [^>]*d="([^"]+)"/.exec(html)?.[1];
+    });
+    expect(new Set(paths).size).toBe(3);
+    expect(renderBlock({ type: "Stat", value: "1", label: "l" }, ctx())).not.toContain("df-stat-trend");
+  });
+
+  it("stat cells carry --df-chars", () => {
+    const out = renderBlock({ type: "Stat", value: "1,000 W/m²", label: "irradiance" }, ctx());
+    expect(out).toMatch(
+      /^<div class="df-stat" style="--df-chars:10"><div class="df-stat-value"><span class="df-stat-number">1,000 W\/m²<\/span><\/div><div class="df-stat-label">irradiance<\/div><\/div>$/,
+    );
+    const hostile = renderBlock({ type: "Stat", value: '"><script>', label: "l" }, ctx());
+    expect(hostile).toContain('style="--df-chars:10"');
+    expect(hostile).not.toContain("<script>");
+  });
+
+  it("compare emits both sides in one grid with --df-rows", () => {
+    const out = renderBlock(
+      { type: "Compare", leftTitle: "A", rightTitle: "", rows: [{ left: "a1", right: "b1" }, { left: "a2", right: "b2" }] },
+      ctx(),
+    );
+    expect(out).toBe(
+      '<div class="df-compare-grid" style="--df-rows:2">' +
+        '<div class="df-side df-side--a"><h3 class="df-side-title">A</h3><ul class="df-side-list"><li>a1</li><li>a2</li></ul></div>' +
+        '<div class="df-side df-side--b"><h3 class="df-side-title" hidden></h3><ul class="df-side-list"><li>b1</li><li>b2</li></ul></div>' +
+        "</div>",
+    );
+  });
+
   it("diagramKey is the first 16 hex chars of sha256", () => {
     expect(diagramKey("abc")).toBe("ba7816bf8f01cfea");
   });

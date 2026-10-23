@@ -100,13 +100,14 @@ describe("build", () => {
     expect(html).toContain('src="assets/deck.js"');
   });
 
-  it("deck.css contains a utility used by a template", async () => {
+  // Templates carry semantic df-* classes; empty regions rely on preflight hiding [hidden].
+  it("deck.css carries preflight, reveal.css and the imported stylesheets", async () => {
     const title = await readFile(fileURLToPath(new URL("../templates/title.hbs", import.meta.url)), "utf8");
-    expect(title).toContain("text-df-accent-text");
+    expect(title).toContain("df-meta");
     const css = await readFile(join(outA, "assets/deck.css"), "utf8");
-    expect(css).toContain(".text-df-accent-text");
-    expect(css).toContain(".bg-df-surface");
-    expect(css).toContain(".font-display");
+    expect(css).toMatch(/\[hidden\][^{]*\{display:none!important/);
+    expect(css).toContain(".df-kicker");
+    expect(css).toContain("[data-df-texture");
     expect(css).toContain(".fragment");
   });
 

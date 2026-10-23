@@ -11,7 +11,19 @@ export function diagramKey(source: string): string {
   return sha256Hex(source).slice(0, 16);
 }
 
-const TREND_GLYPH = { up: "▲", down: "▼", flat: "▶" } as const;
+// A bar, not ▶, for flat: the triangle read as a play button.
+const TREND_PATH = { up: "M5 1 9.5 9H.5Z", down: "M.5 1h9L5 9Z", flat: "M1 4h8v2H1Z" } as const;
+
+function trendIcon(trend: keyof typeof TREND_PATH): string {
+  const t = escapeHtml(trend);
+  return `<span class="df-stat-trend" role="img" aria-label="Trend: ${t}" data-trend="${t}"><svg viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path fill="currentColor" d="${TREND_PATH[trend]}"/></svg></span>`;
+}
+
+/** One compare side's contents: a heading (hidden when blank, so no empty heading is announced) and its cells. */
+export function compareSide(titleHtml: string, cellsHtml: string[]): string {
+  const hidden = titleHtml.trim() ? "" : " hidden";
+  return `<h3 class="df-side-title"${hidden}>${titleHtml}</h3><ul class="df-side-list">${cellsHtml.map((c) => `<li>${c}</li>`).join("")}</ul>`;
+}
 
 export function renderBlock(block: Block, ctx: BlockContext): string {
   const em = (s: string) => emphasize(s, ctx.emphasis);
@@ -25,10 +37,9 @@ export function renderBlock(block: Block, ctx: BlockContext): string {
     case "Paragraph":
       return `<p class="df-paragraph">${em(block.text)}</p>`;
     case "Stat": {
-      const trend = block.trend
-        ? `<span class="df-stat-trend" data-trend="${block.trend}" aria-label="trend ${block.trend}">${TREND_GLYPH[block.trend]}</span>`
-        : "";
-      return `<div class="df-stat"><div class="df-stat-value"><span class="df-stat-number">${em(block.value)}</span>${trend}</div><div class="df-stat-label">${em(block.label)}</div></div>`;
+      const trend = block.trend ? trendIcon(block.trend) : "";
+      // --df-chars lets the stylesheet size the value to its cell; it is a count, never deck text.
+      return `<div class="df-stat" style="--df-chars:${[...block.value].length}"><div class="df-stat-value"><span class="df-stat-number">${em(block.value)}</span>${trend}</div><div class="df-stat-label">${em(block.label)}</div></div>`;
     }
     case "Quote":
       return `<figure class="df-quote"><blockquote><p>${em(block.text)}</p></blockquote><figcaption>${em(block.attribution)}</figcaption></figure>`;
@@ -43,8 +54,9 @@ export function renderBlock(block: Block, ctx: BlockContext): string {
       return `<figure class="df-chart">${chartSvg(block, { title })}</figure>`;
     }
     case "Compare": {
-      const rows = block.rows.map((r) => `<tr><td>${em(r.left)}</td><td>${em(r.right)}</td></tr>`).join("");
-      return `<table class="df-compare"><thead><tr><th scope="col">${em(block.leftTitle)}</th><th scope="col">${em(block.rightTitle)}</th></tr></thead><tbody>${rows}</tbody></table>`;
+      const a = compareSide(em(block.leftTitle), block.rows.map((r) => em(r.left)));
+      const b = compareSide(em(block.rightTitle), block.rows.map((r) => em(r.right)));
+      return `<div class="df-compare-grid" style="--df-rows:${block.rows.length}"><div class="df-side df-side--a">${a}</div><div class="df-side df-side--b">${b}</div></div>`;
     }
     case "Timeline": {
       const steps = block.steps

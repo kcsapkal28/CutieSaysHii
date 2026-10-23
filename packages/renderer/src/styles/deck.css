@@ -1,7 +1,12 @@
 @import "tailwindcss" source(none);
 @import "reveal.js/dist/reveal.css" layer(components);
 @import "./textures.css";
+@import "./layout.css";
+@import "./panels.css";
+@import "./decorations.css";
+@import "./diagrams.css";
 @import "./images.css";
+@import "./chrome.css";
 @source "../../templates";
 
 @theme inline {
@@ -30,11 +35,6 @@
     font-family: var(--df-font-body);
     line-height: var(--df-body-lh);
   }
-
-  [data-region="title"] {
-    text-transform: var(--df-title-transform);
-    letter-spacing: calc(var(--df-display-tracking) + var(--df-title-tracking));
-  }
 }
 
 @layer components {
@@ -58,6 +58,13 @@
 
   .reveal .slides section .df-slide {
     box-sizing: border-box;
+  }
+
+  /* Regions may shrink and break long tokens instead of overflowing the slide. */
+  .reveal .df-slide [data-region],
+  .reveal .df-kicker {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .reveal ul,
@@ -108,31 +115,12 @@
     color: var(--df-text-muted);
   }
 
-  .reveal .df-stat-trend {
+  .reveal .df-stat-trend svg {
+    width: 0.4em;
+    height: 0.4em;
     margin-left: 0.25em;
-    font-size: 0.4em;
     vertical-align: middle;
     color: var(--df-accent-text);
-  }
-
-  .reveal .df-compare {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: calc(1.5rem * var(--df-scale));
-  }
-
-  .reveal .df-compare th,
-  .reveal .df-compare td {
-    padding: calc(var(--df-gap) * 0.5) var(--df-gap);
-    border: var(--df-border-width) solid var(--df-border);
-    text-align: left;
-    vertical-align: top;
-    overflow-wrap: anywhere;
-  }
-
-  .reveal .df-compare th {
-    font-family: var(--df-font-display);
-    color: var(--df-primary-text);
   }
 
   .reveal .df-timeline {

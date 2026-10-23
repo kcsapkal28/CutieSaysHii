@@ -1,68 +1,17 @@
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { defaultsForFamily, resolveMotionPlan, resolveTheme, type Catalog } from "@deckforge/catalog";
-import { loadCatalog } from "@deckforge/catalog/node";
-import type { Block, DeckSpec, InteractionPlan, Slide } from "@deckforge/schemas";
-import { JSDOM } from "jsdom";
-import { beforeAll, describe, expect, it } from "vitest";
+import { readdirSync } from "node:fs";
+import type { Block, DeckSpec, InteractionPlan } from "@deckforge/schemas";
+import { describe, expect, it } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
-import { renderDeckHtml, RenderError, type RenderInput } from "../src/html/deck.ts";
-import { loadTemplates } from "../src/html/templates.ts";
-
-const read = async <T>(rel: string) =>
-  JSON.parse(await readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8")) as T;
-
-let catalog: Catalog;
-let fixture: DeckSpec;
-let interaction: InteractionPlan;
-const templates = loadTemplates();
-
-beforeAll(async () => {
-  catalog = await loadCatalog();
-  fixture = await read<DeckSpec>("../fixtures/solar.deck.json");
-  interaction = await read<InteractionPlan>("../fixtures/solar.interaction.json");
-});
-
-function inputFor(deck: DeckSpec, patch: Partial<RenderInput> = {}): RenderInput {
-  const d = defaultsForFamily(catalog, "minimal");
-  const theme = resolveTheme(catalog, {
-    depth: "standard",
-    styleFamilyId: "minimal",
-    paletteId: d.paletteId,
-    typeFamilyId: d.typeFamilyId,
-    motionTemplateId: "calm",
-    interactionModeId: "linear",
-    threeJs: false,
-  });
-  return {
-    deck,
-    theme,
-    motion: resolveMotionPlan(catalog, "calm", deck.slides),
-    interaction: { modeId: "linear", slides: [] },
-    catalog,
-    templates,
-    diagrams: new Map(),
-    assets: { css: ["deck.css", "theme.css"], js: ["deck.js"] },
-    ...patch,
-  };
-}
-
-const dom = (html: string) => new JSDOM(html).window.document;
-const slideOf = (type: string, body: Block[] = [], extra: Partial<Slide> = {}): Slide => ({
-  id: "x1",
-  type,
-  title: "A title",
-  body,
-  notes: "notes",
-  emphasisTargets: [],
-  ...extra,
-});
-const deckOf = (...slides: Slide[]): DeckSpec => ({ title: "Deck", subtitle: "Sub", slides });
+import { renderDeckHtml, RenderError } from "../src/html/deck.ts";
+import { catalog, deckOf, dom, fixture, inputFor, interaction, slideOf, templates, TEMPLATES_DIR } from "./deck-setup.ts";
 
 describe("templates", () => {
-  it("has a template for every catalog slide type", () => {
+  it("has a template for every catalog slide type, and partials are not slide types", () => {
     for (const t of catalog.slideTypes.types) expect(templates.has(t.id), t.id).toBe(true);
     expect(templates.size).toBe(catalog.slideTypes.types.length);
+    expect(readdirSync(`${TEMPLATES_DIR}partials`).sort()).toEqual(["deco.hbs", "kicker.hbs", "title.hbs"]);
+    expect(templates.has("kicker")).toBe(false);
+    expect(templates.has("deco")).toBe(false);
   });
 
   it("every template renders every catalog region", () => {
@@ -75,19 +24,27 @@ describe("templates", () => {
     }
   });
 
-  // A slide without a title must not leave an empty heading (and its flex gap) behind.
-  it("every title region collapses when empty", () => {
+  // A slide without a title must not leave an empty heading, or an empty motion target, behind.
+  it("every title region is hidden and not animated when empty", () => {
     for (const t of catalog.slideTypes.types.filter((t) => t.regions.includes("title") && !t.regions.includes("meta"))) {
-      const { html } = renderDeckHtml(inputFor(deckOf(slideOf(t.id, [], { title: undefined }))));
-      const title = dom(html).querySelector(`[data-region="title"]`);
-      expect(title?.innerHTML, t.id).toBe("");
-      expect(title?.classList.contains("empty:hidden"), t.id).toBe(true);
+      for (const title of [undefined, "", "   "]) {
+        const { html } = renderDeckHtml(inputFor(deckOf(slideOf(t.id, [], { title }))));
+        const heading = dom(html).querySelector(`[data-region="title"]`);
+        expect(heading?.innerHTML, t.id).toBe("");
+        expect(heading?.hasAttribute("hidden"), t.id).toBe(true);
+        expect(heading?.hasAttribute("data-motion-el"), t.id).toBe(false);
+      }
     }
     // The title slide shows the deck title, so an empty deck title is its empty case.
-    const { html } = renderDeckHtml(inputFor({ ...deckOf(slideOf("title")), title: "" }));
-    const cover = dom(html).querySelector('section[data-slide-type="title"] [data-region="title"]');
-    expect(cover?.innerHTML).toBe("");
-    expect(cover?.classList.contains("empty:hidden")).toBe(true);
+    const { html } = renderDeckHtml(inputFor({ ...deckOf(slideOf("title")), title: "", subtitle: "" }));
+    const doc = dom(html);
+    for (const region of ["title", "subtitle"]) {
+      const el = doc.querySelector(`section[data-slide-type="title"] [data-region="${region}"]`);
+      expect(el?.innerHTML, region).toBe("");
+      expect(el?.hasAttribute("hidden"), region).toBe(true);
+      expect(el?.hasAttribute("data-motion-el"), region).toBe(false);
+    }
+    expect(doc.querySelectorAll("[data-motion-el]:empty")).toHaveLength(0);
   });
 
   // The labels are already visible in every stat; a visually-hidden copy would overflow its 1px box.
@@ -180,7 +137,7 @@ describe("renderDeckHtml on the solar fixture", () => {
     expect(doc.querySelector("#s12 pre.df-code[data-motion-el]")).not.toBeNull();
     expect(doc.querySelector("#s13 figure.df-image[data-motion-el]")).not.toBeNull();
     expect(doc.querySelector("#s07 figure.df-quote[data-motion-el]")).not.toBeNull();
-    expect(doc.querySelectorAll("#s10 .df-compare-col[data-motion-el]")).toHaveLength(2);
+    expect(doc.querySelectorAll("#s10 .df-side[data-motion-el]")).toHaveLength(2);
     expect(doc.querySelector("#s01 h1[data-motion-el]")).not.toBeNull();
   });
 

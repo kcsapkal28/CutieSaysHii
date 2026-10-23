@@ -1,6 +1,6 @@
 {
   "$schema": "./_schema/design-styles.schema.json",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "notes": "The 30 user-facing styles are grouped into 8 implementable families. The UI shows families; the member names are shown as 'Includes:' text for discoverability. Tokens are CSS-ready. IDs referenced from palettes.json, type-families.json, motion-templates.json and compat-matrix.json.",
   "families": [
     {
@@ -68,7 +68,7 @@
         "maxWordsPerSlide": 30
       },
       "defaultPalette": "brutal-pop",
-      "allowedPalettes": ["brutal-pop", "technical-slate", "tokyo-grid"],
+      "allowedPalettes": ["brutal-pop", "bauhaus-primary"],
       "defaultType": "brutalist-mono",
       "allowedTypes": ["brutalist-mono", "poster-grotesk"],
       "defaultMotion": "kinetic",

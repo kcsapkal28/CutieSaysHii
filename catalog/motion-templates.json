@@ -1,12 +1,12 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "notes": "Replaces the 15 'animation media' list (claymation, stop-motion, sand-on-glass etc. are not implementable on the web). These are web motion templates. The user picks ONE; per-slide behaviour is derived from bySlideType. Vocabulary (enter/emphasis/exit/transition) maps 1:1 to GSAP presets in packages/renderer/motion/presets.ts. The original media list is kept in 'inspiration' so the Design Agent can borrow vocabulary (e.g. 'pixel' → stepped easing).",
   "vocabulary": {
     "enter": ["none", "fade", "fadeUp", "fadeDown", "slideLeft", "slideRight", "scaleIn", "clipReveal", "typewriter", "splitWords", "splitChars", "glitchIn", "bounceIn", "blurIn", "stepIn"],
     "emphasis": ["none", "pulse", "underlineSweep", "countUp", "highlightSweep", "glow", "wobble", "scaleBeat", "colorShift"],
     "exit": ["none", "fade", "fadeDown", "slideLeft", "scaleOut", "glitchOut", "blurOut"],
     "transition": ["none", "fade", "slide", "convex", "concave", "zoom", "cut", "wipe"],
-    "easing": ["linear", "power2.out", "power3.out", "power4.inOut", "back.out(1.7)", "elastic.out(1,0.5)", "steps(8)", "expo.out"]
+    "easing": ["linear", "power2.out", "power3.out", "power4.inOut", "back.out(1.7)", "elastic.out(1,0.5)", "steps(8)", "expo.out", "back.out(2)"]
   },
   "templates": [
     {

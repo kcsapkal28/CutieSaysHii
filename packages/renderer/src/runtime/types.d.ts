@@ -8,6 +8,9 @@ declare module "reveal.js" {
     ): void;
     getCurrentSlide(): HTMLElement;
     getTotalSlides(): number;
+    isReady(): boolean;
+    slide(h: number, v?: number, f?: number): void;
+    nextFragment(): boolean;
     getSlideNotes(slide?: HTMLElement): string | null;
   };
   const Reveal: RevealStatic;

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "turbo run test && vitest run scripts",
+    "test:e2e": "turbo run test:e2e",
     "lint": "turbo run lint && eslint scripts && pnpm check:literals",
     "typecheck": "turbo run typecheck && tsc --noEmit -p scripts/tsconfig.json",
     "check:literals": "tsx scripts/check-catalog-literals.ts"

@@ -1,7 +1,14 @@
 import { BlockSchema, BlockUnionSchema, DeckSpecSchema, PatchSchema } from "@deckforge/schemas";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { compileWireSchema, UnsupportedSchemaError, type JsonSchema } from "../../src/wire/schema.ts";
+import {
+  assertUnionBudget,
+  compileWireSchema,
+  UNION_PARAM_LIMIT,
+  UnionBudgetError,
+  UnsupportedSchemaError,
+  type JsonSchema,
+} from "../../src/wire/schema.ts";
 
 const NULL = { type: "null" };
 const FORBIDDEN = [
@@ -25,6 +32,18 @@ function eachSchema(schema: JsonSchema, fn: (s: JsonSchema) => void): void {
     ...(schema.items ? [schema.items as JsonSchema] : []),
   ];
   for (const child of children) eachSchema(child, fn);
+}
+
+function countUnionNodes(schema: JsonSchema): number {
+  let count = 0;
+  eachSchema(schema, (s) => {
+    if (Array.isArray(s.anyOf) || Array.isArray(s.type)) count += 1;
+  });
+  return count;
+}
+
+function objectWithOptionals(n: number): z.AnyZodObject {
+  return z.object(Object.fromEntries(Array.from({ length: n }, (_, i) => [`f${i}`, z.string().optional()])));
 }
 
 function unsupportedError(fn: () => unknown): UnsupportedSchemaError {
@@ -128,6 +147,77 @@ describe("compileWireSchema → jsonSchema", () => {
     });
     expect(objects).toBeGreaterThan(BlockUnionSchema.options.length);
   });
+
+  it("nullable or optional of a union adds null to the existing anyOf instead of wrapping it", () => {
+    const flat = compileWireSchema(z.union([z.string(), z.number()]).nullable());
+    expect(flat.jsonSchema).toStrictEqual({ anyOf: [{ type: "string" }, { type: "number" }, NULL] });
+    expect(flat.unionParamCount).toBe(1);
+
+    const union = z.discriminatedUnion("k", [z.object({ k: z.literal("a") }), z.object({ k: z.literal("b") })]);
+    const wire = compileWireSchema(z.object({ u: union.optional(), v: union.nullable() }));
+    const props = wire.jsonSchema.properties as Record<string, JsonSchema>;
+    expect(props.u?.anyOf).toHaveLength(3);
+    expect(props.v?.anyOf).toHaveLength(3);
+    expect((props.u?.anyOf as JsonSchema[])[2]).toStrictEqual(NULL);
+    expect(wire.unionParamCount).toBe(2);
+    expect(wire.normalize({ u: null, v: null })).toStrictEqual({ v: null });
+    expect(wire.normalize({ u: { k: "a" }, v: { k: "b" } })).toStrictEqual({ u: { k: "a" }, v: { k: "b" } });
+  });
+
+  it("rejects nullish, optional array items, non-JSON literals and preprocess", () => {
+    const cases: [z.ZodTypeAny, string, string][] = [
+      [z.object({ a: z.string().nullish() }), "$.a", "ZodOptional"],
+      [z.object({ a: z.string().optional().nullable() }), "$.a", "ZodNullable"],
+      [z.object({ xs: z.array(z.string().optional()) }), "$.xs[]", "ZodOptional"],
+      [z.object({ a: z.literal(null) }), "$.a", "ZodLiteral"],
+      [z.literal(undefined), "$", "ZodLiteral"],
+      [z.literal(1n), "$", "ZodLiteral"],
+      [z.object({ a: z.preprocess((v) => v, z.string()) }), "$.a", "ZodEffects"],
+    ];
+    for (const [schema, path, typeName] of cases) {
+      const err = unsupportedError(() => compileWireSchema(schema));
+      expect({ path: err.path, typeName: err.typeName }).toStrictEqual({ path, typeName });
+    }
+    expect(compileWireSchema(z.literal(true)).jsonSchema).toStrictEqual({ const: true });
+    expect(compileWireSchema(z.string().transform((s) => s.trim())).jsonSchema).toStrictEqual({ type: "string" });
+  });
+});
+
+describe("union parameter budget", () => {
+  it("DeckSpecSchema's unionParamCount matches its anyOf nodes and fits the limit", () => {
+    const { jsonSchema, unionParamCount } = compileWireSchema(DeckSpecSchema);
+    expect(unionParamCount).toBe(7);
+    expect(unionParamCount).toBe(countUnionNodes(jsonSchema));
+    expect(unionParamCount).toBeLessThanOrEqual(UNION_PARAM_LIMIT);
+  });
+
+  it("counts every inlined copy of a repeated subtree", () => {
+    const once = compileWireSchema(BlockSchema).unionParamCount;
+    const thrice = compileWireSchema(z.object({ a: BlockSchema, b: z.array(BlockSchema), c: BlockSchema.optional() }));
+    expect(thrice.unionParamCount).toBe(3 * once);
+    expect(thrice.unionParamCount).toBe(countUnionNodes(thrice.jsonSchema));
+  });
+
+  it("assertUnionBudget throws above 16 and names each schema's count", () => {
+    expect(UNION_PARAM_LIMIT).toBe(16);
+    expect(() => assertUnionBudget([compileWireSchema(objectWithOptionals(16))])).not.toThrow();
+    expect(() => assertUnionBudget([compileWireSchema(objectWithOptionals(17))])).toThrow(UnionBudgetError);
+
+    const schemas = [compileWireSchema(objectWithOptionals(8)), compileWireSchema(objectWithOptionals(9))];
+    let caught: unknown;
+    try {
+      assertUnionBudget(schemas);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(UnionBudgetError);
+    const err = caught as UnionBudgetError;
+    expect(err.counts).toStrictEqual([8, 9]);
+    expect(err.total).toBe(17);
+    expect(err.message).toContain("17");
+    expect(err.message).toContain("#0: 8");
+    expect(err.message).toContain("#1: 9");
+  });
 });
 
 describe("compileWireSchema → normalize", () => {
@@ -156,7 +246,16 @@ describe("compileWireSchema → normalize", () => {
     );
     expect(normalize({ n: 1, tag: null })).toStrictEqual({ n: 1 });
     expect(normalize({ s: "x", tag: null })).toStrictEqual({ s: "x", tag: null });
-    expect(normalize({ q: true, tag: null })).toStrictEqual({ q: true, tag: null });
+  });
+
+  it("normalize falls back to the union branch with the fewest issues when none parses", () => {
+    const { normalize } = compileWireSchema(
+      z.union([
+        z.object({ n: z.number(), m: z.number(), tag: z.string().nullable() }),
+        z.object({ s: z.string(), extra: z.number(), tag: z.string().optional() }),
+      ]),
+    );
+    expect(normalize({ s: "x", tag: null })).toStrictEqual({ s: "x" });
   });
 
   it("round-trip: schema.parse(normalize(raw)) succeeds for raw values with nulls wherever allowed", () => {

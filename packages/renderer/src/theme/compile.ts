@@ -1,6 +1,6 @@
-import { contrastRatio, passesAA } from "@deckforge/catalog";
+import { passesAA } from "@deckforge/catalog";
 import type { ThemeSpec } from "@deckforge/schemas";
-import { fillBehind, fillBorder, GRAPHIC_RATIO, graphicPalette, legibleOn } from "./colours.ts";
+import { graphicPalette, legibleOn, panelFills } from "./colours.ts";
 import { assertSafe, UNSAFE_IN_QUOTES, UnsafeThemeValueError } from "./safe.ts";
 
 export { legibleOn, UnsafeThemeValueError };
@@ -77,9 +77,7 @@ function gridDecls({ layout: { grid } }: ThemeSpec): Decl[] {
 }
 
 function computedColourDecls(roles: ThemeSpec["roles"]): Decl[] {
-  const fills = [fillBehind(roles, roles.primary), fillBehind(roles, roles.accent)];
-  const border = fillBorder(roles);
-  if (contrastRatio(border, roles.bg) < GRAPHIC_RATIO) throw new ThemeContrastError(["fillBorder/bg"]);
+  const p = panelFills(roles);
   return [
     // Brand roles as text colours, AA on bg and surface.
     ["--df-primary-text", legibleOn(roles, roles.primary)],
@@ -87,12 +85,15 @@ function computedColourDecls(roles: ThemeSpec["roles"]): Decl[] {
     // Series colours for charts, nodes and lines, 3:1 on bg and surface.
     ...graphicPalette(roles).map((c, i): Decl => [`--df-graphic-${i + 1}`, c]),
     // Tinted panel fills that keep text and textMuted at AA and differ visibly from surface; bg when none can.
-    ["--df-fill-1", fills[0] ?? roles.bg],
-    ["--df-fill-2", fills[1] ?? roles.bg],
-    // 1 when either fill fell back to bg: panels should then be outlined with --df-fill-border instead of tinted.
-    ["--df-fill-flat", fills.includes(null) ? 1 : 0],
+    ["--df-fill-1", p.fill1],
+    ["--df-fill-2", p.fill2],
+    // 1 when either fill fell back to bg.
+    ["--df-fill-flat", p.flat ? 1 : 0],
     // Outline for flat panels, 3:1 on bg (WCAG 1.4.11).
-    ["--df-fill-border", border],
+    ["--df-fill-border", p.border],
+    // Per-fill outline: transparent while that fill is visible, --df-fill-border's colour when it fell back to bg.
+    ["--df-fill-1-border", p.fill1Border],
+    ["--df-fill-2-border", p.fill2Border],
   ];
 }
 
@@ -109,7 +110,7 @@ export function compileThemeCss(theme: ThemeSpec): string {
     border: roles.border,
   }).map(([name, value]): Decl => {
     if (!HEX.test(value)) throw new UnsafeThemeValueError(`roles.${name}`);
-    return [`--df-${name}`, value];
+    return [`--df-${name}`, value.toUpperCase()];
   });
   assertContrast(roles);
 

@@ -12,7 +12,7 @@ import {
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
-import { channelDelta, fillBehind, fillBorder, graphicOn } from "../src/theme/colours.ts";
+import { channelDelta, fillBehind, fillBorder, graphicOn, panelFills } from "../src/theme/colours.ts";
 import { compileThemeCss, ThemeContrastError, typeStep, UnsafeThemeValueError } from "../src/theme/compile.ts";
 
 let c: Catalog;
@@ -334,6 +334,53 @@ describe("computed colours", () => {
     }
     // Pinned so a palette change that flattens (or un-flattens) a combo is a visible diff.
     expect(flat).toEqual(FLAT_COMBOS);
+  });
+
+  it("panelFills matches the emitted theme.css for every combo", () => {
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      const p = panelFills(theme.roles);
+      expect(decl(out, "--df-fill-1"), label).toBe(p.fill1);
+      expect(decl(out, "--df-fill-2"), label).toBe(p.fill2);
+      expect(decl(out, "--df-fill-flat"), label).toBe(p.flat ? "1" : "0");
+      expect(decl(out, "--df-fill-border"), label).toBe(p.border);
+      expect(decl(out, "--df-fill-1-border"), label).toBe(p.fill1Border);
+      expect(decl(out, "--df-fill-2-border"), label).toBe(p.fill2Border);
+    }
+  });
+
+  it("each fill gets a 3:1 border only when it fell back to bg", () => {
+    for (const { label, theme } of combos()) {
+      const { roles } = theme;
+      const p = panelFills(roles);
+      expect(p.flat, label).toBe(p.fill1Border !== "transparent" || p.fill2Border !== "transparent");
+      for (const [fill, border] of [[p.fill1, p.fill1Border], [p.fill2, p.fill2Border]] as const) {
+        if (channelDelta(fill, roles.surface) >= 24) expect(border, label).toBe("transparent");
+        else {
+          expect(fill, label).toBe(roles.bg.toUpperCase());
+          expect(border, label).toBe(p.border);
+          expect(contrastRatio(border, roles.bg), label).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+    // midnight-gala: only the accent fill is flat, so fill-1 panels stay unoutlined.
+    const gala = panelFills(getPalette(c, "midnight-gala").roles);
+    expect([gala.flat, gala.fill1Border === "transparent", gala.fill2Border === "transparent"]).toEqual([true, true, false]);
+  });
+
+  it("every emitted colour is uppercase #RRGGBB, even from lowercase roles", () => {
+    for (const familyId of ["minimal", "atmospheric"]) {
+      const theme = themeFor(familyId);
+      const roles = Object.fromEntries(
+        Object.entries(theme.roles).map(([k, v]) => [k, v.toLowerCase()]),
+      ) as ThemeSpec["roles"];
+      const out = compileThemeCss({ ...theme, roles });
+      const hexes = out.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
+      expect(hexes.length).toBeGreaterThan(0);
+      for (const h of hexes) expect(h, familyId).toMatch(/^#[0-9A-F]{6}$/);
+      // the flat fallback to bg is uppercased too (fill-2 is flat in both default palettes)
+      expect(decl(out, "--df-fill-2")).toBe(roles.bg.toUpperCase());
+    }
   });
 
   it("fillBehind skips ahead to a visible step: technical-slate primary", () => {

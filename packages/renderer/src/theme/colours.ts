@@ -20,7 +20,7 @@ function firstStep(from: string, to: string, ok: (c: string) => boolean): string
     const c = mix(from, to, step / 20);
     if (ok(c)) return c;
   }
-  return to;
+  return to.toUpperCase();
 }
 
 /**
@@ -61,6 +61,33 @@ export function fillBehind(roles: Roles, colour: string): string | null {
 /** The panel border for flat fills: roles.border when it reaches 3:1 on bg, else the first step toward roles.text. */
 export function fillBorder(roles: Roles): string {
   return firstStep(roles.border, roles.text, (c) => contrastRatio(c, roles.bg) >= GRAPHIC_RATIO);
+}
+
+export type PanelFills = {
+  fill1: string;
+  fill2: string;
+  /** True when either fill fell back to bg. */
+  flat: boolean;
+  /** 3:1 on bg (WCAG 1.4.11): fillBorder falls back to roles.text, which assertContrast holds at AA on bg. */
+  border: string;
+  /** "transparent" while the fill is visible, `border` when it fell back to bg. */
+  fill1Border: string;
+  fill2Border: string;
+};
+
+/** The panel fills theme.css emits, shared so other renderers (Mermaid) match it exactly. */
+export function panelFills(roles: Roles): PanelFills {
+  const bg = roles.bg.toUpperCase();
+  const border = fillBorder(roles);
+  const [fill1, fill2] = [fillBehind(roles, roles.primary), fillBehind(roles, roles.accent)];
+  return {
+    fill1: fill1 ?? bg,
+    fill2: fill2 ?? bg,
+    flat: fill1 === null || fill2 === null,
+    border,
+    fill1Border: fill1 === null ? border : "transparent",
+    fill2Border: fill2 === null ? border : "transparent",
+  };
 }
 
 /** Six series colours: primary, accent, textMuted and their pairwise midpoints, each lifted to 3:1. */

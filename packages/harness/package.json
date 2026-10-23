@@ -1,0 +1,28 @@
+{
+  "name": "@deckforge/harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:generate": "drizzle-kit generate",
+    "record:golden": "tsx scripts/record-golden.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.1.0",
+    "@deckforge/catalog": "workspace:*",
+    "@deckforge/schemas": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "p-queue": "^10.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11"
+  }
+}

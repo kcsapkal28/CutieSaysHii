@@ -1,0 +1,286 @@
+@import "tailwindcss" source(none);
+@import "reveal.js/dist/reveal.css" layer(components);
+@import "./textures.css";
+@import "./images.css";
+@source "../../templates";
+
+@theme inline {
+  --color-df-bg: var(--df-bg);
+  --color-df-surface: color-mix(in srgb, var(--df-surface) calc(var(--df-surface-alpha) * 100%), transparent);
+  --color-df-text: var(--df-text);
+  --color-df-text-muted: var(--df-text-muted);
+  --color-df-primary: var(--df-primary);
+  --color-df-accent: var(--df-accent);
+  --color-df-border: var(--df-border);
+  --font-display: var(--df-font-display);
+  --font-body: var(--df-font-body);
+  --font-mono: var(--df-font-mono);
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+    background-color: var(--df-bg);
+    background-image: var(--df-bg-image);
+    color: var(--df-text);
+    font-family: var(--df-font-body);
+    line-height: var(--df-body-lh);
+  }
+
+  [data-region="title"] {
+    text-transform: var(--df-title-transform);
+    letter-spacing: calc(var(--df-display-tracking) + var(--df-title-tracking));
+  }
+}
+
+@layer components {
+  .reveal {
+    background-color: var(--df-bg);
+    background-image: var(--df-bg-image);
+    color: var(--df-text);
+    font-family: var(--df-font-body);
+    line-height: var(--df-body-lh);
+  }
+
+  .reveal .slides {
+    text-align: left;
+  }
+
+  .reveal .slides > section {
+    box-sizing: border-box;
+    height: 100%;
+    padding: 0;
+  }
+
+  .reveal .slides section .df-slide {
+    box-sizing: border-box;
+  }
+
+  .reveal ul,
+  .reveal ol {
+    display: block;
+    margin: 0;
+    text-align: left;
+  }
+
+  .reveal .df-bullets {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--df-gap) * 0.6);
+    padding-left: 1.25em;
+    list-style: disc;
+  }
+
+  .reveal .df-bullets li::marker,
+  .reveal .df-timeline-step::marker {
+    color: var(--df-accent);
+  }
+
+  .reveal .df-paragraph {
+    margin: 0 0 var(--df-gap);
+    overflow-wrap: anywhere;
+  }
+
+  .reveal .df-quote {
+    margin: 0;
+  }
+
+  .reveal .df-quote blockquote {
+    margin: 0;
+    padding-left: var(--df-gap);
+    border-left: calc(var(--df-border-width) * 2) solid var(--df-accent);
+    font-family: var(--df-font-display);
+    font-size: calc(2.25rem * var(--df-scale));
+    line-height: var(--df-display-lh);
+  }
+
+  .reveal .df-quote blockquote p {
+    margin: 0;
+  }
+
+  .reveal .df-quote figcaption {
+    margin-top: var(--df-gap);
+    padding-left: var(--df-gap);
+    color: var(--df-text-muted);
+  }
+
+  .reveal .df-stat-trend {
+    margin-left: 0.25em;
+    font-size: 0.4em;
+    vertical-align: middle;
+    color: var(--df-accent);
+  }
+
+  .reveal .df-compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: calc(1.5rem * var(--df-scale));
+  }
+
+  .reveal .df-compare th,
+  .reveal .df-compare td {
+    padding: calc(var(--df-gap) * 0.5) var(--df-gap);
+    border: var(--df-border-width) solid var(--df-border);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  .reveal .df-compare th {
+    font-family: var(--df-font-display);
+    color: var(--df-primary);
+  }
+
+  .reveal .df-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--df-gap) * 0.6);
+    padding: 0;
+    list-style: none;
+  }
+
+  .reveal .df-timeline-step {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: var(--df-gap);
+    align-items: baseline;
+    padding-left: var(--df-gap);
+    border-left: calc(var(--df-border-width) * 2) solid var(--df-accent);
+  }
+
+  .reveal .df-timeline-date {
+    grid-column: 1;
+    color: var(--df-accent);
+    font-family: var(--df-font-mono);
+  }
+
+  .reveal .df-timeline-label {
+    grid-column: 2;
+    font-family: var(--df-font-display);
+    color: var(--df-primary);
+    overflow-wrap: anywhere;
+  }
+
+  .reveal .df-timeline-detail {
+    grid-column: 2;
+    color: var(--df-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .reveal .df-code {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    box-shadow: var(--df-shadow);
+    font-family: var(--df-font-mono);
+    color: var(--df-text);
+    line-height: 1.5;
+    white-space: pre;
+  }
+
+  .reveal .df-code code {
+    padding: 0;
+    max-height: none;
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: inherit;
+  }
+
+  .reveal .df-line {
+    display: inline-block;
+    box-sizing: border-box;
+    width: 100%;
+    padding-left: 0.5em;
+    border-left: calc(var(--df-border-width) * 2) solid transparent;
+  }
+
+  .reveal .df-line[data-df-highlight] {
+    border-left-color: var(--df-accent);
+    background-color: color-mix(in srgb, var(--df-accent) 18%, transparent);
+  }
+
+  .reveal .df-code .hljs-comment,
+  .reveal .df-code .hljs-quote {
+    color: var(--df-text-muted);
+    font-style: italic;
+  }
+
+  .reveal .df-code .hljs-keyword,
+  .reveal .df-code .hljs-selector-tag,
+  .reveal .df-code .hljs-built_in,
+  .reveal .df-code .hljs-literal {
+    color: var(--df-primary);
+  }
+
+  .reveal .df-code .hljs-string,
+  .reveal .df-code .hljs-number,
+  .reveal .df-code .hljs-title,
+  .reveal .df-code .hljs-attr,
+  .reveal .df-code .hljs-type {
+    color: var(--df-accent);
+  }
+
+  .reveal .df-diagram {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  .reveal .df-diagram svg {
+    max-width: 100%;
+    max-height: 100%;
+    height: auto;
+  }
+
+  .reveal .df-diagram-fallback {
+    box-shadow: none;
+    width: auto;
+    color: var(--df-text-muted);
+  }
+
+  .reveal .df-image,
+  .reveal .df-chart {
+    margin: 0;
+    max-width: 100%;
+  }
+
+  .reveal .df-image svg,
+  .reveal .df-chart svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .reveal .df-chart svg text {
+    fill: var(--df-text-muted);
+    font-family: var(--df-font-body);
+  }
+
+  .reveal mark.df-emph {
+    padding: 0 0.15em;
+    border-radius: calc(var(--df-radius) * 0.4);
+    background-color: color-mix(in srgb, var(--df-accent) 28%, transparent);
+    color: inherit;
+  }
+
+  .reveal .df-quiz-option {
+    padding-left: 0.25em;
+    overflow-wrap: anywhere;
+  }
+
+  .reveal .df-quiz-explanation {
+    display: none;
+  }
+
+  .reveal .df-code,
+  .reveal [data-region="left"],
+  .reveal [data-region="right"] {
+    backdrop-filter: blur(var(--df-backdrop-blur));
+  }
+}

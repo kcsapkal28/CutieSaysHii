@@ -1,4 +1,8 @@
-<div class="df-slide flex h-full w-full flex-col gap-[var(--df-gap)] p-[var(--df-pad)] text-df-text font-body justify-center border-l-[length:calc(var(--df-border-width)*4)] border-df-accent pl-[calc(var(--df-gap)*1.5)]">
-<h2 data-region="title" data-motion-el class="m-0 empty:hidden font-display text-df-text [text-transform:var(--df-title-transform)] leading-[var(--df-display-lh)] tracking-[calc(var(--df-display-tracking)+var(--df-title-tracking))] [overflow-wrap:anywhere] text-[length:calc(4rem*var(--df-scale))]">{{{regions.title}}}</h2>
-<p data-region="subtitle" data-motion-el class="m-0 text-[length:calc(1.75rem*var(--df-scale))] text-df-text-muted empty:hidden [overflow-wrap:anywhere] min-w-0">{{{regions.subtitle}}}</p>
+<div class="df-slide df-slide--section">
+{{> deco}}
+{{> kicker}}
+<p class="df-section-number" aria-hidden="true"{{#if sectionNumber}} data-motion-el{{else}} hidden{{/if}}>{{sectionNumber}}</p>
+<span class="df-rule" aria-hidden="true"></span>
+{{> title level="h2"}}
+<p class="df-subtitle" data-region="subtitle"{{#if regions.subtitle}} data-motion-el{{else}} hidden{{/if}}>{{{regions.subtitle}}}</p>
 </div>

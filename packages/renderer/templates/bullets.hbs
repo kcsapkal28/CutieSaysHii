@@ -1,4 +1,6 @@
-<div class="df-slide flex h-full w-full flex-col gap-[var(--df-gap)] p-[var(--df-pad)] text-df-text font-body">
-<h2 data-region="title" data-motion-el class="m-0 empty:hidden font-display text-df-text [text-transform:var(--df-title-transform)] leading-[var(--df-display-lh)] tracking-[calc(var(--df-display-tracking)+var(--df-title-tracking))] [overflow-wrap:anywhere] text-[length:calc(2.75rem*var(--df-scale))]">{{{regions.title}}}</h2>
-<div data-region="body" class="min-h-0 flex-1 text-[length:calc(1.75rem*var(--df-scale))] leading-[var(--df-body-lh)] [overflow-wrap:anywhere] min-w-0 [&_ul]:m-0 [&_ul]:flex [&_ul]:list-disc [&_ul]:flex-col [&_ul]:gap-[calc(var(--df-gap)*0.6)] [&_ul]:pl-[1.25em] [&_li]:marker:text-df-accent-text">{{{regions.body}}}</div>
+<div class="df-slide df-slide--bullets">
+{{> deco}}
+{{> kicker}}
+{{> title level="h2"}}
+<div class="df-body" data-region="body" data-df-count="{{itemCount}}"{{#unless regions.body}} hidden{{/unless}}>{{{regions.body}}}</div>
 </div>

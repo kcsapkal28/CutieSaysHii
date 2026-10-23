@@ -1,7 +1,7 @@
-<div class="df-slide flex h-full w-full flex-col gap-[var(--df-gap)] p-[var(--df-pad)] text-df-text font-body">
-<h2 data-region="title" data-motion-el class="m-0 empty:hidden font-display text-df-text [text-transform:var(--df-title-transform)] leading-[var(--df-display-lh)] tracking-[calc(var(--df-display-tracking)+var(--df-title-tracking))] [overflow-wrap:anywhere] text-[length:calc(2.5rem*var(--df-scale))]">{{{regions.title}}}</h2>
-<div class="flex min-h-0 flex-1 gap-[var(--df-gap)]">
-<div data-region="body" class="min-h-0 min-w-0 flex-1 [overflow-wrap:anywhere] min-w-0 [&_.df-code]:m-0 [&_.df-code]:max-h-full [&_.df-code]:overflow-auto [&_.df-code]:rounded-[var(--df-radius)] [&_.df-code]:border-[length:var(--df-border-width)] [&_.df-code]:border-df-border [&_.df-code]:bg-df-surface [&_.df-code]:p-[var(--df-gap)] [&_.df-code]:font-mono [&_.df-code]:text-[length:calc(1.25rem*var(--df-scale))]">{{{regions.body}}}</div>
-<div data-region="aside" class="w-1/4 shrink-0 text-[length:calc(1.125rem*var(--df-scale))] text-df-text-muted [overflow-wrap:anywhere] min-w-0 empty:hidden [&_p]:m-0">{{{regions.aside}}}</div>
-</div>
+<div class="df-slide df-slide--code">
+{{> deco}}
+{{> kicker}}
+{{> title level="h2"}}
+<div class="df-body" data-region="body" data-df-count="{{itemCount}}"{{#unless regions.body}} hidden{{/unless}}>{{{regions.body}}}</div>
+<div class="df-aside" data-region="aside"{{#unless regions.aside}} hidden{{/unless}}>{{{regions.aside}}}</div>
 </div>

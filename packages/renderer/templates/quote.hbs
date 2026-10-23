@@ -1,4 +1,6 @@
-<div class="df-slide flex h-full w-full flex-col gap-[var(--df-gap)] p-[var(--df-pad)] text-df-text font-body justify-center">
-<div data-region="body" class="min-h-0 [overflow-wrap:anywhere] min-w-0 [&_figure]:m-0 [&_blockquote]:m-0 [&_blockquote]:border-l-[length:calc(var(--df-border-width)*3)] [&_blockquote]:border-df-accent [&_blockquote]:pl-[var(--df-gap)] [&_blockquote_p]:m-0 [&_blockquote_p]:font-display [&_blockquote_p]:leading-[var(--df-display-lh)] [&_blockquote_p]:text-[length:calc(2.75rem*var(--df-scale))] [&_figcaption]:mt-[var(--df-gap)] [&_figcaption]:pl-[var(--df-gap)] [&_figcaption]:text-df-text-muted [&_figcaption]:text-[length:calc(1.5rem*var(--df-scale))]">{{{regions.body}}}</div>
-<p data-region="footer" class="m-0 text-[length:calc(1.125rem*var(--df-scale))] text-df-text-muted [overflow-wrap:anywhere] min-w-0 empty:hidden">{{{regions.footer}}}</p>
+<div class="df-slide df-slide--quote">
+{{> deco}}
+{{> kicker}}
+<div class="df-body" data-region="body" data-df-count="{{itemCount}}"{{#unless regions.body}} hidden{{/unless}}>{{{regions.body}}}</div>
+<p class="df-footer" data-region="footer"{{#unless regions.footer}} hidden{{/unless}}>{{{regions.footer}}}</p>
 </div>

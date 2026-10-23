@@ -134,7 +134,7 @@ for (const family of FAMILIES) {
         })),
       );
       expect(values).toEqual(
-        stats.map((s) => ({ text: s.value, trend: s.trend ? `trend ${s.trend}` : null, marks: emphasised(s.value) ? 1 : 0 })),
+        stats.map((s) => ({ text: s.value, trend: s.trend ? `Trend: ${s.trend}` : null, marks: emphasised(s.value) ? 1 : 0 })),
       );
       expect(values.some((v) => v.marks > 0)).toBe(true);
     });

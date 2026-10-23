@@ -91,7 +91,7 @@ describe("reserved class names", () => {
     const reserved = new Set(await reservedClassNames());
     for (const c of ["fragment", "visible", "current-fragment", "present", "past", "future", "stack", "reveal", "slides"])
       expect(reserved.has(c), c).toBe(true);
-    for (const c of ["notes", "controls", "progress", "slide-number", "backgrounds", "hidden", "flex", "w-full"])
+    for (const c of ["notes", "controls", "progress", "slide-number", "backgrounds", "hidden", "df-slide", "df-kicker"])
       expect(reserved.has(c), c).toBe(true);
     for (const c of selectorClassNames(await compileDeckCss())) expect(reserved.has(c), c).toBe(true);
     // Mermaid's own structural classes stay usable.

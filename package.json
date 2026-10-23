@@ -3,16 +3,21 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.15.0",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "test": "turbo run test",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "test": "turbo run test && vitest run scripts",
+    "lint": "turbo run lint && eslint scripts && pnpm check:literals",
+    "typecheck": "turbo run typecheck && tsc --noEmit -p scripts/tsconfig.json",
+    "check:literals": "tsx scripts/check-catalog-literals.ts"
   },
   "devDependencies": {
+    "@deckforge/catalog": "workspace:*",
     "@eslint/js": "^10.0.0",
     "@types/node": "^24.0.0",
     "eslint": "^10.13.0",
+    "tsx": "^4.23.15",
     "turbo": "^2.11.10",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.0",

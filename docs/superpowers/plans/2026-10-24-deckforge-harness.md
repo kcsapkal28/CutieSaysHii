@@ -50,7 +50,7 @@ The controller merges Task 1 to the proxy's `main` after review. The harness pre
 
 - **LLMs write JSON, never HTML** (§0.1). Every agent output arrives as a tool call (`emit_deck`, `emit_design`, `emit_patches`). Each tool declares `strict: boolean`, and the spike (Task 3, `docs/superpowers/spikes/2026-10-24-strict-tools-via-proxy.md`) fixed these values: **`emit_deck: false`** (the server rejects its grammar as too large), **`emit_design: true`**, **`emit_patches: false`** (the server counts more than 16 union params). Non-strict tools still send the full `compileWireSchema` JSON Schema as `input_schema`. Strict tools must pass `assertUnionBudget`. Task 8 must add an opt-in live test (`DECKFORGE_LIVE=1`) that sends the final `emit_design` tool with `strict:true` and `max_tokens` 32 through the proxy and asserts no 400. It must also assert `assertUnionBudget([designWire])` locally. If either fails, `emit_design` becomes non-strict and the plan's Global Constraints are updated. It goes through `normalize` → Zod → `src/validate/*`. Invalid output is fed back as an `is_error` `tool_result`, with **at most 2 retries** (3 attempts).
 - **One SDK client** (§0.6):
-  - Only `packages/harness/src/llm.ts` imports `@anthropic-ai/sdk`, and only `src/node.ts` calls `createLlmClient`.
+  - Only `packages/harness/src/llm.ts` imports `@anthropic-ai/sdk`, and only `src/node.ts` calls `createLlmClient`. Task 7 adds this second rule to the architecture test, which finds `createLlmClient` call sites via the TS AST.
   - `localhost:4001` appears in `src/` only in `src/env.ts`.
   - The spike's script is never committed.
   - The architecture test enforces this.
@@ -702,7 +702,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
     1. `input = def.input.parse(def.select(state, catalog))`. A failure is an `InternalError`.
     2. `inputHash = hashOf({ stage, version, fingerprint: def.fingerprint(input, catalog) })`.
     3. Emit `stage:start` and upsert the row `running`.
-    4. Create `attempt = Deadline(timeout)` and `cap = Deadline(timeout × (1 + retry.validation))`, with `signal = AbortSignal.any([req.signal, attempt.signal, cap.signal])`. The reporter maps `beginAttempt` → `attempt.restart()`, `extendDeadline` → both deadlines + `backoffMs`, and `warn` → `stage:warning`.
+    4. Create `attempt = Deadline(timeout)` and `cap = Deadline(timeout × (1 + retry.validation))`, with `signal = AbortSignal.any([req.signal, attempt.signal, cap.signal])`. The reporter maps `beginAttempt` → `meter.assertCanSpend()` and then `attempt.restart()` (the pre-call budget check; spec §4 "checked before and after every LLM call"), `extendDeadline` → both deadlines + `backoffMs`, and `warn` → `stage:warning`.
     5. Race `def.run` against `signal`. On abort, await the run settling (≤ `SETTLE_GRACE_MS`), then classify: `req.signal.aborted` → its reason (a `CancelledError`, possibly "ownership lost"); a fired deadline → `TimeoutError`; otherwise `toHarnessError`.
     6. On success: `def.output.parse`, write the artifact, upsert `succeeded` with the summary, emit `stage:done{backoffMs, summary, inputHash}`.
     7. On failure: write the artifact with `error`, upsert `failed`, emit `stage:error`, rethrow.
@@ -715,6 +715,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
   - `identical input runs again (no caching) and upserts the same row`.
   - `warn → stage:warning`.
   - `per-attempt timeout with beginAttempt restarts succeeds`.
+  - `beginAttempt after the budget is spent → BudgetError, no LLM call` (the production reporter, not the test double).
   - `single attempt over 50 ms → "stage content exceeded 50 ms"`.
   - `overall cap at timeout × 2 with retry.validation 1`.
   - `extendDeadline postpones the timeout and is reported as backoffMs`.

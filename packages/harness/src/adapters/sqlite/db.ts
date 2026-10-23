@@ -1,8 +1,8 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 import { drizzle, type SqliteRemoteDatabase, type SqliteRemoteResult } from "drizzle-orm/sqlite-proxy";
-import { migrate } from "drizzle-orm/sqlite-proxy/migrator";
 import * as schema from "./schema.ts";
 
 export type Db = SqliteRemoteDatabase<typeof schema>;
@@ -24,31 +24,17 @@ const MIGRATIONS_DIR = fileURLToPath(new URL("../../../drizzle", import.meta.url
 const BUSY_TIMEOUT_MS = 5_000;
 
 /**
- * Opens and migrates the database. Safe when several processes (or connections) open the same fresh
- * file at once: the WAL switch is retried while busy, and the whole migration, including drizzle's
- * check of what is already applied, runs in one BEGIN IMMEDIATE.
+ * Opens and migrates the database. Safe when several processes or connections open the same fresh
+ * file at once: the WAL switch is retried while busy, and the migration, including the check of
+ * what is already applied, runs synchronously in one BEGIN IMMEDIATE.
  */
 export async function openSqlite(path: string): Promise<Sqlite> {
   const raw = new DatabaseSync(path, { timeout: BUSY_TIMEOUT_MS });
   try {
-    // Switching to WAL can report BUSY without consulting the busy handler.
-    await whileBusy(raw, () => raw.exec("PRAGMA journal_mode = WAL"));
+    await enableWal(raw, path);
     raw.exec("PRAGMA foreign_keys = ON");
+    immediate(raw, () => migrateSync(raw, readMigrationFiles({ migrationsFolder: MIGRATIONS_DIR })));
     const db = drizzle(async (sql, params, method) => execute(raw, sql, params, method), { schema });
-    await whileBusy(raw, () => raw.exec("BEGIN IMMEDIATE"));
-    try {
-      await migrate(
-        db,
-        async (queries) => {
-          for (const q of queries) raw.exec(q);
-        },
-        { migrationsFolder: MIGRATIONS_DIR },
-      );
-      raw.exec("COMMIT");
-    } catch (e) {
-      if (raw.isTransaction) raw.exec("ROLLBACK");
-      throw e;
-    }
     return { db, raw, close: () => raw.close() };
   } catch (e) {
     raw.close();
@@ -56,28 +42,45 @@ export async function openSqlite(path: string): Promise<Sqlite> {
   }
 }
 
+const MIGRATIONS_TABLE = "__drizzle_migrations";
+
+/**
+ * drizzle's sqlite migrator, made synchronous so no transaction spans an await: same bookkeeping
+ * table, and a migration is pending when its folder time is newer than the last applied one.
+ */
+function migrateSync(raw: DatabaseSync, migrations: MigrationMeta[]): void {
+  raw.exec(`CREATE TABLE IF NOT EXISTS "${MIGRATIONS_TABLE}" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)`);
+  const last = raw.prepare(`SELECT created_at FROM "${MIGRATIONS_TABLE}" ORDER BY created_at DESC LIMIT 1`).get() as
+    | { created_at: number | string }
+    | undefined;
+  const record = raw.prepare(`INSERT INTO "${MIGRATIONS_TABLE}" ("hash", "created_at") VALUES (?, ?)`);
+  for (const m of migrations) {
+    if (last && Number(last.created_at) >= m.folderMillis) continue;
+    for (const statement of m.sql) raw.exec(statement);
+    record.run(m.hash, m.folderMillis);
+  }
+}
+
 const isBusy = (e: unknown) => ((e as { errcode?: number }).errcode ?? 0) % 256 === 5; // SQLITE_BUSY*
 
 /**
- * Retries `fn` while the database is busy, for at most BUSY_TIMEOUT_MS, polling with timers instead
- * of the blocking busy handler. A blocking wait here would freeze the event loop while another
- * connection in this process is mid-migration (drizzle's migrator is async), so neither could finish.
+ * Switching to WAL can report BUSY without consulting the busy handler, so it is retried on timers
+ * for at most BUSY_TIMEOUT_MS. Fails unless the database ends up in WAL (":memory:" stays "memory").
  */
-async function whileBusy(raw: DatabaseSync, fn: () => void): Promise<void> {
-  raw.exec("PRAGMA busy_timeout = 0");
-  try {
-    const deadline = performance.now() + BUSY_TIMEOUT_MS;
-    for (;;) {
-      try {
-        return fn();
-      } catch (e) {
-        if (!isBusy(e) || performance.now() >= deadline) throw e;
-      }
-      await delay(5 + Math.random() * 20);
+async function enableWal(raw: DatabaseSync, path: string): Promise<void> {
+  const deadline = performance.now() + BUSY_TIMEOUT_MS;
+  let mode: unknown;
+  for (;;) {
+    try {
+      mode = (raw.prepare("PRAGMA journal_mode = WAL").get() as { journal_mode?: unknown } | undefined)?.journal_mode;
+      break;
+    } catch (e) {
+      if (!isBusy(e) || performance.now() >= deadline) throw e;
     }
-  } finally {
-    raw.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+    await delay(5 + Math.random() * 20);
   }
+  const expected = path === ":memory:" ? "memory" : "wal";
+  if (mode !== expected) throw new Error(`could not enable WAL on ${path}: journal_mode is ${String(mode)}`);
 }
 
 // The sqlite-proxy contract: `all`/`values` return rows as value arrays, `get` one value array.

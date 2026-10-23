@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { and, eq, inArray, lt, notInArray, or } from "drizzle-orm";
 import { ZERO_USAGE, type JobStatus } from "../../kernel/contracts.ts";
-import type { Store } from "../../kernel/ports.ts";
+import type { Logger, Store } from "../../kernel/ports.ts";
 import { createFsArtifacts } from "../fs-artifacts.ts";
 import { allSync, changesOf, immediate, openSqlite, runSync } from "./db.ts";
 import { eventReads, jobReads, json, stageReads } from "./repos.ts";
@@ -15,12 +15,23 @@ export type SqliteStoreOptions = {
   /** A file path, or ":memory:". */
   dbPath: string;
   jobsDir: string;
+  /** Receives best-effort failures, such as a temp file sweep that could not finish. */
+  logger?: Logger;
 };
 
-export async function createSqliteStore({ dbPath, jobsDir }: SqliteStoreOptions): Promise<Store> {
+export async function createSqliteStore({ dbPath, jobsDir, logger }: SqliteStoreOptions): Promise<Store> {
   if (dbPath !== ":memory:") await mkdir(dirname(dbPath), { recursive: true });
   const { db, raw } = await openSqlite(dbPath);
   const files = createFsArtifacts(jobsDir);
+
+  // Runs after ownership is committed, so it must never fail the claim or createJob.
+  const sweep = async (jobId: string) => {
+    try {
+      await files.sweepTemp(jobId);
+    } catch (e) {
+      logger?.warn("temp file sweep failed", { jobId, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
 
   return {
     jobs: jobReads(db),
@@ -42,7 +53,7 @@ export async function createSqliteStore({ dbPath, jobsDir }: SqliteStoreOptions)
         usageJson: json(ZERO_USAGE),
         distDir: null,
       });
-      await files.sweepTemp(id);
+      await sweep(id);
       return createSession(db, files, id, ownerId);
     },
 
@@ -53,7 +64,7 @@ export async function createSqliteStore({ dbPath, jobsDir }: SqliteStoreOptions)
         .where(and(eq(jobs.id, id), or(notInArray(jobs.status, LIVE), lt(jobs.heartbeatAt, staleBefore))));
       if (changesOf(result).changes === 0) return null;
       // A previous owner may have crashed mid-write; its temp files are ours to clear now.
-      await files.sweepTemp(id);
+      await sweep(id);
       return createSession(db, files, id, ownerId);
     },
 

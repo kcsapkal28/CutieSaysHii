@@ -1,11 +1,18 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createFsArtifacts } from "../../src/adapters/fs-artifacts.ts";
+import { createFsArtifacts, type FsArtifacts } from "../../src/adapters/fs-artifacts.ts";
+import { openSqlite } from "../../src/adapters/sqlite/db.ts";
+import { jobs } from "../../src/adapters/sqlite/schema.ts";
+import { createSession } from "../../src/adapters/sqlite/session.ts";
+import { createSqliteStore } from "../../src/adapters/sqlite/store.ts";
 import type { AcceptedDoc } from "../../src/kernel/contracts.ts";
-import { CorruptArtifactError, InputError, InternalError } from "../../src/kernel/errors.ts";
+import { CancelledError, CorruptArtifactError, InputError, InternalError, OWNERSHIP_LOST } from "../../src/kernel/errors.ts";
 import type { JobSession, Store } from "../../src/kernel/ports.ts";
 import { FakeClock } from "../helpers/clock.ts";
+import { recordingLogger, type LogEntry } from "../helpers/context.ts";
 import { memoryStore, type MemoryStore } from "../helpers/store.ts";
 import { artifactOf, newJob, tinyDeck } from "./fixtures.ts";
 
@@ -127,6 +134,68 @@ describe("artifacts", () => {
       expect(() => files.jobDir(id)).toThrow(InputError);
       await expect(files.read(id, "content", 0)).rejects.toBeInstanceOf(InputError);
     }
+  });
+});
+
+describe("temp sweep and rename races", () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "deckforge-jobs-"));
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("a failing temp sweep is logged and never strands claim or createJob", async () => {
+    await mkdir(join(dir, "j_1"), { recursive: true });
+    await writeFile(join(dir, "j_1", "accepted"), "a file where the accepted dir should be");
+    const logs: LogEntry[] = [];
+    const store = await createSqliteStore({ dbPath: ":memory:", jobsDir: dir, logger: recordingLogger(logs) });
+    const a = await store.createJob(newJob("j_1"));
+    await a.updateJob({ status: "failed", updatedAt: 2_000 });
+    expect(await store.claim("j_1", "B", 3_000, 0)).toMatchObject({ ownerId: "B" });
+    expect(logs.filter((l) => l.level === "warn").map((l) => [l.message, l.data?.jobId])).toEqual([
+      ["temp file sweep failed", "j_1"],
+      ["temp file sweep failed", "j_1"],
+    ]);
+    await store.close();
+
+    const quiet = await createSqliteStore({ dbPath: ":memory:", jobsDir: dir });
+    await expect(quiet.createJob(newJob("j_1"))).resolves.toMatchObject({ ownerId: "A" });
+    await quiet.close();
+  });
+
+  it("a rename that fails with ENOENT is ownership lost when another owner took the job, else rethrown", async () => {
+    const { db, close } = await openSqlite(":memory:");
+    const row = { status: "running" as const, briefJson: "{}", choicesJson: "{}", heartbeatAt: 1, createdAt: 1, updatedAt: 1, usageJson: "{}" };
+    await db.insert(jobs).values([
+      { id: "j_1", ownerId: "A", ...row },
+      { id: "j_2", ownerId: "A", ...row },
+    ]);
+    let stealFrom: string | undefined;
+    // Stands in for B claiming the job and sweeping A's temp file between A's write and rename.
+    const renameFails = async (jobId: string) => {
+      if (stealFrom === jobId) await db.update(jobs).set({ ownerId: "B" }).where(eq(jobs.id, jobId));
+      throw Object.assign(new Error("ENOENT: no such file or directory, rename"), { code: "ENOENT" });
+    };
+    const files: FsArtifacts = {
+      ...createFsArtifacts(dir),
+      write: (artifact) => renameFails(artifact.jobId),
+      writeAccepted: (jobId) => renameFails(jobId),
+    };
+    const doc: AcceptedDoc = { kind: "deck", revision: 1, source: { stage: "content", iteration: 0 }, deck: tinyDeck };
+    const s1 = createSession(db, files, "j_1", "A");
+    const s2 = createSession(db, files, "j_2", "A");
+
+    await expect(s1.writeArtifact(artifactOf("j_1", "content", 0))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(s2.writeAccepted(doc)).rejects.toMatchObject({ code: "ENOENT" });
+
+    const lost = (e: unknown) => e instanceof CancelledError && e.reason === OWNERSHIP_LOST;
+    stealFrom = "j_1";
+    await expect(s1.writeArtifact(artifactOf("j_1", "content", 0))).rejects.toSatisfy(lost);
+    stealFrom = "j_2";
+    await expect(s2.writeAccepted(doc)).rejects.toSatisfy(lost);
+    close();
   });
 });
 

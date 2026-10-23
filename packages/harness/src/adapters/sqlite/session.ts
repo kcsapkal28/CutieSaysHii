@@ -65,6 +65,17 @@ export function createSession(db: Db, files: FsArtifacts, jobId: string, ownerId
     if (!row) throw CancelledError.ownershipLost();
   };
 
+  // A new owner's claim sweeps temp files, so a write that loses its temp file mid-flight (ENOENT on
+  // rename) most likely lost the job: report that rather than the I/O error.
+  const ownedWrite = async <T>(write: () => Promise<T>): Promise<T> => {
+    try {
+      return await write();
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") await assertOwner();
+      throw e;
+    }
+  };
+
   const assertJob = (what: string, id: string) => {
     if (id !== jobId) throw new InternalError(`${what} for job ${id} written through the session of job ${jobId}`);
   };
@@ -111,7 +122,7 @@ export function createSession(db: Db, files: FsArtifacts, jobId: string, ownerId
     async writeArtifact(artifact) {
       assertJob("artifact", artifact.jobId);
       await assertOwner();
-      return files.write(artifact);
+      return ownedWrite(() => files.write(artifact));
     },
 
     async removeArtifact(stage, iteration) {
@@ -121,7 +132,7 @@ export function createSession(db: Db, files: FsArtifacts, jobId: string, ownerId
 
     async writeAccepted(doc) {
       await assertOwner();
-      await files.writeAccepted(jobId, doc);
+      await ownedWrite(() => files.writeAccepted(jobId, doc));
     },
   };
 }

@@ -110,6 +110,34 @@ describe("openSqlite", () => {
       '{"n":1}',
     ]);
   });
+
+  it("opening a migrated db never stalls a writer in the same process", async () => {
+    const path = join(dir, "sibling.sqlite");
+    const s1 = await createSqliteStore({ dbPath: path, jobsDir: join(dir, "jobs") });
+    const session = await s1.createJob(newJob("j_1", 1));
+    let stop = false;
+    let writes = 0;
+    let error: unknown;
+    const writer = (async () => {
+      while (!stop) {
+        try {
+          await session.heartbeat(++writes);
+        } catch (e) {
+          error = e;
+          stop = true;
+        }
+      }
+    })();
+    const t0 = performance.now();
+    for (let i = 0; i < 20 && !error; i++) (await openSqlite(path)).close();
+    const elapsed = performance.now() - t0;
+    stop = true;
+    await writer;
+    expect(error).toBeUndefined();
+    expect(writes).toBeGreaterThan(0);
+    expect(elapsed).toBeLessThan(1_000);
+    await s1.close();
+  });
 });
 
 describe("sqlite store", () => {

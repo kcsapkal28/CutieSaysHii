@@ -21,7 +21,10 @@ export type FsArtifacts = ArtifactReads & {
   write(artifact: StageArtifact): Promise<string>;
   remove(jobId: string, stage: StageName, iteration: number): Promise<void>;
   writeAccepted(jobId: string, doc: AcceptedDoc): Promise<void>;
-  /** Removes temp files a crashed writer left in the job dir; call only while owning the job. */
+  /**
+   * Removes temp files a crashed writer left in the job dir; call only while owning the job. Tries
+   * every file, then throws the first failure.
+   */
   sweepTemp(jobId: string): Promise<void>;
 };
 
@@ -88,16 +91,19 @@ export function createFsArtifacts(jobsDir: string): FsArtifacts {
 
     async sweepTemp(jobId) {
       assertJobId(jobId);
+      const failures: unknown[] = [];
       for (const dir of [abs(jobId), abs(`${jobId}/accepted`)]) {
         let names: string[];
         try {
           names = await readdir(dir);
         } catch (e) {
-          if ((e as NodeJS.ErrnoException).code === "ENOENT") continue;
-          throw e;
+          if ((e as NodeJS.ErrnoException).code !== "ENOENT") failures.push(e);
+          continue;
         }
-        await Promise.all(names.filter((n) => TEMP_FILE.test(n)).map((n) => rm(join(dir, n), { force: true })));
+        const removals = names.filter((n) => TEMP_FILE.test(n)).map((n) => rm(join(dir, n), { force: true }));
+        for (const r of await Promise.allSettled(removals)) if (r.status === "rejected") failures.push(r.reason);
       }
+      if (failures.length > 0) throw failures[0];
     },
 
     async read(jobId, stage, iteration) {

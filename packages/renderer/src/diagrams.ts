@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { chromium } from "playwright";
 import { diagramKey } from "./blocks/render.ts";
+import { legibleOn } from "./theme/compile.ts";
 import { assertSafe, UNSAFE_IN_QUOTES, UnsafeThemeValueError } from "./theme/safe.ts";
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -27,8 +28,10 @@ function themeVariables(theme: ThemeSpec): Record<string, string> {
     return value;
   };
   const { roles, type } = theme;
+  // Node labels use the text colour, so nodes are filled with surface: text/surface is the pair compile asserts.
   return {
-    primaryColor: colour("primary", roles.primary),
+    primaryColor: colour("surface", roles.surface),
+    primaryBorderColor: legibleOn(roles, colour("primary", roles.primary)),
     primaryTextColor: colour("text", roles.text),
     lineColor: colour("textMuted", roles.textMuted),
     background: colour("bg", roles.bg),
@@ -153,6 +156,8 @@ export async function renderDiagrams(
         const sanitise = (svg: string): string => {
           const doc = new DOMParser().parseFromString(svg, "text/html");
           clean(doc.body, false);
+          // The deck sizes the diagram to its region; mermaid's inline max-width would pin it at its natural size.
+          doc.body.querySelector("svg")?.style.removeProperty("max-width");
           return doc.body.innerHTML;
         };
 

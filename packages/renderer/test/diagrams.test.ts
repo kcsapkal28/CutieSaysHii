@@ -41,6 +41,15 @@ describe("renderDiagrams", () => {
     expect(svgs.get(diagramKey(source))?.startsWith("<svg")).toBe(true);
   }, 60_000);
 
+  // The deck sizes the diagram to its region, and node labels (text colour) sit on surface, the AA-checked pair.
+  it("svg has no fixed max-width and nodes are filled with the surface colour", async () => {
+    const source = "graph LR; A[Sunlight]-->B[Current]";
+    const svg = (await renderDiagrams([source], theme)).svgs.get(diagramKey(source)) ?? "";
+    const root = new JSDOM(svg).window.document.querySelector("svg");
+    expect(root?.getAttribute("style") ?? "").not.toMatch(/max-width/);
+    expect(svg.toLowerCase()).toMatch(new RegExp(`\\.node rect[^{]*\\{[^}]*fill:${theme.roles.surface.toLowerCase()}`));
+  }, 60_000);
+
   it("invalid mermaid yields a warning, not a throw", async () => {
     const source = "graph TD; A-->";
     const { svgs, warnings } = await renderDiagrams([source], theme);

@@ -20,6 +20,8 @@ export const StageEventSchema = z.discriminatedUnion("type", [
     status: JobStatusSchema,
     error: ErrorInfoSchema.nullable(),
     usage: TokenUsageSchema,
+    /** The promoted deck folder, null when no render succeeded. */
+    distDir: z.string().nullable(),
   }),
   z.object({ type: z.literal("stage:start"), ...stage }),
   z.object({ type: z.literal("stage:progress"), ...stage, message: z.string() }),
@@ -32,6 +34,8 @@ export const StageEventSchema = z.discriminatedUnion("type", [
     maxAttempts: z.number().int().min(1),
     waitMs: ms,
     detail: z.string(),
+    /** HTTP status behind a rate-limit or transient retry. */
+    status: z.number().int().optional(),
   }),
   z.object({
     type: z.literal("stage:done"),
@@ -52,6 +56,9 @@ export const STAGE_EVENT_TYPES = StageEventSchema.options.map((o) => o.shape.typ
 
 export type RetryReason = StageEventOf<"stage:retry">["reason"];
 
-/** A persisted event: `seq` is assigned by the store when the event is appended. */
+/**
+ * A persisted event. `seq` is assigned by the store on append: strictly increasing per job but not
+ * contiguous (jobs share one sequence), so consumers dedupe with `seq <= lastSeen`, never `seq === last + 1`.
+ */
 export const EventEnvelopeSchema = z.object({ seq: z.number().int().min(1), event: StageEventSchema });
 export type EventEnvelope = z.infer<typeof EventEnvelopeSchema>;

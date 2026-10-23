@@ -23,7 +23,7 @@ export const HEARTBEAT_MS = 5_000;
 export const STALE_AFTER_MS = 30_000;
 
 type RetryEvent = StageEventOf<"stage:retry">;
-export type RetryNotice = Pick<RetryEvent, "reason" | "attempt" | "maxAttempts" | "waitMs" | "detail">;
+export type RetryNotice = Pick<RetryEvent, "reason" | "attempt" | "maxAttempts" | "waitMs" | "detail" | "status">;
 
 export interface StageReporter {
   progress(message: string): void;

@@ -62,7 +62,17 @@ export async function makeTestContext(overrides: TestContextOptions = {}): Promi
   const report: StageReporter = {
     progress: (message) => events.push({ type: "stage:progress", ...common(), message }),
     warn: (message) => events.push({ type: "stage:warning", ...common(), message }),
-    retry: (notice) => events.push({ type: "stage:retry", ...common(), ...notice }),
+    retry: ({ reason, attempt, maxAttempts, waitMs, detail, status }) =>
+      events.push({
+        type: "stage:retry",
+        ...common(),
+        reason,
+        attempt,
+        maxAttempts,
+        waitMs,
+        detail,
+        ...(status === undefined ? {} : { status }),
+      }),
     attempt: (record) => attempts.push(record),
     usage: (usage) => meter.add(usage),
     beginAttempt: () => {

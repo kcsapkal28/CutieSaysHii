@@ -1,23 +1,6 @@
 import { z } from "zod";
 import type { PipelineState, StageName, StageSummary } from "../../src/kernel/contracts.ts";
-import {
-  BudgetError,
-  CancelledError,
-  InputError,
-  InternalError,
-  LlmAuthError,
-  LlmBadRequestError,
-  LlmConfigError,
-  LlmQuotaError,
-  LlmRefusalError,
-  LlmTransientError,
-  LlmUnreachableError,
-  RenderFailedError,
-  TimeoutError,
-  ValidationError,
-  type ErrorKind,
-  type HarnessError,
-} from "../../src/kernel/errors.ts";
+import { errorFromInfo, type ErrorKind, type HarnessError } from "../../src/kernel/errors.ts";
 import type { RetryPolicy, StageContext, StageDef } from "../../src/kernel/stage.ts";
 
 export const ToyIoSchema = z.object({ topic: z.string() });
@@ -116,35 +99,8 @@ export function throwStage(kind: ErrorKind, o: ToyOptions = {}): StageDef<ToyIo,
   });
 }
 
+export { errorFromInfo };
+
 export function errorOfKind(kind: ErrorKind, message = `toy ${kind}`): HarnessError {
-  switch (kind) {
-    case "input":
-      return new InputError(message);
-    case "validation":
-      return new ValidationError([{ path: "", code: "toy", message }], 1);
-    case "timeout":
-      return new TimeoutError("content", 50);
-    case "budget":
-      return new BudgetError(11, 10);
-    case "cancelled":
-      return new CancelledError(message);
-    case "llm_unreachable":
-      return new LlmUnreachableError("http://127.0.0.1:9");
-    case "llm_config":
-      return new LlmConfigError(message);
-    case "llm_auth":
-      return new LlmAuthError(message);
-    case "llm_quota":
-      return new LlmQuotaError(message);
-    case "llm_transient":
-      return new LlmTransientError(message);
-    case "llm_refusal":
-      return new LlmRefusalError("toy");
-    case "llm_bad_request":
-      return new LlmBadRequestError(message);
-    case "render":
-      return new RenderFailedError(message);
-    case "internal":
-      return new InternalError(message);
-  }
+  return errorFromInfo({ kind, message });
 }

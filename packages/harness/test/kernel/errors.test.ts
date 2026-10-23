@@ -4,7 +4,9 @@ import {
   CancelledError,
   CorruptArtifactError,
   ERROR_KINDS,
+  errorFromInfo,
   errorInfo,
+  OWNERSHIP_LOST,
   HarnessError,
   InputError,
   InternalError,
@@ -88,7 +90,8 @@ describe("error taxonomy", () => {
 
   it("CorruptArtifactError is an input error naming the file", () => {
     const e = new CorruptArtifactError("j_1/accepted/deck.json");
-    expect(e.kind).toBe("input");
+    const kind: "input" = e.kind;
+    expect(kind).toBe("input");
     expect(e).toBeInstanceOf(InputError);
     expect(e.relPath).toBe("j_1/accepted/deck.json");
     expect(e.message).toBe("artifact j_1/accepted/deck.json is missing or invalid");
@@ -121,6 +124,58 @@ describe("error taxonomy", () => {
 
     expect(toHarnessError("weird").message).toBe("weird");
     expect(toHarnessError(undefined).kind).toBe("internal");
+  });
+
+  it("ownership lost has one spelling", () => {
+    expect(OWNERSHIP_LOST).toBe("ownership lost");
+    const e = CancelledError.ownershipLost();
+    expect(e).toBeInstanceOf(CancelledError);
+    expect(e.message).toBe(OWNERSHIP_LOST);
+    expect(e.reason).toBe(OWNERSHIP_LOST);
+  });
+
+  it("toHarnessError maps an AbortError (the default abort() reason) to CancelledError", () => {
+    const ac = new AbortController();
+    ac.abort();
+    const fromSignal = toHarnessError(ac.signal.reason);
+    expect(fromSignal).toBeInstanceOf(CancelledError);
+    expect(fromSignal.message).toBe("cancelled");
+    expect(fromSignal.cause).toBe(ac.signal.reason);
+    expect(toHarnessError(new DOMException("x", "AbortError")).kind).toBe("cancelled");
+    expect(toHarnessError(new DOMException("x", "TimeoutError")).kind).toBe("internal");
+  });
+
+  it("errorFromInfo rebuilds every kind with its class, kind and message", () => {
+    for (const original of Object.values(one)) {
+      const info = errorInfo(original);
+      const rebuilt = errorFromInfo(info);
+      expect(rebuilt.constructor).toBe(original.constructor);
+      expect(rebuilt.kind).toBe(original.kind);
+      expect(rebuilt.message).toBe(original.message);
+      expect(rebuilt.retryable).toBe(original.retryable);
+      expect(errorInfo(rebuilt)).toEqual(info);
+    }
+  });
+
+  it("errorFromInfo recovers structured fields from canonical messages", () => {
+    const timeout = errorFromInfo(errorInfo(new TimeoutError("qa", 60_000)));
+    expect(timeout).toMatchObject({ stage: "qa", ms: 60_000 });
+    expect(errorFromInfo(errorInfo(new BudgetError(250_123, 250_000)))).toMatchObject({ used: 250_123, cap: 250_000 });
+    expect(errorFromInfo(errorInfo(new LlmUnreachableError("http://localhost:1234")))).toMatchObject({ baseUrl: "http://localhost:1234" });
+    expect(errorFromInfo(errorInfo(new LlmRefusalError("cyber")))).toMatchObject({ category: "cyber" });
+    expect(errorFromInfo(errorInfo(new ValidationError(issues, 3)))).toMatchObject({ issues, attempts: 3 });
+    expect(errorFromInfo(errorInfo(new CancelledError("ownership lost")))).toMatchObject({ reason: "ownership lost" });
+    const corrupt = errorFromInfo(errorInfo(new CorruptArtifactError("j_1/accepted/deck.json")));
+    expect(corrupt).toBeInstanceOf(CorruptArtifactError);
+    expect(corrupt).toMatchObject({ relPath: "j_1/accepted/deck.json" });
+  });
+
+  it("errorFromInfo keeps a non-canonical message verbatim", () => {
+    const e = errorFromInfo({ kind: "timeout", message: "took too long" });
+    expect(e).toBeInstanceOf(TimeoutError);
+    expect(e.message).toBe("took too long");
+    expect(errorFromInfo({ kind: "llm_transient", message: "529" })).toMatchObject({ kind: "llm_transient", message: "529", retryable: true });
+    expect(errorFromInfo({ kind: "input", message: "bad brief" }).constructor).toBe(InputError);
   });
 
   it("errorInfo is a plain serialisable record", () => {

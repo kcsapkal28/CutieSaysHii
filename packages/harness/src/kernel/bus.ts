@@ -27,7 +27,7 @@ export class EventBus {
     }
   }
 
-  /** `jobId` "*" receives every job's events. Returns an idempotent unsubscribe. */
+  /** Live delivery only; `jobId` "*" receives every job's events. Returns an idempotent unsubscribe. */
   subscribe(jobId: string, fn: EnvelopeListener): () => void {
     const set = this.#listeners.get(jobId) ?? new Set<EnvelopeListener>();
     this.#listeners.set(jobId, set);

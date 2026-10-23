@@ -12,7 +12,8 @@ const SRC = join(HARNESS, "src");
 const REPO = resolve(HARNESS, "../..");
 
 const PURE_LAYERS = ["kernel", "wire", "fakes", "validate", "agents", "design", "patches", "qa", "stages", "pipeline"];
-const PURE_NODE_BUILTINS = new Set(["node:path", "node:events", "node:util"]);
+// Empty on purpose: the "." export must stay browser-safe (Plan 5).
+const PURE_NODE_BUILTINS = new Set<string>();
 const PURE_WORKSPACE_IMPORTS = new Set(["@deckforge/schemas", "@deckforge/catalog", "@deckforge/renderer/hash"]);
 const PROCESS_ENV_FILES = new Set(["src/env.ts", "src/node.ts", "src/cli/main.ts"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".turbo", ".cache", "test-results", "playwright-report"]);
@@ -53,10 +54,24 @@ function topLevelMutables(text: string): string[] {
     .flatMap((s) => s.declarationList.declarations.map((d) => d.name.getText()));
 }
 
+const PROCESS_MODULES = new Set(["process", "node:process"]);
+
 function processEnvUses(text: string): number {
+  const file = parse(text);
+  const aliases = new Set(["process"]);
   let count = 0;
+  for (const st of file.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier)) continue;
+    if (!PROCESS_MODULES.has(st.moduleSpecifier.text) || !st.importClause) continue;
+    const { name, namedBindings } = st.importClause;
+    if (name) aliases.add(name.text);
+    if (namedBindings && ts.isNamespaceImport(namedBindings)) aliases.add(namedBindings.name.text);
+    if (namedBindings && ts.isNamedImports(namedBindings)) {
+      count += namedBindings.elements.filter((el) => (el.propertyName ?? el.name).text === "env").length;
+    }
+  }
+  const isProcess = (e: ts.Expression) => ts.isIdentifier(e) && aliases.has(e.text);
   const visit = (node: ts.Node): void => {
-    const isProcess = (e: ts.Expression) => ts.isIdentifier(e) && e.text === "process";
     if (ts.isPropertyAccessExpression(node) && isProcess(node.expression) && node.name.text === "env") count += 1;
     if (
       ts.isElementAccessExpression(node) &&
@@ -71,7 +86,7 @@ function processEnvUses(text: string): number {
     }
     ts.forEachChild(node, visit);
   };
-  visit(parse(text));
+  visit(file);
   return count;
 }
 
@@ -87,7 +102,7 @@ const allPackages = ["packages", "apps", "scripts"].flatMap((d) => walk(join(REP
 function pureImportViolation(source: Source, spec: string): string | null {
   if (spec.startsWith("node:") || isBuiltin(spec)) {
     const normalized = spec.startsWith("node:") ? spec : `node:${spec}`;
-    return PURE_NODE_BUILTINS.has(normalized) ? null : `${spec} (node builtin with I/O)`;
+    return PURE_NODE_BUILTINS.has(normalized) ? null : `${spec} (node builtin; pure layers stay browser-safe)`;
   }
   if (isRelative(spec)) {
     const target = resolve(dirname(source.abs), spec);
@@ -96,6 +111,10 @@ function pureImportViolation(source: Source, spec: string): string | null {
   if (isNodeEntry(spec)) return `${spec} (*/node entry)`;
   if (isPkg(spec, "@anthropic-ai/sdk") || isPkg(spec, "drizzle-orm")) return `${spec} (adapter dependency)`;
   return null;
+}
+
+function workspaceImportViolation(spec: string): string | null {
+  return isPkg(spec, "@deckforge") && !PURE_WORKSPACE_IMPORTS.has(spec) ? spec : null;
 }
 
 describe("architecture", () => {
@@ -133,7 +152,7 @@ describe("architecture", () => {
 
   it("pure layers import only @deckforge/schemas, @deckforge/catalog and exactly @deckforge/renderer/hash", () => {
     const offenders = pure.flatMap((s) =>
-      s.imports.filter((spec) => isPkg(spec, "@deckforge") && !PURE_WORKSPACE_IMPORTS.has(spec)).map((spec) => `${s.rel}: ${spec}`),
+      s.imports.filter((spec) => workspaceImportViolation(spec) !== null).map((spec) => `${s.rel}: ${spec}`),
     );
     expect(offenders).toEqual([]);
   });
@@ -173,6 +192,27 @@ describe("architecture detectors", () => {
 
   it("count process.env reads in every spelling", () => {
     expect(processEnvUses('const a = process.env.X; const b = process["env"]; const { env } = process; const p = processes.env;')).toBe(3);
+    expect(processEnvUses('import { env } from "node:process"; export const k = env.K;')).toBe(1);
+    expect(processEnvUses('import { env as e } from "process";')).toBe(1);
+    expect(processEnvUses('import proc from "node:process"; const k = proc.env.K;')).toBe(1);
+    expect(processEnvUses('import * as p from "node:process"; const k = p["env"];')).toBe(1);
+    expect(processEnvUses('import { argv } from "node:process"; const env = {}; const k = env;')).toBe(0);
+  });
+
+  it("allow exactly the whitelisted @deckforge imports", () => {
+    for (const ok of ["@deckforge/schemas", "@deckforge/catalog", "@deckforge/renderer/hash", "zod"]) {
+      expect(workspaceImportViolation(ok)).toBeNull();
+    }
+    for (const bad of [
+      "@deckforge/renderer",
+      "@deckforge/renderer/node",
+      "@deckforge/renderer/hash/x",
+      "@deckforge/catalog/node",
+      "@deckforge/schemas/src/deck.ts",
+      "@deckforge/harness",
+    ]) {
+      expect(workspaceImportViolation(bad)).toBe(bad);
+    }
   });
 
   it("classify pure-layer imports", () => {
@@ -181,11 +221,9 @@ describe("architecture detectors", () => {
     expect(why("./contracts.ts")).toBeNull();
     expect(why("../wire/schema.ts")).toBeNull();
     expect(why("zod")).toBeNull();
-    expect(why("node:path")).toBeNull();
-    expect(why("node:crypto")).toMatch(/I\/O/);
-    expect(why("fs")).toMatch(/I\/O/);
-    expect(why("node:fs/promises")).toMatch(/I\/O/);
-    expect(why("node:child_process")).toMatch(/I\/O/);
+    for (const builtin of ["node:path", "path", "node:events", "node:util", "node:crypto", "fs", "node:fs/promises", "node:child_process"]) {
+      expect(why(builtin)).toMatch(/node builtin/);
+    }
     expect(why("../adapters/fs-artifacts.ts")).toMatch(/outside the pure layers/);
     expect(why("../llm.ts")).toMatch(/src\/llm\.ts/);
     expect(why("../env.ts")).toMatch(/outside/);

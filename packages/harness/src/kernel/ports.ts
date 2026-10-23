@@ -46,6 +46,8 @@ export interface IdSource {
 
 export type RenderRequest = {
   jobId: string;
+  /** Names the staging dir, dist.tmp-<iteration>-<hex>. */
+  iteration: number;
   deck: DeckSpec;
   theme: ThemeSpec;
   motion: MotionPlan;
@@ -77,7 +79,10 @@ export interface StageReads {
 }
 
 export interface EventReads {
-  /** In seq order; only events with seq > afterSeq when given. */
+  /**
+   * One job's events in seq order; with `afterSeq`, only those with seq > afterSeq. Replay is per
+   * concrete jobId only: seq is not contiguous, so a "*" replay could not be resumed without gaps.
+   */
   list(jobId: string, afterSeq?: number): Promise<EventEnvelope[]>;
 }
 
@@ -96,7 +101,7 @@ export type JobPatch = Partial<Pick<JobRecord, "status" | "choices" | "error" | 
 
 /**
  * The only way to write a job. Every write is conditional on the session's ownerId; a write that
- * affects 0 rows throws CancelledError("ownership lost"). Filesystem writes run after a fenced
+ * affects 0 rows throws CancelledError.ownershipLost(). Filesystem writes run after a fenced
  * ownership check, so a small check-then-write window remains.
  */
 export interface JobSession {

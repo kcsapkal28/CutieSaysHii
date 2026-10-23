@@ -42,7 +42,7 @@ export abstract class HarnessError extends Error {
 }
 
 export class InputError extends HarnessError {
-  readonly kind: ErrorKind = "input";
+  readonly kind = "input" as const;
 }
 
 export class CorruptArtifactError extends InputError {
@@ -96,13 +96,20 @@ export class BudgetError extends HarnessError {
   }
 }
 
+export const OWNERSHIP_LOST = "ownership lost";
+
 export class CancelledError extends HarnessError {
   readonly kind = "cancelled";
   readonly reason: string;
 
-  constructor(reason = "cancelled") {
-    super(reason);
+  constructor(reason = "cancelled", options?: ErrorOptions) {
+    super(reason, options);
     this.reason = reason;
+  }
+
+  /** A fenced write affected 0 rows, or the heartbeat found another owner. */
+  static ownershipLost(): CancelledError {
+    return new CancelledError(OWNERSHIP_LOST);
   }
 }
 
@@ -167,8 +174,13 @@ export class InternalError extends HarnessError {
   readonly kind = "internal";
 }
 
+const isAbortError = (e: unknown) =>
+  typeof e === "object" && e !== null && (e as { name?: unknown }).name === "AbortError";
+
 export function toHarnessError(e: unknown): HarnessError {
   if (e instanceof HarnessError) return e;
+  // The default reason of AbortController#abort() and of aborted fetches.
+  if (isAbortError(e)) return new CancelledError("cancelled", { cause: e });
   if (e instanceof Error) return new InternalError(e.message, { cause: e });
   return new InternalError(typeof e === "string" ? e : `non-error thrown: ${String(e)}`, { cause: e });
 }
@@ -178,4 +190,67 @@ export function errorInfo(e: unknown): ErrorInfo {
   return h instanceof ValidationError
     ? { kind: h.kind, message: h.message, issues: h.issues }
     : { kind: h.kind, message: h.message };
+}
+
+const match = (re: RegExp, message: string) => re.exec(message)?.slice(1);
+const ungroup = (n: string) => Number(n.replaceAll(",", ""));
+
+/**
+ * Rebuilds a HarnessError from its stored or scripted ErrorInfo. The message is kept verbatim;
+ * structured fields are recovered when the message has its canonical form.
+ */
+export function errorFromInfo(info: ErrorInfo): HarnessError {
+  const { message } = info;
+  const e = rebuild(info);
+  e.message = message;
+  return e;
+}
+
+function rebuild({ kind, message, issues }: ErrorInfo): HarnessError {
+  switch (kind) {
+    case "input": {
+      const [relPath] = match(/^artifact (.+) is missing or invalid$/, message) ?? [];
+      return relPath ? new CorruptArtifactError(relPath) : new InputError(message);
+    }
+    case "validation": {
+      const [n] = match(/^output failed validation after (\d+) attempts?:/, message) ?? [];
+      return new ValidationError(issues ?? [], n ? Number(n) : 0);
+    }
+    case "timeout": {
+      // A runtime STAGE_NAMES import would cycle with contracts.ts; the canonical message only ever names a stage.
+      const [stage, ms] = match(/^stage (\S+) exceeded (\d+) ms$/, message) ?? ["content", "0"];
+      return new TimeoutError(stage as StageName, Number(ms));
+    }
+    case "budget": {
+      const [used, cap] =
+        match(/^token budget exceeded: ([\d,]+) > ([\d,]+)$/, message) ??
+        match(/^token budget exhausted: ([\d,]+) of ([\d,]+)$/, message) ??
+        [];
+      return new BudgetError(used ? ungroup(used) : 0, cap ? ungroup(cap) : 0);
+    }
+    case "cancelled":
+      return new CancelledError(message);
+    case "llm_unreachable": {
+      const [baseUrl] = match(/^LLM proxy not reachable at (\S+) — /, message) ?? [];
+      return new LlmUnreachableError(baseUrl ?? "");
+    }
+    case "llm_config":
+      return new LlmConfigError(message);
+    case "llm_auth":
+      return new LlmAuthError(message);
+    case "llm_quota":
+      return new LlmQuotaError(message);
+    case "llm_transient":
+      return new LlmTransientError(message);
+    case "llm_refusal": {
+      const [category] = match(/^the model refused the request \((.+)\)$/, message) ?? [];
+      return new LlmRefusalError(category ?? null);
+    }
+    case "llm_bad_request":
+      return new LlmBadRequestError(message);
+    case "render":
+      return new RenderFailedError(message);
+    case "internal":
+      return new InternalError(message);
+  }
 }

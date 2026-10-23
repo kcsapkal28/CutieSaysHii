@@ -22,8 +22,8 @@ const events: StageEvent[] = [
   { type: "job:queued", ...base },
   { type: "job:started", ...base, from: null, mode: "run" },
   { type: "job:started", ...base, from: "render", mode: "rerun" },
-  { type: "job:finished", ...base, status: "succeeded", error: null, usage },
-  { type: "job:finished", ...base, status: "failed", error: { kind: "timeout", message: "stage content exceeded 90000 ms" }, usage: ZERO_USAGE },
+  { type: "job:finished", ...base, status: "succeeded", error: null, usage, distDir: "jobs/j_1/dist" },
+  { type: "job:finished", ...base, status: "failed", error: { kind: "timeout", message: "stage content exceeded 90000 ms" }, usage: ZERO_USAGE, distDir: null },
   { type: "stage:start", ...base, stage: "content", iteration: 0 },
   { type: "stage:progress", ...base, stage: "content", iteration: 0, message: "calling claude-sonnet-5-5 (attempt 1/3)" },
   { type: "stage:warning", ...base, stage: "render", iteration: 1, message: "slide s02: df-tabs is not supported" },
@@ -37,6 +37,7 @@ const events: StageEvent[] = [
     maxAttempts: 5,
     waitMs: 2000,
     detail: "429",
+    status: 429,
   },
   ...summaries.map(
     (summary): StageEvent => ({
@@ -75,6 +76,14 @@ describe("StageEvent", () => {
     expect(StageEventSchema.safeParse({ type: "stage:nope", ...base }).success).toBe(false);
     expect(StageEventSchema.safeParse({ type: "job:queued", at: 1 }).success).toBe(false);
     expect(StageEventSchema.safeParse({ type: "stage:start", ...base, stage: "content", iteration: -1 }).success).toBe(false);
+  });
+
+  it("job:finished requires distDir (nullable); stage:retry status is optional", () => {
+    const finished = { type: "job:finished", ...base, status: "succeeded", error: null, usage };
+    expect(StageEventSchema.safeParse(finished).success).toBe(false);
+    expect(StageEventSchema.safeParse({ ...finished, distDir: null }).success).toBe(true);
+    const retry = { type: "stage:retry", ...base, stage: "content", iteration: 0, reason: "validation", attempt: 1, maxAttempts: 3, waitMs: 0, detail: "x" };
+    expect(StageEventSchema.parse(retry)).toEqual(retry);
   });
 
   it("envelopes carry a positive integer seq", () => {

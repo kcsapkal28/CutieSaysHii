@@ -1,9 +1,18 @@
+import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { BudgetError, CancelledError, InternalError, LlmQuotaError } from "../src/kernel/errors.ts";
+import {
+  BudgetError,
+  CancelledError,
+  ERROR_KINDS,
+  errorFromInfo as kernelErrorFromInfo,
+  InternalError,
+  LlmQuotaError,
+} from "../src/kernel/errors.ts";
 import { FakeClock } from "./helpers/clock.ts";
 import { makeTestContext } from "./helpers/context.ts";
-import { echoStage, errorOfKind, hangStage, throwStage, toyState } from "./helpers/stages.ts";
-import { ERROR_KINDS } from "../src/kernel/errors.ts";
+import { echoStage, errorFromInfo, errorOfKind, hangStage, throwStage, toyState } from "./helpers/stages.ts";
 import type { AnyStageDef } from "../src/kernel/stage.ts";
 
 const usage = (n: number) => ({ inputTokens: n, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
@@ -43,6 +52,33 @@ describe("FakeClock", () => {
     await expect(clock.sleep(1, ac.signal)).rejects.toBeInstanceOf(CancelledError);
   });
 
+  it("runUntilIdle fires timers in order and lets real I/O between them settle", async () => {
+    const clock = new FakeClock();
+    const dir = await mkdtemp(join(tmpdir(), "fake-clock-"));
+    const trail: string[] = [];
+    const work = (async () => {
+      await clock.sleep(100);
+      await writeFile(join(dir, "a.json"), "{}");
+      trail.push(`wrote@${clock.now()}`);
+      await clock.sleep(50);
+      await rename(join(dir, "a.json"), join(dir, "b.json"));
+      trail.push(`renamed@${clock.now()}`);
+    })();
+    const deadline = clock.sleep(1_000).then(() => trail.push(`deadline@${clock.now()}`));
+    await clock.runUntilIdle();
+    await Promise.all([work, deadline]);
+    expect(trail).toEqual(["wrote@100", "renamed@150", "deadline@1000"]);
+    expect(clock.pendingTimers()).toBe(0);
+    await rm(dir, { recursive: true });
+  });
+
+  it("runUntilIdle refuses to spin on a repeating timer", async () => {
+    const clock = new FakeClock();
+    const stop = clock.every(5, () => {});
+    await expect(clock.runUntilIdle({ ioGraceMs: 0, maxTimers: 10 })).rejects.toThrow("still pending after 10 timers");
+    stop();
+  });
+
   it("every repeats until stopped", async () => {
     const clock = new FakeClock();
     const ticks: number[] = [];
@@ -72,7 +108,8 @@ describe("makeTestContext", () => {
     const { ctx, events, attempts, meter, probe } = await makeTestContext({ stage: "design", iteration: 2, clock });
     ctx.report.progress("calling");
     ctx.report.warn("careful");
-    ctx.report.retry({ reason: "validation", attempt: 1, maxAttempts: 3, waitMs: 0, detail: "bad" });
+    const notice = { reason: "validation", attempt: 1, maxAttempts: 3, waitMs: 0, detail: "bad", extra: "dropped" } as const;
+    ctx.report.retry(notice);
     ctx.report.attempt({ n: 1, outcome: "ok", usage: usage(5), usageKnown: true, durationMs: 3 });
     ctx.report.usage(usage(5));
     ctx.report.beginAttempt();
@@ -141,5 +178,7 @@ describe("toy stages", () => {
     const { ctx } = await makeTestContext();
     await expect(throwStage("llm_quota").run({ topic: "t" }, ctx)).rejects.toBeInstanceOf(LlmQuotaError);
     for (const kind of ERROR_KINDS) expect(errorOfKind(kind).kind).toBe(kind);
+    expect(errorOfKind("llm_auth", "nope").message).toBe("nope");
+    expect(errorFromInfo).toBe(kernelErrorFromInfo);
   });
 });

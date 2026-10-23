@@ -53,9 +53,7 @@ export class FakeClock implements Clock {
     const target = this.#now + ms;
     for (;;) {
       await flushMicrotasks();
-      const next = [...this.#timers.values()]
-        .filter((t) => t.dueAt <= target)
-        .sort((a, b) => a.dueAt - b.dueAt || a.id - b.id)[0];
+      const next = this.#earliest(target);
       if (!next) break;
       this.#timers.delete(next.id);
       this.#now = next.dueAt;
@@ -65,8 +63,31 @@ export class FakeClock implements Clock {
     await flushMicrotasks();
   }
 
+  /**
+   * Fires every pending timer in due order, giving real I/O (file writes, renames) `ioGraceMs` of
+   * real time to settle before each one, so fake time moves only when the code is waiting on time.
+   * Throws after `maxTimers` firings, which means a repeating timer is still running.
+   */
+  async runUntilIdle({ ioGraceMs = 10, maxTimers = 1_000 }: { ioGraceMs?: number; maxTimers?: number } = {}): Promise<void> {
+    for (let fired = 0; ; fired++) {
+      await flushMicrotasks();
+      await new Promise<void>((resolve) => setTimeout(resolve, ioGraceMs));
+      await flushMicrotasks();
+      const next = this.#earliest(Infinity);
+      if (!next) return;
+      if (fired >= maxTimers) throw new Error(`runUntilIdle: timers still pending after ${maxTimers} timers (a running every()?)`);
+      this.#timers.delete(next.id);
+      this.#now = Math.max(this.#now, next.dueAt);
+      next.fire();
+    }
+  }
+
   pendingTimers(): number {
     return this.#timers.size;
+  }
+
+  #earliest(until: number): Timer | undefined {
+    return [...this.#timers.values()].filter((t) => t.dueAt <= until).sort((a, b) => a.dueAt - b.dueAt || a.id - b.id)[0];
   }
 
   #schedule(ms: number, fire: () => void): number {

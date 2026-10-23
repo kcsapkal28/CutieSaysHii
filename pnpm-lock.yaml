@@ -211,6 +211,9 @@ importers:
       '@deckforge/catalog':
         specifier: workspace:*
         version: link:../catalog
+      '@deckforge/renderer':
+        specifier: workspace:*
+        version: link:../renderer
       '@deckforge/schemas':
         specifier: workspace:*
         version: link:../schemas

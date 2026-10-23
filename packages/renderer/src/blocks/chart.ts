@@ -79,10 +79,23 @@ const inCompactUnit = (t: number) => t / (COMPACT_UNITS.find((u) => Math.abs(t) 
 
 const isCompact = (numbers: number[]) => Math.max(0, ...numbers.map(Math.abs)) >= COMPACT_FROM;
 
-export function labelPrecision(numbers: number[], compact: boolean): number {
-  const digits = decimalsOf(compact ? numbers.map(inCompactUnit) : numbers);
-  return Math.min(MAX_DECIMALS, Math.max(compact ? 1 : 2, digits));
+// Fewest decimals ≥ the floor that print every tick exactly and keep distinct values (and non-zero values vs 0) distinct.
+export function labelPrecision(values: number[], compact: boolean, ticks: number[] = []): number {
+  const inUnit = (ns: number[]) => (compact ? ns.map(inCompactUnit) : ns);
+  const floor = Math.max(compact ? 1 : 2, Math.min(2, decimalsOf(inUnit(values))));
+  const labelled = [0, ...values].sort((a, b) => a - b);
+  const distinct = (decimals: number) => new Set(labelled.map((v) => formatValue(v, undefined, { compact, decimals }))).size;
+  const target = labelled.filter((v, i) => i === 0 || v - labelled[i - 1]! > 1e-9 * Math.max(1, Math.abs(v))).length;
+  let d = Math.max(floor, decimalsOf(inUnit(ticks)));
+  while (d < MAX_DECIMALS && distinct(d) < target) d++;
+  return d;
 }
+
+const fitWidth = (body: string, room: number, size: number) => {
+  const chars = Array.from(body);
+  const max = Math.floor(room / textWidth("x", size));
+  return chars.length <= max ? body : `${chars.slice(0, Math.max(0, max - 1)).join("").trimEnd()}…`;
+};
 
 export function donutSlices(labels: string[], values: number[], max = 6): { label: string; value: number }[] {
   const slices = labels.map((label, i) => ({ label, value: finite(values[i] ?? 0) })).filter((s) => s.value > 0);
@@ -116,7 +129,7 @@ function cartesian(block: ChartBlock, values: number[][]): string {
   const compact = isCompact([...ticks, ...flat]);
   const candidates = block.kind === "bar" && values.length === 1 && n <= MAX_VALUE_LABELS ? values[0]! : [];
   const layout = (shown: number[]) => {
-    const fmt: ValueFormat = { compact, decimals: labelPrecision([...ticks, ...shown], compact) };
+    const fmt: ValueFormat = { compact, decimals: labelPrecision(shown, compact, ticks) };
     const tickText = ticks.map((t) => formatValue(t, unit, fmt));
     const left = Math.max(PLOT.left, Math.ceil(Math.max(0, ...tickText.map((t) => textWidth(t, 24))) + 32));
     const slot = n > 0 ? (PLOT.right - left) / n : PLOT.right - left;
@@ -190,6 +203,7 @@ function donut(block: ChartBlock, values: number[]): string {
   const cy = 320;
   const outer = 260;
   const inner = 156;
+  const legendX = 840;
   const slices = donutSlices(block.labels, values);
   const total = slices.reduce((a, s) => a + s.value, 0);
   const numbers = [...slices.map((s) => s.value), total];
@@ -224,10 +238,13 @@ function donut(block: ChartBlock, values: number[]): string {
   const rows = slices
     .map((s, i) => {
       const y = firstY + i * rowH;
-      return `${swatch(800, y - 12, 24, color(i))}${text(840, y + 9, "start", 26, `${s.label}: ${formatValue(s.value, block.unit, fmt)}`, "var(--df-text)")}`;
+      const row = fitWidth(`${s.label}: ${formatValue(s.value, block.unit, fmt)}`, W - legendX, 26);
+      return `${swatch(legendX - 40, y - 12, 24, color(i))}${text(legendX, y + 9, "start", 26, row, "var(--df-text)")}`;
     })
     .join("");
-  const center = text(cx, cy + 14, "middle", 40, formatValue(total, block.unit, fmt), "var(--df-text)");
+  const totalText = formatValue(total, block.unit, fmt);
+  const centreSize = Math.max(24, Math.min(40, Math.floor((inner * 2 * 0.85) / textWidth(totalText, 1))));
+  const center = text(cx, cy + centreSize * 0.35, "middle", centreSize, totalText, "var(--df-text)");
   return `<g class="df-plot">${plot}</g>${center}<g class="df-legend">${rows}</g>`;
 }
 

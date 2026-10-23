@@ -11,7 +11,7 @@ const texts = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].
 const fills = (s: string) => [...s.matchAll(/fill:([^;"]+)/g)].map((m) => m[1]!);
 const unescape = (s: string) => s.replace(/&lt;|&gt;|&quot;|&#39;|&amp;/g, " ");
 
-type Box = { cls: string; body: string; size: number; x0: number; x1: number; y0: number; y1: number };
+type Box = { cls: string; anchor: string; body: string; size: number; x0: number; x1: number; y0: number; y1: number };
 // Approximate text boxes: 0.6em per character, ascent 0.8em, descent 0.2em.
 const boxes = (svg: string): Box[] =>
   [
@@ -23,7 +23,7 @@ const boxes = (svg: string): Box[] =>
     const body = unescape(m[6]!);
     const w = body.length * size * 0.6;
     const x0 = m[4] === "end" ? x - w : m[4] === "middle" ? x - w / 2 : x;
-    return { cls: m[1] ?? "", body, size, x0, x1: x0 + w, y0: y - size * 0.8, y1: y + size * 0.2 };
+    return { cls: m[1] ?? "", anchor: m[4]!, body, size, x0, x1: x0 + w, y0: y - size * 0.8, y1: y + size * 0.2 };
   });
 const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
@@ -107,16 +107,29 @@ describe("formatValue", () => {
 });
 
 describe("labelPrecision", () => {
-  it("uses at least 2 digits plain and 1 compact, more when the numbers need them", () => {
+  it("uses at least 2 digits plain and 1 compact, 2 when compact values need them", () => {
     expect(labelPrecision([0, 500, 1000], false)).toBe(2);
-    expect(labelPrecision([0, 0.025, 0.125], false)).toBe(3);
     expect(labelPrecision([1e6, 2e9], true)).toBe(1);
     expect(labelPrecision([250_000, 1.25e6], true)).toBe(2);
-    expect(labelPrecision([1.234e6], true)).toBe(3);
+    expect(labelPrecision([1.234e6], true)).toBe(2);
+    expect(labelPrecision([33.333333, 66.666667], false)).toBe(2);
+    expect(labelPrecision([1 / 3], false)).toBe(2);
+  });
+
+  it("raises the precision until every tick is exact", () => {
+    expect(labelPrecision([], false, [0, 0.025, 0.125])).toBe(3);
+    expect(labelPrecision([1.1e6, 4e5], true, [0, 250_000, 1.25e6])).toBe(2);
+  });
+
+  it("raises the precision until distinct values print distinctly", () => {
+    expect(labelPrecision([1.234e6, 1.231e6], true)).toBe(3);
+    expect(labelPrecision([999_999, 1e6], true)).toBe(3);
+    expect(labelPrecision([0.001, 0.002], false)).toBe(3);
   });
 
   it("caps at 6", () => {
-    expect(labelPrecision([1 / 3], false)).toBe(6);
+    expect(labelPrecision([], false, [0, 2.5e-6, 5e-6])).toBe(6);
+    expect(labelPrecision([1e-8, 2e-8], false)).toBe(6);
   });
 });
 
@@ -254,11 +267,64 @@ describe("chartSvg", () => {
   });
 
   const donutRows = (values: number[]) => {
-    const svg = chartSvg({ ...bar, kind: "donut", labels: ["a", "b"], series: [{ name: "s", values }] }, { title: "T" });
+    const labels = ["a", "b"].slice(0, values.length);
+    const svg = chartSvg({ ...bar, kind: "donut", labels, series: [{ name: "s", values }] }, { title: "T" });
     const rows = texts(/<g class="df-legend">([\s\S]*?)<\/g>/.exec(svg)![1]!);
-    const centre = boxes(svg).find((b) => b.size === 40)!.body;
+    const centre = boxes(svg).find((b) => b.anchor === "middle")!.body;
     return { rows, centre };
   };
+
+  it("messy fractional data keeps two decimals in direct labels and donut values", () => {
+    expect(valueBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [33.333333, 66.666667] }] })).toEqual([
+      "33.33",
+      "66.67",
+    ]);
+    expect(donutRows([33.333333, 66.666667])).toEqual({ rows: ["a: 33.33", "b: 66.67"], centre: "100" });
+  });
+
+  it("round compact values keep the digits their values need", () => {
+    expect(valueBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [1.25e6, 2.5e6] }] })).toEqual([
+      "1.25M",
+      "2.5M",
+    ]);
+  });
+
+  it("compact values that round together gain digits until distinct", () => {
+    expect(valueBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [999_999, 1e6] }] })).toEqual([
+      "999.999K",
+      "1M",
+    ]);
+    expect(donutRows([999_999, 1e6]).rows).toEqual(["a: 999.999K", "b: 1M"]);
+    expect(donutRows([1.234e6, 1.231e6])).toEqual({ rows: ["a: 1.234M", "b: 1.231M"], centre: "2.465M" });
+  });
+
+  it("long compact fractions print two decimals", () => {
+    const one = { ...bar, labels: ["a"], series: [{ name: "s", values: [33.333333e6] }] };
+    expect(valueBodies(one)).toEqual(["33.33M"]);
+    expect(donutRows([33.333333e6])).toEqual({ rows: ["a: 33.33M"], centre: "33.33M" });
+  });
+
+  it("donut centre shrinks to fit inside the hole", () => {
+    const svg = chartSvg(
+      { ...bar, kind: "donut", labels: ["a", "b"], series: [{ name: "s", values: [10, 20.123456] }], unit: "kWh/year" },
+      { title: "T" },
+    );
+    const centre = boxes(svg).find((b) => b.anchor === "middle")!;
+    expect(centre.body).toBe("30.12 kWh/year");
+    expect(centre.size).toBeGreaterThanOrEqual(24);
+    expect(centre.x1 - centre.x0).toBeLessThanOrEqual(2 * 156 * 0.85);
+    expect(boxes(chartSvg({ ...bar, kind: "donut" }, { title: "T" })).find((b) => b.anchor === "middle")!.size).toBe(40);
+  });
+
+  it("donut legend rows truncate with an ellipsis inside the viewBox", () => {
+    const long = "x".repeat(120);
+    const svg = chartSvg({ ...bar, kind: "donut", labels: [long, "b"], series: [{ name: "s", values: [3, 4] }] }, { title: "T" });
+    const rows = boxes(svg).filter((b) => b.anchor === "start");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.body.endsWith("…")).toBe(true);
+    for (const r of rows) expect(r.x1, r.body).toBeLessThanOrEqual(1600);
+    expect(rows[1]!.body).toBe("b: 4");
+  });
 
   it("donut compact legend and centre keep the digits their values need", () => {
     expect(donutRows([1.25e6, 2.5e6])).toEqual({ rows: ["a: 1.25M", "b: 2.5M"], centre: "3.75M" });

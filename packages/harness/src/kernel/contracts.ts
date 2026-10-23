@@ -164,7 +164,10 @@ export type StageRecord = {
   finishedAt: number | null;
   durationMs: number | null;
   backoffMs: number;
-  /** Number of attempts made; the per-attempt detail lives in the artifact. */
+  /**
+   * Number of LLM attempts the stage reported; the per-attempt detail lives in the artifact. Render
+   * and QA report none, so their rows record 0.
+   */
   attempts: number;
   usage: TokenUsage;
   summary: StageSummary | null;

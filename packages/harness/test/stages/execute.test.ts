@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -184,6 +185,7 @@ describe("executeStage", () => {
     expect(r.meter.usage).toEqual(usage(120));
     // The deadlines were disposed, not merely outrun: the idle clock fired everything left.
     expect(stageSignal?.aborted).toBe(false);
+    expect(getEventListeners(stageSignal!, "abort")).toEqual([]);
   });
 
   it("upserts the row running before the stage runs", async () => {
@@ -539,6 +541,91 @@ describe("executeStage", () => {
     });
   });
 
+  describe("persistence failures", () => {
+    const busy = () => Object.assign(new Error("database is locked"), { code: "ERR_SQLITE_ERROR", errcode: 5 });
+    const persistFailure = (e: unknown) =>
+      e instanceof InternalError && e.message === "stage content persist: database is locked" && e.cause instanceof Error;
+
+    it("a failed success write fails the stage with a typed InternalError, recorded best-effort", async () => {
+      const r = await rig();
+      const write = vi.spyOn(r.session, "writeArtifact").mockRejectedValueOnce(busy());
+
+      const out = await exec(r, echoStage());
+
+      expect(failure(out)).toSatisfy(persistFailure);
+      expect(write).toHaveBeenCalledTimes(2);
+      const info = { kind: "internal", message: "stage content persist: database is locked" };
+      expect(await rowOf(r)).toMatchObject({ status: "failed", artifactPath: "j_1/content.json", error: info, summary: null });
+      expect(await artifactOf(r)).toMatchObject({ output: null, error: info });
+      expect(types(r.events)).toEqual(["stage:start", "stage:error"]);
+      expect(r.events.at(-1)).toMatchObject({ error: info });
+    });
+
+    it("a failed succeeded-row upsert fails the stage and leaves no row running", async () => {
+      const r = await rig();
+      const real = r.session.upsertStage.bind(r.session);
+      const upsert = vi.spyOn(r.session, "upsertStage").mockImplementation(async (record) => {
+        if (record.status === "succeeded") throw busy();
+        return real(record);
+      });
+
+      const out = await exec(r, echoStage());
+
+      expect(failure(out)).toSatisfy(persistFailure);
+      expect(upsert.mock.calls.map(([row]) => row.status)).toEqual(["running", "succeeded", "failed"]);
+      expect(await rowOf(r)).toMatchObject({ status: "failed", error: { kind: "internal" } });
+      expect(types(r.events)).toEqual(["stage:start", "stage:error"]);
+    });
+
+    it("a failed failure write keeps the stage's own error primary and still marks the row failed", async () => {
+      const r = await rig();
+      const error = new ValidationError([{ path: "slides", code: "too_small", message: "too few" }], 3);
+      const writeError = busy();
+      vi.spyOn(r.session, "writeArtifact").mockRejectedValueOnce(writeError);
+      const def = stage({}, async () => {
+        throw error;
+      });
+
+      const out = await exec(r, def);
+
+      expect(failure(out)).toBe(error);
+      expect((error as ValidationError & { suppressed?: unknown[] }).suppressed).toEqual([writeError]);
+      const info = { kind: "validation", message: error.message, issues: error.issues };
+      expect(await rowOf(r)).toMatchObject({ status: "failed", artifactPath: null, error: info });
+      expect(await artifactOf(r)).toBeUndefined();
+      expect(types(r.events)).toEqual(["stage:start", "stage:error"]);
+      expect(r.events.at(-1)).toMatchObject({ error: info });
+      expect(r.logs).toContainEqual(
+        expect.objectContaining({ level: "error", message: expect.stringContaining("could not record its failure") }),
+      );
+    });
+
+    it("a failed running-row upsert is a typed InternalError; nothing runs or is emitted", async () => {
+      const r = await rig();
+      vi.spyOn(r.session, "upsertStage").mockRejectedValueOnce(busy());
+      const run = vi.fn(async (input: ToyIo) => input);
+
+      const out = await exec(r, stage({}, run));
+
+      expect(failure(out)).toSatisfy(persistFailure);
+      expect(run).not.toHaveBeenCalled();
+      expect(r.events).toEqual([]);
+      expect(await r.m.store.stages.list("j_1")).toEqual([]);
+    });
+
+    it("ownership lost on a write still outranks a persistence failure", async () => {
+      const r = await rig();
+      vi.spyOn(r.session, "writeArtifact").mockRejectedValueOnce(CancelledError.ownershipLost());
+      const upsert = vi.spyOn(r.session, "upsertStage");
+
+      const out = await exec(r, echoStage());
+
+      expect(failure(out)).toSatisfy((e) => e instanceof CancelledError && e.reason === OWNERSHIP_LOST);
+      expect(upsert.mock.calls.map(([row]) => row.status)).toEqual(["running"]);
+      expect(types(r.events)).toEqual(["stage:start"]);
+    });
+  });
+
   describe("failures", () => {
     it("failed stage writes artifact with input and error", async () => {
       const r = await rig();
@@ -618,6 +705,18 @@ describe("executeStage", () => {
         expect(failure(out)).toBeInstanceOf(InternalError);
         expect(failure(out)).toMatchObject({ message: expect.stringContaining("stage content input") });
       }
+      expect(r.events).toEqual([]);
+      expect(await r.m.store.stages.list("j_1")).toEqual([]);
+    });
+
+    it("a fingerprint that cannot be hashed → InternalError, before any write", async () => {
+      const r = await rig();
+      const def = { ...echoStage(), fingerprint: () => ({ n: 1n }) };
+
+      const out = await exec(r, def);
+
+      expect(failure(out)).toBeInstanceOf(InternalError);
+      expect(failure(out)).toMatchObject({ message: expect.stringContaining("stage content input") });
       expect(r.events).toEqual([]);
       expect(await r.m.store.stages.list("j_1")).toEqual([]);
     });

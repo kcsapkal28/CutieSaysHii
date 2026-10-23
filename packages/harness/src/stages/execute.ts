@@ -55,12 +55,11 @@ const ABORTED = Symbol("aborted");
  * artifact and the events through the job's fenced session. Every call runs the stage (no caching).
  */
 export async function executeStage<I, O>(def: StageDef<I, O>, req: StageRequest, env: ExecutorEnv): Promise<O> {
-  const { clock, catalog } = env.ports;
+  const { clock, catalog, logger } = env.ports;
   const { session } = env;
   if (req.signal.aborted) throw toHarnessError(req.signal.reason);
 
-  const { input, fingerprint } = prepare(def, req.state, catalog);
-  const inputHash = hashOf({ stage: def.name, version: def.version, fingerprint });
+  const { input, fingerprint, inputHash } = prepare(def, req.state, catalog);
   const key = { jobId: session.jobId, stage: def.name, iteration: req.iteration };
   const startedAt = clock.now();
   const attempts: AttemptRecord[] = [];
@@ -71,7 +70,6 @@ export async function executeStage<I, O>(def: StageDef<I, O>, req: StageRequest,
     if (open) env.emit(e);
   };
 
-  emit({ type: "stage:start", ...key, at: startedAt });
   const row = (patch: Partial<StageRecord>): StageRecord => ({
     ...key,
     status: "running",
@@ -87,7 +85,9 @@ export async function executeStage<I, O>(def: StageDef<I, O>, req: StageRequest,
     error: null,
     ...patch,
   });
-  await session.upsertStage(row({}));
+  // A stage whose row cannot be written never starts.
+  await persist(def.name, () => session.upsertStage(row({})));
+  emit({ type: "stage:start", ...key, at: startedAt });
 
   const timeoutMs = env.timeouts?.[def.name] ?? def.timeoutMs;
   const deadlineOptions = { stage: def.name, maxExtensionMs: MAX_BACKOFF_MS, clock };
@@ -160,20 +160,60 @@ export async function executeStage<I, O>(def: StageDef<I, O>, req: StageRequest,
 
   if (outcome.ok) {
     const { output, summary } = outcome;
-    const artifactPath = await session.writeArtifact({ ...artifact, output, error: null });
-    await session.upsertStage(row({ status: "succeeded", artifactPath, finishedAt, durationMs, summary }));
-    env.emit({ type: "stage:done", ...key, at: finishedAt, durationMs, backoffMs, usage, inputHash, summary });
-    return output;
+    try {
+      const artifactPath = await persist(def.name, () => session.writeArtifact({ ...artifact, output, error: null }));
+      await persist(def.name, () =>
+        session.upsertStage(row({ status: "succeeded", artifactPath, finishedAt, durationMs, summary })),
+      );
+      env.emit({ type: "stage:done", ...key, at: finishedAt, durationMs, backoffMs, usage, inputHash, summary });
+      return output;
+    } catch (e) {
+      outcome = { ok: false, error: toHarnessError(e) };
+    }
   }
 
   const { error } = outcome;
   // The new owner holds the job now: write nothing, not even the failure.
-  if (error instanceof CancelledError && error.reason === OWNERSHIP_LOST) throw error;
+  if (isOwnershipLost(error)) throw error;
   const info = errorInfo(error);
-  const artifactPath = await session.writeArtifact({ ...artifact, output: null, error: info });
-  await session.upsertStage(row({ status: "failed", artifactPath, finishedAt, durationMs, error: info }));
+  // Best effort: the stage's own error stays primary; a write that fails is attached and logged.
+  const record = async <T>(write: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await write();
+    } catch (e) {
+      if (isOwnershipLost(e)) throw e;
+      suppress(error, e);
+      logger.error(`stage ${def.name} could not record its failure`, {
+        jobId: key.jobId,
+        iteration: key.iteration,
+        error: info.message,
+        writeError: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }
+  };
+  const artifactPath = await record(() => session.writeArtifact({ ...artifact, output: null, error: info }));
+  await record(() => session.upsertStage(row({ status: "failed", artifactPath, finishedAt, durationMs, error: info })));
   env.emit({ type: "stage:error", ...key, at: finishedAt, error: info, durationMs });
   throw error;
+}
+
+const isOwnershipLost = (e: unknown): e is CancelledError => e instanceof CancelledError && e.reason === OWNERSHIP_LOST;
+
+/** Types a write failure (SQLITE_BUSY, ENOSPC, …) as an InternalError; ownership loss passes through. */
+async function persist<T>(stage: StageName, write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (e) {
+    if (isOwnershipLost(e)) throw e;
+    throw new InternalError(`stage ${stage} persist: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+  }
+}
+
+/** Attaches a secondary failure without displacing the error or its cause; non-enumerable, like `stack`. */
+function suppress(error: HarnessError, secondary: unknown): void {
+  const prior = (error as { suppressed?: unknown[] }).suppressed ?? [];
+  Object.defineProperty(error, "suppressed", { value: [...prior, secondary], configurable: true, writable: true });
 }
 
 /**
@@ -193,7 +233,8 @@ async function runStage<I, O>(
       (value) => ({ ok: true as const, value }),
       (error: unknown) => ({ ok: false as const, error }),
     );
-  const first = await Promise.race([settled, aborted(ctx.signal)]);
+  const detach = new AbortController();
+  const first = await Promise.race([settled, aborted(ctx.signal, detach.signal)]).finally(() => detach.abort());
   if (first === ABORTED) {
     const grace = new AbortController();
     const expired = clock.sleep(SETTLE_GRACE_MS, grace.signal).then(
@@ -219,10 +260,15 @@ async function runStage<I, O>(
   }
 }
 
-function prepare<I, O>(def: StageDef<I, O>, state: PipelineState, catalog: Catalog): { input: I; fingerprint: unknown } {
+function prepare<I, O>(
+  def: StageDef<I, O>,
+  state: PipelineState,
+  catalog: Catalog,
+): { input: I; fingerprint: unknown; inputHash: string } {
   try {
     const input = parseOrInternal(def.input, def.select(state, catalog), `stage ${def.name} input`);
-    return { input, fingerprint: def.fingerprint(input, catalog) };
+    const fingerprint = def.fingerprint(input, catalog);
+    return { input, fingerprint, inputHash: hashOf({ stage: def.name, version: def.version, fingerprint }) };
   } catch (e) {
     if (e instanceof InternalError) throw e;
     throw new InternalError(`stage ${def.name} input: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
@@ -237,10 +283,11 @@ function parseOrInternal<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, value: 
   });
 }
 
-function aborted(signal: AbortSignal): Promise<typeof ABORTED> {
+/** Resolves when `signal` aborts; aborting `detach` removes the listener (an AbortSignal.any composite with a listener is never collected). */
+function aborted(signal: AbortSignal, detach: AbortSignal): Promise<typeof ABORTED> {
   return new Promise((resolve) => {
     if (signal.aborted) resolve(ABORTED);
-    else signal.addEventListener("abort", () => resolve(ABORTED), { once: true });
+    else signal.addEventListener("abort", () => resolve(ABORTED), { once: true, signal: detach });
   });
 }
 

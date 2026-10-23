@@ -59,37 +59,37 @@ export function sanitiseSvg(svg: string): string {
   );
   const DROP_ATTRS = new Set(["src", "srcset", "background", "action", "formaction", "poster", "data", "ping"]);
 
-  const decodeEntities = (s: string) => {
-    const t = document.createElement("textarea");
-    t.innerHTML = s;
-    return t.value;
+  // DOM attribute values and style text are already entity-decoded exactly once, and they are what the
+  // browser's CSS parser will see after the output is reparsed. Each value is judged as-is and then
+  // either emitted unchanged or dropped; nothing is ever transformed after it has been judged.
+  // Backslashes are refused outright: CSS escapes would decode once more than we can safely emulate.
+  const BLOCKED = /[<\\]|\/\/|\/\*|@import|@font-face|attr\(|image-set\(|cross-fade\(|image\(|element\(|paint\(|src\(/i;
+  const FRAGMENT_URL = /url\((["']?)#[\w-]+\1\)/gi;
+  const QUOTED = /"[^"]*"?|'[^']*'?/g;
+  const SCHEME = /[a-z][a-z0-9+.-]*:/i;
+  const cssOk = (text: string) =>
+    !BLOCKED.test(text) &&
+    !/url\(/i.test(text.replace(FRAGMENT_URL, "")) &&
+    !(text.match(QUOTED) ?? []).some((q) => SCHEME.test(q));
+  // Keeps each declaration/selector segment verbatim or drops it; the result must pass as a whole too.
+  const scrubCss = (css: string) => {
+    const kept = css.replace(/[^;{}]+/g, (seg) => (cssOk(seg) ? seg : ""));
+    return cssOk(kept) ? kept : "";
   };
-  // Mermaid output never needs CSS escapes, so anything containing a backslash is dropped
-  // rather than decoded: the browser would decode it once more than we can safely emulate.
-  const BAD_VALUE =
-    /\\|url\(\s*(?!["']?\s*#)|image-set\(|cross-fade\(|(?:^|[^\w-])image\(|src\(|attr\(|element\(|paint\(|https?:|\/\//i;
-  const scrubCss = (css: string) =>
-    decodeEntities(css)
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/@import[^;{}]*;?/gi, "")
-      .replace(/@font-face\s*\{[^}]*\}?/gi, "")
-      .replace(/[^;{}]+/g, (seg) => (BAD_VALUE.test(seg) ? "" : seg))
-      .replace(/[<\\]/g, "");
+  // The value to emit for an attribute, or null to drop it.
+  const attrValue = (name: string, value: string): string | null => {
+    if (name === "xmlns" || name.startsWith("xmlns:")) return value;
+    if (name.startsWith("on") || DROP_ATTRS.has(name)) return null;
+    if (name === "href" || name.endsWith(":href")) return value.trim().startsWith("#") ? value : null;
+    if (name === "style") return scrubCss(value) || null;
+    return /^\s*[a-z][a-z0-9+.-]*:/i.test(value) || !cssOk(value) ? null : value;
+  };
 
   const cleanAttrs = (el: Element) => {
     for (const attr of Array.from(el.attributes)) {
-      const name = attr.name.toLowerCase();
-      if (name === "xmlns" || name.startsWith("xmlns:")) continue;
-      if (name.startsWith("on") || DROP_ATTRS.has(name)) {
-        el.removeAttribute(attr.name);
-      } else if (name === "href" || name.endsWith(":href")) {
-        if (!attr.value.trim().startsWith("#")) el.removeAttribute(attr.name);
-      } else if (name === "style") {
-        el.setAttribute(attr.name, scrubCss(attr.value));
-      } else {
-        const v = decodeEntities(attr.value);
-        if (/^\s*([a-z][a-z0-9+.-]*:|\/\/)/i.test(v) || BAD_VALUE.test(v)) el.removeAttribute(attr.name);
-      }
+      const value = attrValue(attr.name.toLowerCase(), attr.value);
+      if (value === null) el.removeAttribute(attr.name);
+      else if (value !== attr.value) el.setAttribute(attr.name, value);
     }
   };
 
@@ -121,7 +121,23 @@ export function sanitiseSvg(svg: string): string {
   const doc = new DOMParser().parseFromString(svg, "text/html");
   clean(doc.body, false);
   // The deck sizes the diagram to its region; mermaid's inline max-width would pin it at its natural size.
-  doc.body.querySelector("svg")?.style.removeProperty("max-width");
+  // Like every other change this only drops whole declarations, verbatim; the invariant below re-judges the rest.
+  const root = doc.body.firstElementChild;
+  const rootStyle = root?.localName.toLowerCase() === "svg" ? root.getAttribute("style") : null;
+  if (root && rootStyle !== null) {
+    const kept = rootStyle.replace(/[^;{}]+/g, (seg) => (/^\s*max-width\s*:/i.test(seg) ? "" : seg));
+    if (kept !== rootStyle) {
+      if (/^[\s;]*$/.test(kept)) root.removeAttribute("style");
+      else root.setAttribute("style", kept);
+    }
+  }
+  // Invariant: a second pass must change nothing. Anything it would change is dropped whole.
+  for (const el of Array.from(doc.body.querySelectorAll("*"))) {
+    for (const attr of Array.from(el.attributes)) {
+      if (attrValue(attr.name.toLowerCase(), attr.value) !== attr.value) el.removeAttribute(attr.name);
+    }
+    if (el.localName.toLowerCase() === "style" && scrubCss(el.textContent ?? "") !== el.textContent) el.remove();
+  }
   return doc.body.innerHTML;
 }
 

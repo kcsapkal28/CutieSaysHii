@@ -10,11 +10,19 @@ const SERIES = 6;
 const MAX_VALUE_LABELS = 8;
 const STEPS = [1, 2, 2.5, 5];
 const ATTACHED_UNITS = new Set(["%", "°", "′", "″"]);
-const GROUPED = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+const PREFIX_UNITS = new Set(["$", "€", "£", "¥"]);
+const COMPACT_FROM = 1e6;
+const MAX_DECIMALS = 6;
+const NEG_LABEL_ROOM = 40;
+const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+const GROUPED = Array.from({ length: MAX_DECIMALS + 1 }, (_, d) => new Intl.NumberFormat("en-US", { maximumFractionDigits: d }));
+
+export type ValueFormat = { compact?: boolean; decimals?: number };
 
 const color = (i: number) => `var(--df-graphic-${(i % SERIES) + 1})`;
 const finite = (n: number) => (Number.isFinite(n) ? n : 0);
 const num = (n: number) => String(Math.round(finite(n) * 100) / 100 + 0);
+const textWidth = (body: string, size: number) => body.length * size * 0.6;
 
 function text(x: number, y: number, anchor: string, size: number, body: string, fill = "var(--df-text-muted)", cls = "") {
   const attr = cls ? ` class="${cls}"` : "";
@@ -46,16 +54,33 @@ export function niceTicks(lo: number, hi: number, maxIntervals = 5): number[] {
   }
 }
 
-export function formatValue(v: number, unit?: string): string {
-  const rounded = Math.round(finite(v) * 100) / 100;
-  const digits = GROUPED.format(Math.abs(rounded));
-  const value = rounded < 0 ? `−${digits}` : digits;
-  if (!unit) return value;
-  return ATTACHED_UNITS.has(unit) ? `${value}${unit}` : `${value} ${unit}`;
+export function formatValue(v: number, unit?: string, { compact = false, decimals = 2 }: ValueFormat = {}): string {
+  const n = finite(v);
+  const fmt = compact ? COMPACT : GROUPED[Math.min(Math.max(Math.floor(decimals), 0), MAX_DECIMALS)]!;
+  const digits = fmt.format(Math.abs(n));
+  const sign = n < 0 && /[1-9]/.test(digits) ? "\u2212" : "";
+  const u = unit?.trim() ?? "";
+  if (!u) return `${sign}${digits}`;
+  if (PREFIX_UNITS.has(u)) return `${sign}${u}${digits}`;
+  return ATTACHED_UNITS.has(u) ? `${sign}${digits}${u}` : `${sign}${digits} ${u}`;
+}
+
+const decimalsOf = (ns: number[]) => {
+  for (let d = 0; d < MAX_DECIMALS; d++) {
+    if (ns.every((n) => Math.abs(n * 10 ** d - Math.round(n * 10 ** d)) < 1e-6)) return d;
+  }
+  return MAX_DECIMALS;
+};
+
+function scaleFormat(ticks: number[], values: number[]): ValueFormat {
+  const peak = Math.max(0, ...ticks.map(Math.abs), ...values.map(Math.abs));
+  if (peak >= COMPACT_FROM) return { compact: true };
+  const step = ticks.length > 1 ? ticks[1]! - ticks[0]! : 1;
+  return step < 0.01 ? { decimals: decimalsOf(ticks) } : {};
 }
 
 export function donutSlices(labels: string[], values: number[], max = 6): { label: string; value: number }[] {
-  const slices = labels.map((label, i) => ({ label, value: values[i] ?? 0 }));
+  const slices = labels.map((label, i) => ({ label, value: finite(values[i] ?? 0) })).filter((s) => s.value > 0);
   if (slices.length <= max) return slices;
   const sorted = [...slices].sort((a, b) => b.value - a.value);
   const rest = sorted.slice(max - 1).reduce((sum, s) => sum + s.value, 0);
@@ -68,7 +93,7 @@ function legend(entries: { name: string; fill: string }[]): string {
     .slice()
     .reverse()
     .map((e) => {
-      const width = 28 + e.name.length * 13;
+      const width = 28 + textWidth(e.name, 24);
       x -= width;
       const out = `${swatch(x, 24, 18, e.fill)}${text(x + 28, 41, "start", 24, e.name)}`;
       x -= 32;
@@ -83,51 +108,57 @@ function cartesian(block: ChartBlock, values: number[][]): string {
   const n = block.labels.length;
   const flat = values.flat();
   const ticks = niceTicks(Math.min(0, ...flat), Math.max(0, ...flat));
+  const fmt = scaleFormat(ticks, flat);
+  const tickText = ticks.map((t) => formatValue(t, unit, fmt));
+  const direct = block.kind === "bar" && values.length === 1 && n <= MAX_VALUE_LABELS;
+  const left = Math.max(PLOT.left, Math.ceil(Math.max(0, ...tickText.map((t) => textWidth(t, 24))) + 32));
+  const bottom = PLOT.bottom - (direct && flat.some((v) => v < 0) ? NEG_LABEL_ROOM : 0);
   const lo = ticks[0]!;
   const hi = ticks[ticks.length - 1]!;
-  const plotW = PLOT.right - PLOT.left;
-  const plotH = PLOT.bottom - PLOT.top;
+  const plotW = PLOT.right - left;
+  const plotH = bottom - PLOT.top;
   const y = (v: number) => PLOT.top + ((hi - v) / (hi - lo)) * plotH;
   const y0 = y(0);
 
   let grid = "";
-  for (const t of ticks) {
-    grid += `<line x1="${PLOT.left}" x2="${PLOT.right}" y1="${num(y(t))}" y2="${num(y(t))}" style="stroke:var(--df-border)" stroke-width="1"/>`;
-    grid += text(PLOT.left - 16, y(t) + 8, "end", 24, formatValue(t, unit));
-  }
-  grid += `<line x1="${PLOT.left}" x2="${PLOT.right}" y1="${num(y0)}" y2="${num(y0)}" style="stroke:var(--df-graphic-3)" stroke-width="2"/>`;
+  ticks.forEach((t, i) => {
+    grid += `<line x1="${left}" x2="${PLOT.right}" y1="${num(y(t))}" y2="${num(y(t))}" style="stroke:var(--df-border)" stroke-width="1"/>`;
+    grid += text(left - 16, y(t) + 8, "end", 24, tickText[i]!);
+  });
+  grid += `<line x1="${left}" x2="${PLOT.right}" y1="${num(y0)}" y2="${num(y0)}" style="stroke:var(--df-graphic-3)" stroke-width="2"/>`;
 
   const slot = n > 0 ? plotW / n : plotW;
-  const xLabels = block.labels.map((l, i) => text(PLOT.left + slot * (i + 0.5), PLOT.bottom + 44, "middle", 26, l)).join("");
+  const xLabels = block.labels.map((l, i) => text(left + slot * (i + 0.5), PLOT.bottom + 44, "middle", 26, l)).join("");
 
   let plot = "";
   let labels = "";
   if (block.kind === "bar") {
     const inner = slot * 0.7;
     const barW = values.length > 0 ? inner / values.length : 0;
-    const direct = values.length === 1 && n <= MAX_VALUE_LABELS;
     values.forEach((vs, si) => {
       vs.forEach((v, i) => {
         const top = Math.min(y(v), y0);
         const height = Math.abs(y(v) - y0);
-        const x = PLOT.left + slot * i + (slot - inner) / 2 + barW * si;
+        const x = left + slot * i + (slot - inner) / 2 + barW * si;
         const w = Math.max(barW - 4, 1);
         plot += `<rect x="${num(x)}" y="${num(top)}" width="${num(w)}" height="${num(height)}" rx="4" style="fill:${color(si)}"/>`;
         if (direct) {
           const ly = v < 0 ? top + height + 32 : top - 12;
-          labels += text(x + w / 2, ly, "middle", 24, formatValue(v, unit), "var(--df-text)", "df-value");
+          labels += text(x + w / 2, ly, "middle", 24, formatValue(v, unit, fmt), "var(--df-text)", "df-value");
         }
       });
     });
   } else {
-    const x = (i: number) => PLOT.left + slot * (i + 0.5);
+    const x = (i: number) => left + slot * (i + 0.5);
     values.forEach((vs, si) => {
       if (vs.length === 0) return;
       const pts = vs.map((v, i) => `${num(x(i))} ${num(y(v))}`);
-      let d = `M${pts.join(" L")}`;
-      if (block.kind === "area") d += ` L${num(x(vs.length - 1))} ${num(y0)} L${num(x(0))} ${num(y0)} Z`;
-      const fill = block.kind === "area" ? `fill:${color(si)};fill-opacity:0.2` : "fill:none";
-      plot += `<path d="${d}" style="${fill};stroke:${color(si)}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const line = `M${pts.join(" L")}`;
+      if (block.kind === "area") {
+        const wash = `${line} L${num(x(vs.length - 1))} ${num(y0)} L${num(x(0))} ${num(y0)} Z`;
+        plot += `<path class="df-decor" d="${wash}" style="fill:${color(si)};fill-opacity:0.2;stroke:none"/>`;
+      }
+      plot += `<path d="${line}" style="fill:none;stroke:${color(si)}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>`;
       vs.forEach((v, i) => {
         plot += `<circle cx="${num(x(i))}" cy="${num(y(v))}" r="6" style="fill:${color(si)}"/>`;
       });
@@ -148,8 +179,9 @@ function donut(block: ChartBlock, values: number[]): string {
   const cy = 320;
   const outer = 260;
   const inner = 156;
-  const slices = donutSlices(block.labels, values.map((v) => Math.max(0, v)));
+  const slices = donutSlices(block.labels, values);
   const total = slices.reduce((a, s) => a + s.value, 0);
+  const fmt: ValueFormat = total >= COMPACT_FROM ? { compact: true } : {};
 
   const ring = (a0: number, a1: number, fill: string) => {
     const sweep = Math.min(a1 - a0, 359.99);
@@ -168,7 +200,6 @@ function donut(block: ChartBlock, values: number[]): string {
   } else {
     let angle = -90;
     slices.forEach((s, i) => {
-      if (s.value <= 0) return;
       const sweep = (s.value / total) * 360;
       plot += ring(angle, angle + sweep, color(i));
       angle += sweep;
@@ -180,10 +211,10 @@ function donut(block: ChartBlock, values: number[]): string {
   const rows = slices
     .map((s, i) => {
       const y = firstY + i * rowH;
-      return `${swatch(800, y - 12, 24, color(i))}${text(840, y + 9, "start", 26, `${s.label}: ${formatValue(s.value, block.unit)}`, "var(--df-text)")}`;
+      return `${swatch(800, y - 12, 24, color(i))}${text(840, y + 9, "start", 26, `${s.label}: ${formatValue(s.value, block.unit, fmt)}`, "var(--df-text)")}`;
     })
     .join("");
-  const center = text(cx, cy + 14, "middle", 40, formatValue(total, block.unit), "var(--df-text)");
+  const center = text(cx, cy + 14, "middle", 40, formatValue(total, block.unit, fmt), "var(--df-text)");
   return `<g class="df-plot">${plot}</g>${center}<g class="df-legend">${rows}</g>`;
 }
 

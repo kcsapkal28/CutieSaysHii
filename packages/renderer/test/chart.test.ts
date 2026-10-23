@@ -9,6 +9,23 @@ const count = (s: string, needle: string) => s.split(needle).length - 1;
 const plotOf = (svg: string) => /<g class="df-plot">([\s\S]*?)<\/g>/.exec(svg)?.[1] ?? "";
 const texts = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]!);
 const fills = (s: string) => [...s.matchAll(/fill:([^;"]+)/g)].map((m) => m[1]!);
+const unescape = (s: string) => s.replace(/&lt;|&gt;|&quot;|&#39;|&amp;/g, " ");
+
+type Box = { cls: string; body: string; size: number; x0: number; x1: number; y0: number; y1: number };
+// Approximate text boxes: 0.6em per character, ascent 0.8em, descent 0.2em.
+const boxes = (svg: string): Box[] =>
+  [
+    ...svg.matchAll(
+      /<text(?: class="([^"]*)")? x="([-\d.]+)" y="([-\d.]+)" text-anchor="(\w+)" style="[^"]*font:([\d.]+)px[^"]*">([^<]*)<\/text>/g,
+    ),
+  ].map((m) => {
+    const [x, y, size] = [Number(m[2]), Number(m[3]), Number(m[5])];
+    const body = unescape(m[6]!);
+    const w = body.length * size * 0.6;
+    const x0 = m[4] === "end" ? x - w : m[4] === "middle" ? x - w / 2 : x;
+    return { cls: m[1] ?? "", body, size, x0, x1: x0 + w, y0: y - size * 0.8, y1: y + size * 0.2 };
+  });
+const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
 const deck = JSON.parse(readFileSync(new URL("../fixtures/solar.deck.json", import.meta.url), "utf8")) as DeckSpec;
 const solar = deck.slides.flatMap((s) => s.body).find((b): b is ChartBlock => b.type === "Chart")!;
@@ -58,6 +75,27 @@ describe("formatValue", () => {
     expect(formatValue(7, "″")).toBe("7″");
   });
 
+  it("prefixes currency symbols without a space and trims the unit", () => {
+    expect(formatValue(1234.567, "$")).toBe("$1,234.57");
+    expect(formatValue(-5, "$")).toBe("\u2212$5");
+    expect(formatValue(3, "€")).toBe("€3");
+    expect(formatValue(3, "£")).toBe("£3");
+    expect(formatValue(3, "¥")).toBe("¥3");
+    expect(formatValue(3, " GW ")).toBe("3 GW");
+    expect(formatValue(3, " % ")).toBe("3%");
+    expect(formatValue(3, "  ")).toBe("3");
+  });
+
+  it("uses compact notation when asked", () => {
+    expect(formatValue(1_234_567, undefined, { compact: true })).toBe("1.2M");
+    expect(formatValue(3e9, "$", { compact: true })).toBe("$3B");
+    expect(formatValue(-2.5e8, "W", { compact: true })).toBe("\u2212250M W");
+  });
+
+  it("shows more fraction digits when asked", () => {
+    expect(formatValue(0.0014, "V", { decimals: 4 })).toBe("0.0014 V");
+  });
+
   it("never prints a negative zero", () => {
     expect(formatValue(-0.001)).toBe("0");
   });
@@ -82,6 +120,14 @@ describe("donutSlices", () => {
     expect(out.map((s) => s.label)).toEqual(["b", "d", "f", "g", "e", "Other"]);
     expect(out.at(-1)!.value).toBe(3);
   });
+
+  it("ignores zero and negative values", () => {
+    expect(donutSlices(["a", "b", "c"], [3, -4, 0])).toEqual([{ label: "a", value: 3 }]);
+    const labels = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const out = donutSlices(labels, [8, 7, 6, 5, 4, 3, 0, -4]);
+    expect(out.map((s) => s.label)).toEqual(["a", "b", "c", "d", "e", "f"]);
+    expect(out.some((s) => s.label === "Other" || s.value <= 0)).toBe(false);
+  });
 });
 
 describe("chartSvg", () => {
@@ -101,6 +147,61 @@ describe("chartSvg", () => {
     const many = Array.from({ length: 9 }, (_, i) => String(i));
     const svg = chartSvg({ ...bar, labels: many, series: [{ name: "s", values: many.map(Number) }] }, { title: "T" });
     expect(svg).not.toContain("df-value");
+  });
+
+  it("negative direct labels never overlap category labels", () => {
+    for (const values of [[-5, -10], [4, -10], [-1420, 30, -7]]) {
+      const labels = values.map((_, i) => "abc"[i]!);
+      const svg = chartSvg({ ...bar, labels, series: [{ name: "s", values }], unit: "%" }, { title: "T" });
+      const all = boxes(svg);
+      const valueBoxes = all.filter((b) => b.cls === "df-value");
+      const categories = all.filter((b) => b.size === 26);
+      expect(valueBoxes).toHaveLength(values.length);
+      expect(categories).toHaveLength(values.length);
+      for (const v of valueBoxes) for (const c of categories) expect(overlaps(v, c), `${v.body} vs ${c.body}`).toBe(false);
+    }
+  });
+
+  it("direct labels never sit on a bar", () => {
+    const svg = chartSvg({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [-5, 8] }] }, { title: "T" });
+    const rects = [...plotOf(svg).matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map(
+      (m) => ({ x0: Number(m[1]), y0: Number(m[2]), x1: Number(m[1]) + Number(m[3]), y1: Number(m[2]) + Number(m[4]) }),
+    );
+    for (const v of boxes(svg).filter((b) => b.cls === "df-value")) {
+      for (const r of rects) expect(overlaps(v, { ...v, ...r }), v.body).toBe(false);
+    }
+  });
+
+  it("large values use compact labels that fit inside the left edge", () => {
+    const svg = chartSvg(
+      { ...bar, labels: ["a", "b"], series: [{ name: "s", values: [1e9, 2.5e8] }], unit: "USD" },
+      { title: "T" },
+    );
+    const ticks = boxes(svg).filter((b) => b.cls === "" && b.size === 24);
+    expect(ticks.map((b) => b.body)).toContain("1B USD");
+    for (const b of boxes(svg)) expect(b.x0, b.body).toBeGreaterThanOrEqual(0);
+    const values = boxes(svg).filter((b) => b.cls === "df-value").map((b) => b.body);
+    expect(values).toEqual(["1B USD", "250M USD"]);
+  });
+
+  it("long tick labels widen the left margin", () => {
+    const svg = chartSvg(
+      { ...bar, labels: ["a"], series: [{ name: "s", values: [400_000] }], unit: "kWh/year" },
+      { title: "T" },
+    );
+    for (const b of boxes(svg)) expect(b.x0, b.body).toBeGreaterThanOrEqual(0);
+  });
+
+  it("tiny ranges get distinct, correct tick labels", () => {
+    const svg = chartSvg({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [0.001, 0.002] }], unit: "V" }, { title: "T" });
+    const ticks = boxes(svg).filter((b) => b.cls === "" && b.size === 24).map((b) => b.body);
+    expect(ticks).toEqual(["0 V", "0.0005 V", "0.001 V", "0.0015 V", "0.002 V"]);
+  });
+
+  it("tiny bar values are not rounded to zero", () => {
+    const svg = chartSvg({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [0.001, 0.0014] }] }, { title: "T" });
+    const values = boxes(svg).filter((b) => b.cls === "df-value").map((b) => b.body);
+    expect(values).toEqual(["0.001", "0.0014"]);
   });
 
   it("bar marks use graphic colours only", () => {
@@ -177,8 +278,18 @@ describe("chartSvg", () => {
     const legend = /<g class="df-legend">([\s\S]*?)<\/g>/.exec(svg)![1]!;
     const rows = texts(legend);
     expect(rows).toHaveLength(6);
-    expect(rows.at(-1)!.startsWith("Other")).toBe(true);
-    expect(rows.at(-1)).toContain(formatValue(5 + 4 + 3 + 2 + 1));
+    expect(rows.at(-1)).toBe("Other: 15");
+  });
+
+  it("donut drops zero and negative slices and never shows an empty Other", () => {
+    const labels = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const svg = chartSvg(
+      { ...bar, kind: "donut", labels, series: [{ name: "s", values: [8, 7, 6, 5, 4, 3, 0, -4] }] },
+      { title: "T" },
+    );
+    const rows = texts(/<g class="df-legend">([\s\S]*?)<\/g>/.exec(svg)![1]!);
+    expect(rows).toEqual(["a: 8", "b: 7", "c: 6", "d: 5", "e: 4", "f: 3"]);
+    expect(svg).not.toContain("Other");
   });
 
   it("text sizes meet the 22 px floor", () => {
@@ -191,8 +302,19 @@ describe("chartSvg", () => {
 
   it("line and area draw one path per series in the plot group", () => {
     for (const kind of ["line", "area"] as const) {
-      expect(count(plotOf(chartSvg({ ...bar, kind }, { title: "T" })), "<path"), kind).toBe(2);
+      const plot = plotOf(chartSvg({ ...bar, kind }, { title: "T" }));
+      expect(count(plot, "<path") - count(plot, '<path class="df-decor"'), kind).toBe(2);
     }
+  });
+
+  it("the area wash is decoration and the only translucent mark", () => {
+    const plot = plotOf(chartSvg({ ...bar, kind: "area" }, { title: "T" }));
+    const washes = [...plot.matchAll(/<path class="df-decor"[^>]*>/g)].map((m) => m[0]);
+    expect(washes).toHaveLength(2);
+    for (const w of washes) expect(w).toContain("fill-opacity:0.2");
+    const marks = plot.replace(/<path class="df-decor"[^>]*>/g, "");
+    expect(marks).not.toContain("fill-opacity");
+    expect(chartSvg({ ...bar, kind: "line" }, { title: "T" })).not.toContain("df-decor");
   });
 
   it("escapes labels, series names, unit and title", () => {

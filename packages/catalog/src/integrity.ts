@@ -142,7 +142,7 @@ export function checkIntegrity(c: Catalog): IntegrityIssue[] {
       add(F.compat, `${at}.minDepth`, `minDepth "${rule.minDepth}" is not a depth in ${F.slideTypes}`);
   }
 
-  // Rule 11: design rules reference real slide types; the per-slide cap is a positive integer.
+  // Rule 12: design rules reference real slide types; the per-slide cap is a positive integer.
   const design = c.compat.designRules;
   design.motionOverrideSlideTypes.forEach((s, j) => {
     if (!slideTypeIds.has(s)) add(F.compat, `designRules.motionOverrideSlideTypes.${j}`, `unknown slide type "${s}"`);

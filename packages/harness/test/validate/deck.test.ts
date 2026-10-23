@@ -53,6 +53,7 @@ describe("deckRules", () => {
     expect(r.notesWords).toEqual([60, 120]);
     expect([r.firstType, r.penultimateOrLastType, r.lastType]).toEqual(["title", "summary", "qa"]);
     expect(r.requiredTypes).toEqual(["agenda"]);
+    expect(r.coverTypes).toEqual(["title"]);
     expect(r.modeOnlyTypes).toEqual(["quiz"]);
     expect(r.quizTypes).toEqual(["quiz"]);
     expect(r.quizCount).toBe(0);
@@ -95,6 +96,29 @@ describe("validateDeck", () => {
     ]);
   });
 
+  it("unknown-slide-type hint omits types the mode disallows", () => {
+    const d = deck((x) => (slideById(x, "s05").type = "hero"));
+    const [issue] = withCode(run(d), "unknown-slide-type");
+    expect(issue?.message).toContain("bullets");
+    expect(issue?.message).not.toMatch(/\bquiz\b/);
+    const [assessment] = withCode(run(d, ASSESSMENT(2)), "unknown-slide-type");
+    expect(assessment?.message).toMatch(/\bquiz\b/);
+  });
+
+  it("a second title slide mid-deck → first-slide", () => {
+    const d = deck((x) => x.slides.splice(5, 0, { ...structuredClone(x.slides[0]!), id: "t2", notes: words(70) }));
+    expect(withCode(run(d), "first-slide")).toEqual([
+      { path: "slides[5].type", code: "first-slide", message: expect.stringMatching(/t2.*"title"/) },
+    ]);
+  });
+
+  it("a second qa slide mid-deck → last-slide", () => {
+    const d = deck((x) => x.slides.splice(5, 0, { ...structuredClone(x.slides[11]!), id: "q2" }));
+    expect(withCode(run(d), "last-slide")).toEqual([
+      { path: "slides[5].type", code: "last-slide", message: expect.stringMatching(/q2.*"qa"/) },
+    ]);
+  });
+
   it("first slide must be the required-first type", () => {
     const d = deck((x) => ([x.slides[0], x.slides[1]] = [x.slides[1]!, x.slides[0]!]));
     const issues = withCode(run(d), "first-slide");
@@ -121,6 +145,7 @@ describe("validateDeck", () => {
     const issues = withCode(run(d), "required-slide");
     expect(issues).toHaveLength(1);
     expect(issues[0]?.message).toContain('"agenda"');
+    expect(issues[0]?.message).toMatch(/right after the "title" slide/);
   });
 
   it("overview without agenda → none", () => {
@@ -192,12 +217,52 @@ describe("validateDeck", () => {
     expect(issues[0]?.message).toMatch(/13 words.*at most 12/);
   });
 
-  it("9-word title on title slide → limit", () => {
-    const d = deck((x) => (x.slides[0]!.title = words(9)));
+  it("9-word deck title on the cover → limit", () => {
+    const d = deck((x) => (x.title = words(9)));
     const issues = withCode(run(d), "limit");
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.path).toBe("slides[0].title");
+    expect(issues[0]?.path).toBe("title");
     expect(issues[0]?.message).toMatch(/9 title words.*at most 8/);
+  });
+
+  it("image alt is measured as the caption when there is no Paragraph", () => {
+    const image = (body: Slide["body"]): Slide => ({ id: "img", type: "image", body, notes: words(70), emphasisTargets: [] });
+    const alt = { type: "Image", prompt: "cross-section of a cell", alt: words(16) } as const;
+    const bare = deck((x) => x.slides.splice(5, 0, image([alt])));
+    expect(run(bare)).toEqual([
+      { path: "slides[5].body", code: "limit", message: expect.stringMatching(/16 caption words.*at most 15/) },
+    ]);
+    const captioned = deck((x) => x.slides.splice(5, 0, image([alt, { type: "Paragraph", text: "Two layers meet." }])));
+    expect(run(captioned)).toEqual([]);
+  });
+
+  it("the cover's slide.title is its meta line, not its title", () => {
+    const d = deck((x) => (x.slides[0]!.title = words(9)));
+    expect(run(d)).toEqual([]);
+  });
+
+  it("Paragraph on title → block-not-accepted", () => {
+    const d = deck((x) => x.slides[0]!.body.push({ type: "Paragraph", text: "A subtitle that never renders." }));
+    expect(run(d)).toEqual([
+      { path: "slides[0].body[0].type", code: "block-not-accepted", message: expect.stringContaining("Paragraph") },
+    ]);
+  });
+
+  it("cover words = deck title + deck subtitle + slide title", () => {
+    // 8 + 14 + 14 = 36 > 35; the body Paragraph and a meta line equal to the deck title don't count.
+    const over = deck((x) => {
+      x.title = words(8);
+      x.subtitle = words(14);
+      x.slides[0]!.title = words(14, "meta");
+    });
+    expect(codes(run(over))).toEqual(["words-per-slide"]);
+    expect(run(over)[0]?.message).toMatch(/s01.*36 visible words/);
+    const sameMeta = deck((x) => {
+      x.title = words(8);
+      x.subtitle = words(14);
+      x.slides[0]!.title = x.title;
+    });
+    expect(run(sameMeta)).toEqual([]);
   });
 
   it("deck subtitle is measured on the first-type slide", () => {
@@ -246,6 +311,36 @@ describe("validateDeck", () => {
     expect(run(d)).toEqual([
       { path: "slides[4].emphasisTargets[2]", code: "emphasis-missing", message: expect.stringContaining('"99%"') },
     ]);
+  });
+
+  it("emphasis: a target only in the slide title is flagged", () => {
+    const d = deck((x) => slideById(x, "s04").emphasisTargets.push("in brief"));
+    expect(codes(run(d))).toEqual(["emphasis-missing"]);
+  });
+
+  it("emphasis: chart labels and series names are not emphasised", () => {
+    const d = deck((x) => slideById(x, "s09").emphasisTargets.push("2015", "Installed capacity"));
+    expect(codes(run(d))).toEqual(["emphasis-missing", "emphasis-missing"]);
+  });
+
+  it("emphasis: nothing on the cover is emphasised", () => {
+    const d = deck((x) => x.slides[0]!.emphasisTargets.push("solar"));
+    expect(codes(run(d))).toEqual(["emphasis-missing"]);
+  });
+
+  it('emphasis matches case-insensitively ("Silicon" vs "silicon")', () => {
+    const d = deck((x) => slideById(x, "s10").emphasisTargets.push("Silicon", "THIN FILM"));
+    expect(run(d)).toEqual([]);
+  });
+
+  it("emphasis: a target only in a quiz explanation passes", () => {
+    const d = deck((x) => {
+      const q = quiz("q1");
+      q.emphasisTargets = ["doped with phosphorus"];
+      q.body = [{ type: "Quiz", question: "Which layer?", options: ["n", "p", "metal"], answerIndex: 0, explanation: "It is doped with phosphorus." }];
+      x.slides.splice(5, 0, q);
+    });
+    expect(withCode(run(d), "emphasis-missing")).toEqual([]);
   });
 
   it("every catalog limit key measured or unmeasured", () => {

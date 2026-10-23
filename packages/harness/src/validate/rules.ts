@@ -11,6 +11,8 @@ export type DeckRules = {
   firstType: string | undefined;
   lastType: string | undefined;
   penultimateOrLastType: string | undefined;
+  /** Types the renderer draws as the deck cover (they have a meta region). */
+  coverTypes: string[];
   /** Types whose `requiredWhen` holds for these choices. */
   requiredTypes: string[];
   /** Types restricted (`onlyIn`) to modes other than the chosen one. */
@@ -22,6 +24,7 @@ export type DeckRules = {
 };
 
 const QUIZ_BLOCK: Block["type"] = "Quiz";
+const COVER_REGION = "meta";
 const REQUIRED_WHEN = /^depth\s*(==|!=)\s*([\w-]+)$/;
 
 export function evalRequiredWhen(expr: string, choices: Pick<ContentChoices, "depth">): boolean {
@@ -46,6 +49,7 @@ export function deckRules(c: Catalog, choices: ContentChoices): DeckRules {
     firstType: requiredAt("first"),
     lastType: requiredAt("last"),
     penultimateOrLastType: requiredAt("penultimate-or-last"),
+    coverTypes: types.filter((t) => t.regions.includes(COVER_REGION)).map((t) => t.id),
     requiredTypes: types.filter((t) => t.requiredWhen !== undefined && evalRequiredWhen(t.requiredWhen, choices)).map((t) => t.id),
     modeOnlyTypes: types.filter((t) => t.onlyIn !== undefined && !t.onlyIn.includes(mode.id)).map((t) => t.id),
     quizTypes: types.filter((t) => t.accepts.includes(QUIZ_BLOCK)).map((t) => t.id),

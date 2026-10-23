@@ -2,15 +2,16 @@ import type { Catalog } from "@deckforge/catalog";
 import type { Block, DeckSpec, Slide } from "@deckforge/schemas";
 import { issuePath, type Issue } from "../kernel/issues.ts";
 import type { DeckRules } from "./rules.ts";
-import { countWords, visibleTexts, visibleWords } from "./words.ts";
+import { countWords, emphasisTexts, visibleWords } from "./words.ts";
 
 type Path = (string | number)[];
 type Measurement = { path: Path; value: number; noun: string };
-type MeasureInput = { deck: DeckSpec; slide: Slide; index: number; rules: DeckRules };
+/** `cover`: the renderer draws this slide as the deck cover (deck title/subtitle, slide.title as meta, no body). */
+type MeasureInput = { deck: DeckSpec; slide: Slide; index: number; cover: boolean };
 type Measure = (x: MeasureInput) => Measurement[];
 type BlockOf<T extends Block["type"]> = Extract<Block, { type: T }>;
 
-// A Paragraph renders into one of these regions when the body doesn't take it.
+// Off the cover, a Paragraph renders into one of these regions when the body doesn't take it.
 const PARAGRAPH_REGIONS = ["subtitle", "aside", "caption"];
 const PARAGRAPH: Block["type"] = "Paragraph";
 
@@ -33,9 +34,12 @@ function perBlock<T extends Block["type"]>(type: T, field: string, noun: string,
 const codeLines = (code: string) => code.split("\n");
 
 const MEASURES: Record<string, Measure> = {
-  titleWords: ({ slide, index }) => [{ path: ["slides", index, "title"], value: countWords(slide.title ?? ""), noun: "title words" }],
-  subtitleWords: ({ deck, slide, rules }) =>
-    slide.type === rules.firstType ? [{ path: ["subtitle"], value: countWords(deck.subtitle), noun: "subtitle words" }] : [],
+  titleWords: ({ deck, slide, index, cover }) => [
+    cover
+      ? { path: ["title"], value: countWords(deck.title), noun: "title words" }
+      : { path: ["slides", index, "title"], value: countWords(slide.title ?? ""), noun: "title words" },
+  ],
+  subtitleWords: ({ deck, cover }) => (cover ? [{ path: ["subtitle"], value: countWords(deck.subtitle), noun: "subtitle words" }] : []),
   items: perBlock("Bullets", "items", "bullet items", (b) => b.items.length),
   wordsPerItem: ({ slide, index }) =>
     blocksOf(slide, "Bullets").flatMap(({ block, at }) =>
@@ -54,7 +58,12 @@ const MEASURES: Record<string, Measure> = {
   points: perBlock("Chart", "labels", "chart points", (b) => b.labels.length),
   lines: perBlock("Code", "code", "code lines", (b) => codeLines(b.code).length),
   cols: perBlock("Code", "code", "characters in the longest code line", (b) => Math.max(...codeLines(b.code).map((l) => l.length))),
-  captionWords: ({ slide, index }) => [{ path: ["slides", index, "body"], value: wordsIn(slide, "Paragraph"), noun: "caption words" }],
+  // The caption is the Paragraph text, or the image alt when there is none.
+  captionWords: ({ slide, index }) => {
+    const alt = blocksOf(slide, "Image").reduce((sum, { block }) => sum + countWords(block.alt), 0);
+    const value = blocksOf(slide, "Paragraph").length > 0 ? wordsIn(slide, "Paragraph") : alt;
+    return [{ path: ["slides", index, "body"], value, noun: "caption words" }];
+  },
 };
 
 export const MEASURED_LIMITS: readonly string[] = Object.keys(MEASURES);
@@ -77,17 +86,29 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
   if (n < rules.slides[0] || n > rules.slides[1])
     add(["slides"], "slide-count", `deck has ${n} slides; ${rules.depth} needs ${range(rules.slides)}`);
 
+  const firstOfType = (id: string) => slides.findIndex((s) => s.type === id);
+  const lastOfType = (id: string) => slides.map((s) => s.type).lastIndexOf(id);
+
   if (rules.firstType && slides[0] && slides[0].type !== rules.firstType)
     add(["slides", 0, "type"], "first-slide", `the first slide must be ${typeName(rules.firstType)}; got "${slides[0].type}"`);
   if (rules.lastType && n > 0 && slides[n - 1]!.type !== rules.lastType)
     add(["slides", n - 1, "type"], "last-slide", `the last slide must be ${typeName(rules.lastType)}; got "${slides[n - 1]!.type}"`);
+  slides.forEach((s, i) => {
+    if (rules.firstType && s.type === rules.firstType && i > firstOfType(s.type))
+      add(["slides", i, "type"], "first-slide", `slide ${s.id} is a second ${typeName(s.type)} slide; it belongs only at the start of the deck`);
+    if (rules.lastType && s.type === rules.lastType && i < lastOfType(s.type))
+      add(["slides", i, "type"], "last-slide", `slide ${s.id} is a second ${typeName(s.type)} slide; it belongs only at the end of the deck`);
+  });
   const closing = rules.penultimateOrLastType;
   if (closing && n > 0 && slides.slice(-2).every((s) => s.type !== closing))
     add(["slides", Math.max(0, n - 2), "type"], "penultimate-slide", `${typeName(closing)} must be the penultimate or last slide`);
 
   const present = new Set(slides.map((s) => s.type));
   for (const id of rules.requiredTypes)
-    if (!present.has(id)) add(["slides"], "required-slide", `deck needs a ${typeName(id)} slide at ${rules.depth} depth`);
+    if (!present.has(id)) {
+      const where = rules.firstType ? `right after the "${rules.firstType}" slide` : "near the start";
+      add(["slides"], "required-slide", `deck needs a ${typeName(id)} slide at ${rules.depth} depth; it belongs ${where}`);
+    }
 
   const isQuiz = (s: Slide) => rules.quizTypes.includes(s.type) && !rules.modeOnlyTypes.includes(s.type);
   const quizzes = slides.filter(isQuiz).length;
@@ -98,9 +119,11 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
     const at = (...rest: Path): Path => ["slides", index, ...rest];
     const label = `slide ${slide.id} (${slide.type})`;
     const type = rules.types.get(slide.type);
+    const cover = rules.coverTypes.includes(slide.type);
 
     if (!type) {
-      add(at("type"), "unknown-slide-type", `slide ${slide.id} has unknown type "${slide.type}"; use one of: ${[...rules.types.keys()].join(", ")}`);
+      const usable = [...rules.types.keys()].filter((id) => !rules.modeOnlyTypes.includes(id));
+      add(at("type"), "unknown-slide-type", `slide ${slide.id} has unknown type "${slide.type}"; use one of: ${usable.join(", ")}`);
     } else if (rules.modeOnlyTypes.includes(type.id)) {
       add(at("type"), "slide-type-not-in-mode", `slide ${slide.id} is "${type.id}", which is only available in ${type.onlyIn?.join("/")} mode; use another slide type`);
     }
@@ -109,7 +132,7 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
 
     if (type) {
       const accepted = new Set(type.accepts);
-      if (type.regions.some((r) => PARAGRAPH_REGIONS.includes(r))) accepted.add(PARAGRAPH);
+      if (!cover && type.regions.some((r) => PARAGRAPH_REGIONS.includes(r))) accepted.add(PARAGRAPH);
       slide.body.forEach((block, b) => {
         if (!accepted.has(block.type)) {
           const takes = accepted.size > 0 ? `it takes ${[...accepted].join(", ")}` : "it takes no body blocks";
@@ -120,12 +143,12 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
       for (const [key, limit] of Object.entries(type.limits ?? {})) {
         const measure = MEASURES[key];
         if (!measure) continue;
-        for (const m of measure({ deck, slide, index, rules }))
+        for (const m of measure({ deck, slide, index, cover }))
           if (!within(m.value, limit)) add(m.path, "limit", `${label} has ${m.value} ${m.noun}; allowed ${describeLimit(limit)}`);
       }
     }
 
-    const shown = visibleWords(slide);
+    const shown = visibleWords(slide, cover ? deck : undefined);
     if (shown > rules.wordsPerSlideMax)
       add(at(), "words-per-slide", `slide ${slide.id} has ${shown} visible words; limit ${rules.wordsPerSlideMax}`);
 
@@ -135,10 +158,13 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
         add(at("notes"), "notes-length", `slide ${slide.id} notes have ${notes} words; need ${range(rules.notesWords)} at ${rules.depth} depth`);
     }
 
-    const text = visibleTexts(slide).join("\n");
+    // Mirrors the renderer's emphasize(): case-insensitive, within one emphasised field; nothing on the cover.
+    const marked = cover ? [] : emphasisTexts(slide).map((t) => t.toLowerCase());
     slide.emphasisTargets.forEach((target, j) => {
-      if (!text.includes(target))
-        add(at("emphasisTargets", j), "emphasis-missing", `slide ${slide.id} emphasis target "${target}" does not appear verbatim in its visible text`);
+      const needle = target.toLowerCase();
+      if (!needle || !marked.some((t) => t.includes(needle)))
+        add(at("emphasisTargets", j), "emphasis-missing",
+          `slide ${slide.id} emphasis target "${target}" is not in any text the slide emphasises (body text; not titles, chart labels or the cover)`);
     });
   });
 

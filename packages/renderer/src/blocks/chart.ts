@@ -91,11 +91,18 @@ export function labelPrecision(values: number[], compact: boolean, ticks: number
   return d;
 }
 
-const fitWidth = (body: string, room: number, size: number) => {
+const truncate = (body: string, max: number) => {
   const chars = Array.from(body);
-  const max = Math.floor(room / textWidth("x", size));
   return chars.length <= max ? body : `${chars.slice(0, Math.max(0, max - 1)).join("").trimEnd()}…`;
 };
+
+// Cuts the label, never the value suffix, unless the value alone cannot fit.
+function legendRow(label: string, value: string, room: number, size: number): string {
+  const max = Math.floor(room / textWidth("x", size));
+  const suffix = `: ${value}`;
+  const labelMax = max - Array.from(suffix).length;
+  return labelMax >= 1 ? `${truncate(label, labelMax)}${suffix}` : truncate(value, max);
+}
 
 export function donutSlices(labels: string[], values: number[], max = 6): { label: string; value: number }[] {
   const slices = labels.map((label, i) => ({ label, value: finite(values[i] ?? 0) })).filter((s) => s.value > 0);
@@ -238,12 +245,14 @@ function donut(block: ChartBlock, values: number[]): string {
   const rows = slices
     .map((s, i) => {
       const y = firstY + i * rowH;
-      const row = fitWidth(`${s.label}: ${formatValue(s.value, block.unit, fmt)}`, W - legendX, 26);
+      const row = legendRow(s.label, formatValue(s.value, block.unit, fmt), W - legendX, 26);
       return `${swatch(legendX - 40, y - 12, 24, color(i))}${text(legendX, y + 9, "start", 26, row, "var(--df-text)")}`;
     })
     .join("");
-  const totalText = formatValue(total, block.unit, fmt);
-  const centreSize = Math.max(24, Math.min(40, Math.floor((inner * 2 * 0.85) / textWidth(totalText, 1))));
+  const hole = inner * 2 * 0.85;
+  const withUnit = formatValue(total, block.unit, fmt);
+  const totalText = textWidth(withUnit, 24) <= hole ? withUnit : formatValue(total, undefined, fmt);
+  const centreSize = Math.max(24, Math.min(40, Math.floor(hole / textWidth(totalText, 1))));
   const center = text(cx, cy + centreSize * 0.35, "middle", centreSize, totalText, "var(--df-text)");
   return `<g class="df-plot">${plot}</g>${center}<g class="df-legend">${rows}</g>`;
 }

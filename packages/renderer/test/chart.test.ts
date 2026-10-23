@@ -321,9 +321,40 @@ describe("chartSvg", () => {
     const svg = chartSvg({ ...bar, kind: "donut", labels: [long, "b"], series: [{ name: "s", values: [3, 4] }] }, { title: "T" });
     const rows = boxes(svg).filter((b) => b.anchor === "start");
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.body.endsWith("…")).toBe(true);
+    expect(rows[0]!.body).toContain("…");
+    expect(rows[0]!.body.endsWith("…: 3")).toBe(true);
     for (const r of rows) expect(r.x1, r.body).toBeLessThanOrEqual(1600);
     expect(rows[1]!.body).toBe("b: 4");
+  });
+
+  it("donut legend truncation keeps the full value suffix", () => {
+    const long = "Renewables and other low-carbon sources total";
+    expect(long).toHaveLength(45);
+    const svg = chartSvg(
+      { ...bar, kind: "donut", labels: [long, "b"], series: [{ name: "s", values: [1234.56, 2] }], unit: "kWh/year" },
+      { title: "T" },
+    );
+    const row = boxes(svg).filter((b) => b.anchor === "start")[0]!;
+    expect(row.body).toContain("…");
+    expect(row.body.endsWith(": 1,234.56 kWh/year")).toBe(true);
+    expect(row.x1).toBeLessThanOrEqual(1600);
+
+    const huge = chartSvg({ ...bar, kind: "donut", labels: ["a"], series: [{ name: "s", values: [5] }], unit: "u".repeat(60) }, { title: "T" });
+    const only = boxes(huge).filter((b) => b.anchor === "start")[0]!;
+    expect(only.body).toMatch(/^5 u+…$/);
+    expect(only.x1).toBeLessThanOrEqual(1600);
+  });
+
+  it("donut centre drops a unit that cannot fit the hole, never the number", () => {
+    const svg = chartSvg(
+      { ...bar, kind: "donut", labels: ["a", "b"], series: [{ name: "s", values: [3, 4] }], unit: "million tonnes CO2-equivalent" },
+      { title: "T" },
+    );
+    const centre = boxes(svg).find((b) => b.anchor === "middle")!;
+    expect(centre.body).toBe("7");
+    expect(centre.size).toBeGreaterThanOrEqual(24);
+    expect(centre.x1 - centre.x0).toBeLessThanOrEqual(2 * 156 * 0.85);
+    expect(texts(svg)).toContain("a: 3 million tonnes CO2-equivalent");
   });
 
   it("donut compact legend and centre keep the digits their values need", () => {

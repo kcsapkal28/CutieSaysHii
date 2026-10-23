@@ -8,6 +8,34 @@ const FontRefSchema = z.object({
   letterSpacing: z.number().optional(),
 });
 
+// Grid spans are CSS grid lines [start, end) on a 12-column grid.
+export const GridSpanSchema = z.tuple([z.number().int().min(1).max(12), z.number().int().min(2).max(13)]);
+
+export const LayoutSpecSchema = z
+  .object({
+    grid: z.object({ title: GridSpanSchema, body: GridSpanSchema, wide: GridSpanSchema, aside: GridSpanSchema }).strict(),
+    align: z.enum(["start", "center"]),
+    coverAnchor: z.enum(["center", "bottom"]),
+    steps: z
+      .object({
+        title: z.number().int().min(1).max(4),
+        display: z.number().int().min(3).max(6),
+        stat: z.number().int().min(3).max(7),
+      })
+      .strict(),
+    kicker: z.enum(["section", "index", "none"]),
+    stat: z.enum(["bento", "oversized", "row"]),
+    panel: z.enum(["flat", "outline", "offset", "glass", "inset", "none"]),
+    divider: z.enum(["hairline", "bar", "ornament", "glow", "squiggle"]),
+    decoration: z.enum(["none", "blocks", "gridlines", "blobs", "frame", "brackets", "shapes", "vignette"]),
+    decorationOn: z.union([z.literal("all"), z.array(z.string())]),
+    imageLayout: z.enum(["inset", "bleed", "split"]),
+    emphasis: z.enum(["underline", "highlight", "ink", "glow"]),
+    tracking: z.enum(["normal", "wide"]),
+  })
+  .strict();
+export type LayoutSpec = z.infer<typeof LayoutSpecSchema>;
+
 export const ThemeSpecSchema = z.object({
   familyId: z.string(),
   paletteId: z.string(),
@@ -41,6 +69,7 @@ export const ThemeSpecSchema = z.object({
   titleCase: z.enum(["sentence", "title", "upper"]),
   backdropBlur: z.string().optional(),
   surfaceAlpha: z.number().min(0).max(1).optional(),
+  layout: LayoutSpecSchema,
 });
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 

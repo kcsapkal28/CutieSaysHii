@@ -1,7 +1,7 @@
 {
   "$schema": "./_schema/design-styles.schema.json",
-  "version": "1.0.1",
-  "notes": "The 30 user-facing styles are grouped into 8 implementable families. The UI shows families; the member names are shown as 'Includes:' text for discoverability. Tokens are CSS-ready. IDs referenced from palettes.json, type-families.json, motion-templates.json and compat-matrix.json.",
+  "version": "1.1.0",
+  "notes": "The 30 user-facing styles are grouped into 8 implementable families. The UI shows families; the member names are shown as 'Includes:' text for discoverability. Tokens are CSS-ready. Each family's layout tokens (grid spans, type steps, and stat, panel, divider, decoration, image and emphasis styles) drive the renderer's composition. IDs referenced from palettes.json, type-families.json, motion-templates.json and compat-matrix.json.",
   "families": [
     {
       "id": "minimal",
@@ -25,7 +25,21 @@
       "allowedTypes": ["geometric-modern", "swiss-neutral", "humanist"],
       "defaultMotion": "calm",
       "threeJs": "never",
-      "layoutHints": ["bento grid for stat slides", "single column, left aligned", "generous margins ≥ 8% viewport"]
+      "layout": {
+        "grid": { "title": [1, 10], "body": [1, 9], "wide": [1, 13], "aside": [10, 13] },
+        "align": "start",
+        "coverAnchor": "bottom",
+        "steps": { "title": 3, "display": 5, "stat": 6 },
+        "kicker": "section",
+        "stat": "bento",
+        "panel": "flat",
+        "divider": "hairline",
+        "decoration": "none",
+        "decorationOn": [],
+        "imageLayout": "inset",
+        "emphasis": "underline",
+        "tracking": "normal"
+      }
     },
     {
       "id": "swiss",
@@ -49,7 +63,21 @@
       "allowedTypes": ["swiss-neutral", "geometric-modern", "poster-grotesk"],
       "defaultMotion": "kinetic",
       "threeJs": "never",
-      "layoutHints": ["12-col modular grid", "asymmetric placement", "oversized numerals for stat slides", "diagonal rules allowed"]
+      "layout": {
+        "grid": { "title": [3, 13], "body": [3, 10], "wide": [3, 13], "aside": [10, 13] },
+        "align": "start",
+        "coverAnchor": "bottom",
+        "steps": { "title": 3, "display": 5, "stat": 6 },
+        "kicker": "index",
+        "stat": "oversized",
+        "panel": "none",
+        "divider": "bar",
+        "decoration": "blocks",
+        "decorationOn": ["title", "section", "qa"],
+        "imageLayout": "split",
+        "emphasis": "ink",
+        "tracking": "normal"
+      }
     },
     {
       "id": "brutalist",
@@ -73,7 +101,21 @@
       "allowedTypes": ["brutalist-mono", "poster-grotesk"],
       "defaultMotion": "kinetic",
       "threeJs": "never",
-      "layoutHints": ["thick black outlines on every block", "hard offset shadows", "visible grid lines optional", "no rounded corners anywhere"]
+      "layout": {
+        "grid": { "title": [1, 11], "body": [1, 10], "wide": [1, 13], "aside": [10, 13] },
+        "align": "start",
+        "coverAnchor": "center",
+        "steps": { "title": 3, "display": 5, "stat": 5 },
+        "kicker": "index",
+        "stat": "bento",
+        "panel": "offset",
+        "divider": "bar",
+        "decoration": "gridlines",
+        "decorationOn": "all",
+        "imageLayout": "inset",
+        "emphasis": "highlight",
+        "tracking": "normal"
+      }
     },
     {
       "id": "glass-soft",
@@ -99,7 +141,21 @@
       "allowedTypes": ["geometric-modern", "humanist"],
       "defaultMotion": "depth",
       "threeJs": "default",
-      "layoutHints": ["blurred gradient blobs in background", "cards float over background", "thin 1px white/alpha borders"]
+      "layout": {
+        "grid": { "title": [1, 10], "body": [1, 10], "wide": [1, 13], "aside": [10, 13] },
+        "align": "start",
+        "coverAnchor": "center",
+        "steps": { "title": 3, "display": 5, "stat": 5 },
+        "kicker": "none",
+        "stat": "bento",
+        "panel": "glass",
+        "divider": "hairline",
+        "decoration": "blobs",
+        "decorationOn": "all",
+        "imageLayout": "inset",
+        "emphasis": "underline",
+        "tracking": "normal"
+      }
     },
     {
       "id": "retro",
@@ -123,7 +179,21 @@
       "allowedTypes": ["editorial-serif", "deco-geometric", "retro-script"],
       "defaultMotion": "calm",
       "threeJs": "never",
-      "layoutHints": ["ornamental frames on title/summary", "centred compositions", "decorative dividers"]
+      "layout": {
+        "grid": { "title": [2, 12], "body": [3, 11], "wide": [2, 12], "aside": [9, 12] },
+        "align": "center",
+        "coverAnchor": "center",
+        "steps": { "title": 3, "display": 5, "stat": 5 },
+        "kicker": "none",
+        "stat": "row",
+        "panel": "inset",
+        "divider": "ornament",
+        "decoration": "frame",
+        "decorationOn": ["title", "section", "summary", "qa"],
+        "imageLayout": "inset",
+        "emphasis": "ink",
+        "tracking": "normal"
+      }
     },
     {
       "id": "neon",
@@ -147,7 +217,21 @@
       "allowedTypes": ["cyber-display", "brutalist-mono"],
       "defaultMotion": "glitch",
       "threeJs": "optional",
-      "layoutHints": ["glow on accent text only, never body", "HUD-style corner brackets", "dark base always"]
+      "layout": {
+        "grid": { "title": [1, 10], "body": [1, 9], "wide": [1, 13], "aside": [10, 13] },
+        "align": "start",
+        "coverAnchor": "center",
+        "steps": { "title": 2, "display": 4, "stat": 5 },
+        "kicker": "index",
+        "stat": "oversized",
+        "panel": "outline",
+        "divider": "glow",
+        "decoration": "brackets",
+        "decorationOn": "all",
+        "imageLayout": "bleed",
+        "emphasis": "glow",
+        "tracking": "normal"
+      }
     },
     {
       "id": "maximal-pop",
@@ -171,7 +255,21 @@
       "allowedTypes": ["pop-rounded", "geometric-modern"],
       "defaultMotion": "pop",
       "threeJs": "optional",
-      "layoutHints": ["scattered geometric decorations (squiggles, dots, triangles)", "overlapping shapes behind titles", "max 3 decorations per slide"]
+      "layout": {
+        "grid": { "title": [1, 10], "body": [1, 10], "wide": [1, 13], "aside": [10, 13] },
+        "align": "start",
+        "coverAnchor": "center",
+        "steps": { "title": 3, "display": 5, "stat": 5 },
+        "kicker": "none",
+        "stat": "bento",
+        "panel": "offset",
+        "divider": "squiggle",
+        "decoration": "shapes",
+        "decorationOn": "all",
+        "imageLayout": "split",
+        "emphasis": "highlight",
+        "tracking": "normal"
+      }
     },
     {
       "id": "atmospheric",
@@ -195,7 +293,21 @@
       "allowedTypes": ["editorial-serif", "humanist"],
       "defaultMotion": "depth",
       "threeJs": "optional",
-      "layoutHints": ["full-bleed imagery with text in one corner", "wide letter-spacing", "very few words"]
+      "layout": {
+        "grid": { "title": [1, 8], "body": [1, 7], "wide": [1, 11], "aside": [8, 11] },
+        "align": "start",
+        "coverAnchor": "bottom",
+        "steps": { "title": 2, "display": 4, "stat": 5 },
+        "kicker": "section",
+        "stat": "row",
+        "panel": "none",
+        "divider": "hairline",
+        "decoration": "vignette",
+        "decorationOn": "all",
+        "imageLayout": "bleed",
+        "emphasis": "ink",
+        "tracking": "wide"
+      }
     }
   ]
 }

@@ -29,6 +29,15 @@ describe("catalog file schemas", () => {
     expect(result.success ? [] : result.error.issues).toEqual([]);
   });
 
+  it("real design-styles.json parses and has no layoutHints", () => {
+    const raw = read("design-styles.json") as { families: Record<string, unknown>[] };
+    expect(DesignStylesFileSchema.safeParse(raw).success).toBe(true);
+    for (const f of raw.families) {
+      expect(f).not.toHaveProperty("layoutHints");
+      expect(f).toHaveProperty("layout");
+    }
+  });
+
   it("rejects an unknown key on a family", () => {
     const raw = read("design-styles.json") as { families: Record<string, unknown>[] };
     raw.families[0] = { ...raw.families[0], foo: 1 };

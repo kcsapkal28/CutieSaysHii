@@ -123,4 +123,11 @@ describe("checkIntegrity", () => {
     expect(issues.length).toBeGreaterThanOrEqual(1);
     expect(issues.every((i) => i.file === "palettes.json")).toBe(true);
   });
+
+  it("rule 11: checkIntegrity includes layout issues", async () => {
+    const issues = await newIssues((r) => (fam(r, "minimal").layout.grid.body = [9, 9]));
+    const i = (await rawCatalog()).styles.families.findIndex((f: { id: string }) => f.id === "minimal");
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ file: "design-styles.json", path: `families.${i}.layout.grid.body` });
+  });
 });

@@ -43,6 +43,7 @@ export function resolveTheme(c: Catalog, choices: Choices): ThemeSpec {
     ...(t.backdropBlur === undefined ? {} : { backdropBlur: t.backdropBlur }),
     ...(t.surfaceAlpha === undefined ? {} : { surfaceAlpha: t.surfaceAlpha }),
     threeJs: choices.threeJs,
+    layout: structuredClone(family.layout),
   };
 }
 

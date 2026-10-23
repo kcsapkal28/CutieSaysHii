@@ -4,6 +4,7 @@ import {
   BlockUnionSchema,
   BriefSpecSchema,
   DeckSpecSchema,
+  LayoutSpecSchema,
   MotionPlanSchema,
   PatchSchema,
   RenderManifestSchema,
@@ -19,7 +20,7 @@ const validBrief = {
 };
 
 const font = { font: "Inter", weights: [400] };
-const validTheme = {
+const themeWithoutLayout = {
   familyId: "f",
   paletteId: "p",
   typeFamilyId: "t",
@@ -44,6 +45,24 @@ const validTheme = {
   density: "low",
   titleCase: "sentence",
 };
+
+const minimalLayout = {
+  grid: { title: [1, 10], body: [1, 9], wide: [1, 13], aside: [10, 13] },
+  align: "start",
+  coverAnchor: "bottom",
+  steps: { title: 3, display: 5, stat: 6 },
+  kicker: "section",
+  stat: "bento",
+  panel: "flat",
+  divider: "hairline",
+  decoration: "none",
+  decorationOn: [],
+  imageLayout: "inset",
+  emphasis: "underline",
+  tracking: "normal",
+};
+
+const validTheme = { ...themeWithoutLayout, layout: minimalLayout };
 
 const validMotion = {
   templateId: "m",
@@ -142,6 +161,21 @@ describe("ThemeSpec additions", () => {
     const glass = { ...validTheme, backdropBlur: "16px", surfaceAlpha: 0.55 };
     expect(ThemeSpecSchema.safeParse(glass).success).toBe(true);
     expect(ThemeSpecSchema.safeParse({ ...glass, surfaceAlpha: 1.5 }).success).toBe(false);
+  });
+});
+
+describe("ThemeSpec layout", () => {
+  it("ThemeSpec requires layout", () => {
+    expect(ThemeSpecSchema.safeParse(themeWithoutLayout).success).toBe(false);
+    expect(ThemeSpecSchema.safeParse(validTheme).success).toBe(true);
+  });
+
+  it("LayoutSpec rejects unknown keys and out-of-range spans", () => {
+    expect(LayoutSpecSchema.safeParse(minimalLayout).success).toBe(true);
+    const withTitle = (title: number[]) => ({ ...minimalLayout, grid: { ...minimalLayout.grid, title } });
+    expect(LayoutSpecSchema.safeParse(withTitle([0, 10])).success).toBe(false);
+    expect(LayoutSpecSchema.safeParse(withTitle([1, 14])).success).toBe(false);
+    expect(LayoutSpecSchema.safeParse({ ...minimalLayout, extra: 1 }).success).toBe(false);
   });
 });
 

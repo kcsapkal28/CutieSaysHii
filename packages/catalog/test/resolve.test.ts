@@ -1,7 +1,7 @@
 import { ThemeSpecSchema } from "@deckforge/schemas";
 import type { Choices } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
-import { getPalette } from "../src/accessors.ts";
+import { getFamily, getPalette } from "../src/accessors.ts";
 import { defaultsForFamily, goldenChoices } from "../src/compat.ts";
 import type { Catalog } from "../src/files.ts";
 import { loadCatalog } from "../src/load.ts";
@@ -64,6 +64,30 @@ describe("resolveTheme", () => {
     expect(theme.type.display).toEqual(family.display);
     expect(theme.type.mono.font).toBe(family.mono.font);
     expect(theme.type.scale).toBe(family.scale);
+  });
+
+  it("resolveTheme copies the family layout", () => {
+    const { layout } = resolveTheme(c, choicesFor("minimal"));
+    expect(layout.stat).toBe("bento");
+    expect(layout.grid.body).toEqual([1, 9]);
+    expect(layout.decorationOn).toEqual([]);
+  });
+
+  it("resolveTheme layout is a copy", () => {
+    const before = structuredClone(getFamily(c, "minimal").layout);
+    const { layout } = resolveTheme(c, choicesFor("minimal"));
+    layout.grid.body[1] = 12;
+    layout.stat = "row";
+    (layout.decorationOn as string[]).push("title");
+    expect(getFamily(c, "minimal").layout).toEqual(before);
+  });
+
+  it("every golden theme carries layout", () => {
+    for (const g of goldenChoices(c)) {
+      const theme = resolveTheme(c, g);
+      expect(theme.layout, g.styleFamilyId).toBeDefined();
+      expect(theme.layout, g.styleFamilyId).toEqual(getFamily(c, g.styleFamilyId).layout);
+    }
   });
 
   it("throws on invalid choices", () => {

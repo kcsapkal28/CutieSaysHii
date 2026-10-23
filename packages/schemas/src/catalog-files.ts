@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HexSchema } from "./design.ts";
+import { HexSchema, LayoutSpecSchema } from "./design.ts";
 
 // Shapes of catalog/*.json. Objects are strict so a typo'd key fails loudly.
 // Cross-file references (ids) are checked by @deckforge/catalog, not here.
@@ -34,7 +34,7 @@ export const StyleFamilySchema = z
     allowedTypes: ids,
     defaultMotion: z.string(),
     threeJs: z.enum(["never", "optional", "default"]),
-    layoutHints: z.array(z.string()),
+    layout: LayoutSpecSchema,
   })
   .strict();
 export type StyleFamily = z.infer<typeof StyleFamilySchema>;

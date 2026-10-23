@@ -1,5 +1,6 @@
 import { contrastRatio, passesAA } from "./contrast.ts";
 import { CATALOG_FILES, type Catalog } from "./files.ts";
+import { checkLayout } from "./layout.ts";
 
 export type IntegrityIssue = { file: string; path: string; message: string };
 
@@ -169,6 +170,9 @@ export function checkIntegrity(c: Catalog): IntegrityIssue[] {
         add(F.palettes, `palettes.${i}.contrast.${j}`, `${p.id}: listed pair ${fg} on ${bg} is ${contrastRatio(fg, bg).toFixed(2)}:1, below AA`);
     });
   });
+
+  // Rule 11: layout tokens are consistent.
+  issues.push(...checkLayout(c));
 
   return issues;
 }

@@ -3,11 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
+  },
   "scripts": {
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": { "@deckforge/schemas": "workspace:*", "zod": "^3.25.76" }
+  "dependencies": {
+    "@deckforge/schemas": "workspace:*",
+    "zod": "^3.25.76"
+  }
 }

@@ -11,6 +11,24 @@ export function checkIntegrity(c: Catalog): IntegrityIssue[] {
   const issues: IntegrityIssue[] = [];
   const add = (file: string, path: string, message: string) => issues.push({ file, path, message });
 
+  // Rule 0: ids are unique. Lookups take the first match, so a duplicate would be silently ignored.
+  const idLists: [string, string, { id: string }[]][] = [
+    [F.styles, "families", c.styles.families],
+    [F.palettes, "palettes", c.palettes.palettes],
+    [F.types, "families", c.types.families],
+    [F.motion, "templates", c.motion.templates],
+    [F.interactions, "modes", c.interactions.modes],
+    [F.interactions, "components", c.interactions.components],
+    [F.slideTypes, "types", c.slideTypes.types],
+  ];
+  for (const [file, list, items] of idLists) {
+    const seen = new Set<string>();
+    items.forEach((x, i) => {
+      if (seen.has(x.id)) add(file, `${list}.${i}.id`, `duplicate id "${x.id}" in ${list}`);
+      seen.add(x.id);
+    });
+  }
+
   const palettes = new Map(c.palettes.palettes.map((p) => [p.id, p]));
   const types = new Map(c.types.families.map((t) => [t.id, t]));
   const familyIds = new Set(c.styles.families.map((f) => f.id));

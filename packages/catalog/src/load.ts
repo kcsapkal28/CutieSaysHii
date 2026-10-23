@@ -4,11 +4,12 @@ import { fileURLToPath } from "node:url";
 import { CATALOG_FILES, type Catalog, type CatalogKey } from "./files.ts";
 import { CatalogError, parseCatalog } from "./parse.ts";
 
-export const DEFAULT_CATALOG_DIR = fileURLToPath(new URL("../../../catalog/", import.meta.url));
+// Resolved on call, not at import, so bundlers never see the URL as an asset reference.
+export function defaultCatalogDir(): string {
+  return process.env.DECKFORGE_CATALOG_DIR ?? fileURLToPath(new URL("../../../catalog/", import.meta.url));
+}
 
-const defaultDir = () => process.env.DECKFORGE_CATALOG_DIR ?? DEFAULT_CATALOG_DIR;
-
-export async function readRawCatalog(dir = defaultDir()): Promise<Record<CatalogKey, unknown>> {
+export async function readRawCatalog(dir = defaultCatalogDir()): Promise<Record<CatalogKey, unknown>> {
   const entries = await Promise.all(
     (Object.entries(CATALOG_FILES) as [CatalogKey, string][]).map(async ([key, file]) => {
       const text = await readFile(join(dir, file), "utf8");
@@ -22,6 +23,6 @@ export async function readRawCatalog(dir = defaultDir()): Promise<Record<Catalog
   return Object.fromEntries(entries) as Record<CatalogKey, unknown>;
 }
 
-export async function loadCatalog(dir = defaultDir()): Promise<Catalog> {
+export async function loadCatalog(dir = defaultCatalogDir()): Promise<Catalog> {
   return parseCatalog(await readRawCatalog(dir));
 }

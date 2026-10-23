@@ -21,6 +21,29 @@ describe("checkIntegrity", () => {
     expect(checkIntegrity(await loadCatalog())).toEqual([]);
   });
 
+  it("rule 0: flags duplicate ids in every id list", async () => {
+    const issues = await newIssues((r) => {
+      r.palettes.palettes.push({ ...r.palettes.palettes[0], mode: "dark" });
+      r.styles.families.push(structuredClone(r.styles.families[0]));
+      r.types.families.push(structuredClone(r.types.families[0]));
+      r.motion.templates.push(structuredClone(r.motion.templates[0]));
+      r.interactions.modes.push(structuredClone(r.interactions.modes[0]));
+      r.interactions.components.push(structuredClone(r.interactions.components[0]));
+      r.slideTypes.types.push(structuredClone(r.slideTypes.types[0]));
+    });
+    const dupes = issues.filter((i) => i.message.includes("duplicate id"));
+    expect(dupes.map((i) => i.file).sort()).toEqual([
+      "design-styles.json",
+      "interactions.json",
+      "interactions.json",
+      "motion-templates.json",
+      "palettes.json",
+      "slide-types.json",
+      "type-families.json",
+    ]);
+    expect(dupes.find((i) => i.file === "palettes.json")?.message).toContain("nordic-mist");
+  });
+
   it("rule 1: flags a default palette outside allowedPalettes", async () => {
     const issues = await newIssues((r) => (fam(r, "minimal").defaultPalette = "tokyo-grid"));
     expect(issues).toHaveLength(1);

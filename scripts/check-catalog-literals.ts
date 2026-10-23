@@ -4,7 +4,8 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadCatalog, normalizeHex, type Catalog } from "@deckforge/catalog";
+import { normalizeHex, type Catalog } from "@deckforge/catalog";
+import { loadCatalog } from "@deckforge/catalog/node";
 
 export type LiteralHit = { path: string; line: number; value: string };
 

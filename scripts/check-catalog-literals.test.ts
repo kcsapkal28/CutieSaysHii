@@ -1,4 +1,5 @@
-import { loadCatalog, type Catalog } from "@deckforge/catalog";
+import type { Catalog } from "@deckforge/catalog";
+import { loadCatalog } from "@deckforge/catalog/node";
 import { beforeAll, describe, expect, it } from "vitest";
 import { findCatalogLiterals, isScannedPath } from "./check-catalog-literals.ts";
 

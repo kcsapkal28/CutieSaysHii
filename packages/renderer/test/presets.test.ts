@@ -67,3 +67,13 @@ describe("countUp", () => {
     expect(formatCountUp(parseCountUp(el.textContent!)!, 1200)).toBe("1,200+");
   });
 });
+
+describe("colorShift", () => {
+  it("shifts text to the legible accent, not the raw accent role", () => {
+    document.documentElement.style.setProperty("--df-accent", "rgb(250, 240, 230)");
+    document.documentElement.style.setProperty("--df-accent-text", "rgb(10, 20, 30)");
+    const els = targets();
+    playThrough(EMPHASIS_PRESETS.colorShift!(els, opts(true)));
+    for (const el of els) expect(el.style.color).toBe("rgb(10, 20, 30)");
+  });
+});

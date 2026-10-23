@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { goldenChoices, resolveTheme, type Catalog } from "@deckforge/catalog";
+import { goldenChoices, passesAA, resolveTheme, type Catalog } from "@deckforge/catalog";
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -88,6 +88,36 @@ describe("compileThemeCss", () => {
     const set = css({ backdropBlur: "16px", surfaceAlpha: 0.55 });
     expect(set).toContain("--df-backdrop-blur: 16px");
     expect(set).toContain("--df-surface-alpha: 0.55");
+  });
+
+  // A no-op blur(0px) still forces a compositing layer, which blurs the text inside the scaled slide.
+  it("backdrop filter is none without a blur and blur(<x>) with one", () => {
+    expect(css({ backdropBlur: undefined })).toContain("--df-backdrop-filter: none");
+    expect(css({ backdropBlur: "0px" })).toContain("--df-backdrop-filter: none");
+    expect(css({ backdropBlur: "16px" })).toContain("--df-backdrop-filter: blur(16px)");
+  });
+
+  it("primary/accent text variants pass AA on bg and surface, keeping the role when it already does", () => {
+    for (const g of goldenChoices(c)) {
+      const { roles } = resolveTheme(c, g);
+      const out = compileThemeCss(resolveTheme(c, g));
+      for (const role of ["primary", "accent"] as const) {
+        const value = new RegExp(`--df-${role}-text: (#[0-9A-F]{6});`).exec(out)?.[1];
+        expect(value, `${g.styleFamilyId} ${role}`).toBeDefined();
+        expect(passesAA(value!, roles.bg) && passesAA(value!, roles.surface), `${g.styleFamilyId} ${role}`).toBe(true);
+        if (passesAA(roles[role], roles.bg) && passesAA(roles[role], roles.surface)) {
+          expect(value).toBe(roles[role].toUpperCase());
+        }
+      }
+    }
+  });
+
+  it("a role too light for text is mixed toward the text colour, not replaced by it", () => {
+    const roles = { ...retro.roles, primary: "#FFFFFF" };
+    const value = /--df-primary-text: (#[0-9A-F]{6});/.exec(compileThemeCss({ ...retro, roles }))?.[1];
+    expect(value).toBeDefined();
+    expect(passesAA(value!, roles.bg) && passesAA(value!, roles.surface)).toBe(true);
+    expect(value).not.toBe(roles.text.toUpperCase());
   });
 
   it("compiles every golden theme and is deterministic", () => {

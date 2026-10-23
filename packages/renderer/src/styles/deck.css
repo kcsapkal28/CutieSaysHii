@@ -11,6 +11,8 @@
   --color-df-text-muted: var(--df-text-muted);
   --color-df-primary: var(--df-primary);
   --color-df-accent: var(--df-accent);
+  --color-df-primary-text: var(--df-primary-text);
+  --color-df-accent-text: var(--df-accent-text);
   --color-df-border: var(--df-border);
   --font-display: var(--df-font-display);
   --font-body: var(--df-font-body);
@@ -75,7 +77,7 @@
 
   .reveal .df-bullets li::marker,
   .reveal .df-timeline-step::marker {
-    color: var(--df-accent);
+    color: var(--df-accent-text);
   }
 
   .reveal .df-paragraph {
@@ -110,7 +112,7 @@
     margin-left: 0.25em;
     font-size: 0.4em;
     vertical-align: middle;
-    color: var(--df-accent);
+    color: var(--df-accent-text);
   }
 
   .reveal .df-compare {
@@ -130,7 +132,7 @@
 
   .reveal .df-compare th {
     font-family: var(--df-font-display);
-    color: var(--df-primary);
+    color: var(--df-primary-text);
   }
 
   .reveal .df-timeline {
@@ -152,14 +154,14 @@
 
   .reveal .df-timeline-date {
     grid-column: 1;
-    color: var(--df-accent);
+    color: var(--df-accent-text);
     font-family: var(--df-font-mono);
   }
 
   .reveal .df-timeline-label {
     grid-column: 2;
     font-family: var(--df-font-display);
-    color: var(--df-primary);
+    color: var(--df-primary-text);
     overflow-wrap: anywhere;
   }
 
@@ -213,7 +215,7 @@
   .reveal .df-code .hljs-selector-tag,
   .reveal .df-code .hljs-built_in,
   .reveal .df-code .hljs-literal {
-    color: var(--df-primary);
+    color: var(--df-primary-text);
   }
 
   .reveal .df-code .hljs-string,
@@ -221,7 +223,7 @@
   .reveal .df-code .hljs-title,
   .reveal .df-code .hljs-attr,
   .reveal .df-code .hljs-type {
-    color: var(--df-accent);
+    color: var(--df-accent-text);
   }
 
   .reveal .df-diagram {
@@ -281,6 +283,10 @@
   .reveal .df-code,
   .reveal [data-region="left"],
   .reveal [data-region="right"] {
-    backdrop-filter: blur(var(--df-backdrop-blur));
+    backdrop-filter: var(--df-backdrop-filter);
+  }
+
+  .reveal .controls {
+    color: var(--df-text);
   }
 }

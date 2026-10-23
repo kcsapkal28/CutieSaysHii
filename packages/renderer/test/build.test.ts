@@ -101,9 +101,9 @@ describe("build", () => {
 
   it("deck.css contains a utility used by a template", async () => {
     const title = await readFile(fileURLToPath(new URL("../templates/title.hbs", import.meta.url)), "utf8");
-    expect(title).toContain("text-df-accent");
+    expect(title).toContain("text-df-accent-text");
     const css = await readFile(join(outA, "assets/deck.css"), "utf8");
-    expect(css).toContain(".text-df-accent");
+    expect(css).toContain(".text-df-accent-text");
     expect(css).toContain(".bg-df-surface");
     expect(css).toContain(".font-display");
     expect(css).toContain(".fragment");

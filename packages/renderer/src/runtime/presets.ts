@@ -176,7 +176,7 @@ const glow: Preset = (els, o) => {
 const colorShift: Preset = (els, o) => {
   const tl = gsap.timeline();
   if (!els.length) return tl;
-  const accent = getComputedStyle(document.documentElement).getPropertyValue("--df-accent").trim();
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--df-accent-text").trim();
   if (accent) tl.to(els, { color: accent, duration: o.duration, stagger: o.stagger, ease: o.ease });
   return tl;
 };

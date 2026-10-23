@@ -74,6 +74,26 @@ describe("templates", () => {
       }
     }
   });
+
+  // A slide without a title must not leave an empty heading (and its flex gap) behind.
+  it("every title region collapses when empty", () => {
+    for (const t of catalog.slideTypes.types.filter((t) => t.regions.includes("title") && !t.regions.includes("meta"))) {
+      const { html } = renderDeckHtml(inputFor(deckOf(slideOf(t.id, [], { title: undefined }))));
+      const title = dom(html).querySelector(`[data-region="title"]`);
+      expect(title?.innerHTML, t.id).toBe("");
+      expect(title?.classList.contains("empty:hidden"), t.id).toBe(true);
+    }
+  });
+
+  // The labels are already visible in every stat; a visually-hidden copy would overflow its 1px box.
+  it("stat footer carries the labels but is hidden, not sr-only", () => {
+    const stat = { type: "Stat", value: "22%", label: "efficiency" } as Block;
+    const { html } = renderDeckHtml(inputFor(deckOf(slideOf("stat", [stat]))));
+    const footer = dom(html).querySelector('[data-region="footer"]');
+    expect(footer?.textContent).toBe("efficiency");
+    expect(footer?.hasAttribute("hidden")).toBe(true);
+    expect(footer?.classList.contains("sr-only")).toBe(false);
+  });
 });
 
 describe("renderDeckHtml on the solar fixture", () => {

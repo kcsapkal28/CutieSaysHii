@@ -14,9 +14,12 @@ export class FakeClock implements Clock {
   #nextId = 1;
   readonly #timers = new Map<number, Timer>();
   readonly #tracked = new Set<Promise<unknown>>();
+  readonly #settleTimeoutMs: number;
 
-  constructor(start = 0) {
+  /** `settleTimeoutMs`: real time to wait for tracked I/O before failing (it may be waiting on fake time). */
+  constructor(start = 0, { settleTimeoutMs = 5_000 }: { settleTimeoutMs?: number } = {}) {
     this.#now = start;
+    this.#settleTimeoutMs = settleTimeoutMs;
   }
 
   now(): number {
@@ -106,7 +109,18 @@ export class FakeClock implements Clock {
     for (;;) {
       await flushMicrotasks();
       if (this.#tracked.size === 0) return;
-      await Promise.allSettled([...this.#tracked]);
+      let guard: ReturnType<typeof setTimeout> | undefined;
+      const stuck = new Promise<"stuck">((resolve) => {
+        guard = setTimeout(() => resolve("stuck"), this.#settleTimeoutMs);
+      });
+      const outcome = await Promise.race([Promise.allSettled([...this.#tracked]), stuck]);
+      clearTimeout(guard);
+      if (outcome === "stuck") {
+        throw new Error(
+          `FakeClock: tracked I/O did not settle within ${this.#settleTimeoutMs} ms of real time; ` +
+            "track only real I/O, never a promise that waits on fake time",
+        );
+      }
     }
   }
 

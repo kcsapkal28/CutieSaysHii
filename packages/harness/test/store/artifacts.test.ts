@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFsArtifacts } from "../../src/adapters/fs-artifacts.ts";
 import type { AcceptedDoc } from "../../src/kernel/contracts.ts";
-import { CorruptArtifactError, InputError } from "../../src/kernel/errors.ts";
+import { CorruptArtifactError, InputError, InternalError } from "../../src/kernel/errors.ts";
 import type { JobSession, Store } from "../../src/kernel/ports.ts";
 import { FakeClock } from "../helpers/clock.ts";
 import { memoryStore, type MemoryStore } from "../helpers/store.ts";
@@ -89,6 +89,32 @@ describe("artifacts", () => {
     await expect(store.artifacts.read("j_1", "render", 1)).rejects.toSatisfy(corrupt("j_1/render.1.json"));
   });
 
+  it("a read that fails for another reason than a missing file is an InternalError", async () => {
+    await mkdir(join(m.jobsDir, "j_1", "qa.1.json"), { recursive: true });
+    await mkdir(join(m.jobsDir, "j_1", "accepted", "deck.json"), { recursive: true });
+    const notCorrupt = (e: unknown) => e instanceof InternalError && !(e instanceof CorruptArtifactError) && /j_1\/qa\.1\.json/.test(e.message);
+    await expect(store.artifacts.read("j_1", "qa", 1)).rejects.toSatisfy(notCorrupt);
+    await expect(store.artifacts.readAccepted("j_1", "deck")).rejects.toBeInstanceOf(InternalError);
+  });
+
+  it("claim and createJob sweep stale temp files left by a crashed writer", async () => {
+    const dir = join(m.jobsDir, "j_1");
+    await session.writeArtifact(artifactOf("j_1", "content", 0));
+    await mkdir(join(dir, "accepted"), { recursive: true });
+    await writeFile(join(dir, "content.json.0123456789ab.tmp"), "{");
+    await writeFile(join(dir, "accepted", "deck.json.ba9876543210.tmp"), "{");
+    await writeFile(join(dir, "notes.tmp.txt"), "kept");
+    await session.updateJob({ status: "failed", updatedAt: 2_000 });
+    await store.claim("j_1", "B", 3_000, 0);
+    expect((await readdir(dir, { recursive: true })).sort()).toEqual(["accepted", "content.json", "notes.tmp.txt"]);
+
+    const fresh = join(m.jobsDir, "j_2");
+    await mkdir(fresh, { recursive: true });
+    await writeFile(join(fresh, "content.json.0123456789ab.tmp"), "{");
+    await store.createJob(newJob("j_2"));
+    expect(await readdir(fresh)).toEqual([]);
+  });
+
   it("file writes run after the fenced ownership check", async () => {
     await store.claim("j_1", "B", 1_000_000, 999_999);
     await expect(session.writeArtifact(artifactOf("j_1", "content", 0))).rejects.toThrow("ownership lost");
@@ -125,6 +151,20 @@ describe("memoryStore onIo", () => {
     await clock.runUntilIdle();
     await work;
     expect(trail).toEqual(["wrote@1100", "check@1120:accepted,content.json", "removed@1150"]);
+    await dispose();
+  });
+
+  it("also sees artifact reads", async () => {
+    const seen: unknown[] = [];
+    const { store, dispose } = await memoryStore({
+      onIo: (p) => {
+        seen.push(p);
+        return p;
+      },
+    });
+    await store.artifacts.read("j_1", "content", 0);
+    await store.artifacts.readAccepted("j_1", "deck");
+    expect(seen).toHaveLength(2);
     await dispose();
   });
 });

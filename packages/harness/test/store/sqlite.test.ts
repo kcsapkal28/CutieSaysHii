@@ -1,6 +1,9 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openSqlite } from "../../src/adapters/sqlite/db.ts";
 import { createSqliteStore } from "../../src/adapters/sqlite/store.ts";
@@ -9,7 +12,13 @@ import type { Store } from "../../src/kernel/ports.ts";
 import { memoryStore, type MemoryStore } from "../helpers/store.ts";
 import { artifactOf, newJob, progress, stageRow, tinyDeck, toySummary } from "./fixtures.ts";
 
-const columns = (db: Awaited<ReturnType<typeof openSqlite>>, table: string) =>
+const HARNESS = fileURLToPath(new URL("../..", import.meta.url));
+const OPEN_CHILD = fileURLToPath(new URL("./open-sqlite-child.ts", import.meta.url));
+
+const migrationCount = (db: Awaited<ReturnType<typeof openSqlite>>) =>
+  db.raw.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get();
+
+const columns = (db:Awaited<ReturnType<typeof openSqlite>>, table: string) =>
   (db.raw.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
 
 describe("openSqlite", () => {
@@ -75,8 +84,31 @@ describe("openSqlite", () => {
     expect((await second.jobs.get("j_1"))?.id).toBe("j_1");
     await second.close();
     const db = await openSqlite(path);
-    expect(db.raw.prepare("SELECT count(*) AS n FROM __drizzle_migrations").get()).toEqual({ n: 1 });
+    expect(migrationCount(db)).toEqual({ n: 1 });
     db.close();
+  });
+
+  it("concurrent in-process opens of a fresh file all migrate once", async () => {
+    const path = join(dir, "fresh.sqlite");
+    const opened = await Promise.all([openSqlite(path), openSqlite(path), openSqlite(path)]);
+    for (const db of opened) {
+      expect(migrationCount(db)).toEqual({ n: 1 });
+      db.close();
+    }
+  });
+
+  it("three processes opening one fresh file all succeed", async () => {
+    const path = join(dir, "shared.sqlite");
+    const startAt = Date.now() + 2_500;
+    const children = [1, 2, 3].map(() =>
+      promisify(execFile)(process.execPath, ["--import", "tsx", OPEN_CHILD, path, String(startAt)], { cwd: HARNESS }),
+    );
+    const outcomes = await Promise.allSettled(children);
+    expect(outcomes.map((o) => (o.status === "fulfilled" ? o.value.stdout : String(o.reason)))).toEqual([
+      '{"n":1}',
+      '{"n":1}',
+      '{"n":1}',
+    ]);
   });
 });
 

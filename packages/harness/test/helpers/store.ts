@@ -34,7 +34,7 @@ function hookSession(session: JobSession, onIo: IoHook): JobSession {
   return hooked as unknown as JobSession;
 }
 
-/** An in-memory database over a temp jobs dir. `onIo` sees every session write; production code is unchanged. */
+/** An in-memory database over a temp jobs dir. `onIo` sees every session call and artifact read; production code is unchanged. */
 export async function memoryStore(opts: { onIo?: IoHook } = {}): Promise<MemoryStore> {
   const jobsDir = await mkdtemp(join(tmpdir(), "deckforge-jobs-"));
   const inner = await createSqliteStore({ dbPath: ":memory:", jobsDir });
@@ -44,7 +44,11 @@ export async function memoryStore(opts: { onIo?: IoHook } = {}): Promise<MemoryS
         jobs: inner.jobs,
         stages: inner.stages,
         events: inner.events,
-        artifacts: inner.artifacts,
+        artifacts: {
+          read: (...args) => onIo(inner.artifacts.read(...args)),
+          readAccepted: (jobId, kind) => onIo(inner.artifacts.readAccepted(jobId, kind)),
+          jobDir: (jobId) => inner.artifacts.jobDir(jobId),
+        },
         createJob: async (job) => hookSession(await onIo(inner.createJob(job)), onIo),
         claim: async (...args) => {
           const session = await onIo(inner.claim(...args));

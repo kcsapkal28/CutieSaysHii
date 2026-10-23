@@ -107,6 +107,13 @@ describe("FakeClock", () => {
     await clock.runUntilIdle();
   });
 
+  it("runUntilIdle fails clearly when tracked I/O never settles", async () => {
+    const clock = new FakeClock(0, { settleTimeoutMs: 20 });
+    void clock.track(clock.sleep(10));
+    await expect(clock.runUntilIdle()).rejects.toThrow("tracked I/O did not settle within 20 ms");
+    await expect(clock.advance(5)).rejects.toThrow("tracked I/O did not settle within 20 ms");
+  });
+
   it("runUntilIdle defaults to failing fast on a forgotten every()", async () => {
     const clock = new FakeClock();
     const stop = clock.every(5, () => {});

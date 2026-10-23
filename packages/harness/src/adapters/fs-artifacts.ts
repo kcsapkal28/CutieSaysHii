@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { z } from "zod";
 import {
   AcceptedDocSchema,
@@ -12,7 +12,7 @@ import {
   type StageArtifact,
   type StageName,
 } from "../kernel/contracts.ts";
-import { CorruptArtifactError, InputError } from "../kernel/errors.ts";
+import { CorruptArtifactError, InputError, InternalError } from "../kernel/errors.ts";
 import type { ArtifactReads } from "../kernel/ports.ts";
 
 /** Unfenced file access; sessions call the writes only after their ownership check. */
@@ -21,7 +21,11 @@ export type FsArtifacts = ArtifactReads & {
   write(artifact: StageArtifact): Promise<string>;
   remove(jobId: string, stage: StageName, iteration: number): Promise<void>;
   writeAccepted(jobId: string, doc: AcceptedDoc): Promise<void>;
+  /** Removes temp files a crashed writer left in the job dir; call only while owning the job. */
+  sweepTemp(jobId: string): Promise<void>;
 };
+
+const TEMP_FILE = /\.[0-9a-f]{12}\.tmp$/;
 
 // A job id names one directory under the jobs dir.
 function assertJobId(jobId: string): void {
@@ -36,13 +40,20 @@ const acceptedRel = (jobId: string, kind: AcceptedKind) => `${jobId}/accepted/${
 export function createFsArtifacts(jobsDir: string): FsArtifacts {
   const abs = (rel: string) => join(jobsDir, ...rel.split("/"));
 
-  // Temp file + rename, so a reader never sees a half-written file.
+  // Temp file, fsync, rename: a reader never sees a half-written file, and a crash after the
+  // rename cannot leave an empty one.
   async function writeAtomic(rel: string, value: unknown): Promise<void> {
     const file = abs(rel);
     const tmp = `${file}.${randomBytes(6).toString("hex")}.tmp`;
-    await mkdir(join(file, ".."), { recursive: true });
+    await mkdir(dirname(file), { recursive: true });
     try {
-      await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`);
+      const handle = await open(tmp, "w");
+      try {
+        await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
       await rename(tmp, file);
     } catch (e) {
       await rm(tmp, { force: true });
@@ -56,7 +67,7 @@ export function createFsArtifacts(jobsDir: string): FsArtifacts {
       text = await readFile(abs(rel), "utf8");
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-      throw new CorruptArtifactError(rel, { cause: e });
+      throw new InternalError(`cannot read artifact ${rel}: ${(e as Error).message}`, { cause: e });
     }
     let data: unknown;
     try {
@@ -75,10 +86,23 @@ export function createFsArtifacts(jobsDir: string): FsArtifacts {
       return join(jobsDir, jobId);
     },
 
+    async sweepTemp(jobId) {
+      assertJobId(jobId);
+      for (const dir of [abs(jobId), abs(`${jobId}/accepted`)]) {
+        let names: string[];
+        try {
+          names = await readdir(dir);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw e;
+        }
+        await Promise.all(names.filter((n) => TEMP_FILE.test(n)).map((n) => rm(join(dir, n), { force: true })));
+      }
+    },
+
     async read(jobId, stage, iteration) {
       assertJobId(jobId);
-      const a = await readValid(stageRel(jobId, stage, iteration), StageArtifactSchema);
-      return a && { ...a, fingerprint: a.fingerprint, input: a.input, output: a.output };
+      return (await readValid(stageRel(jobId, stage, iteration), StageArtifactSchema)) as StageArtifact | undefined;
     },
 
     async readAccepted<K extends AcceptedKind>(jobId: string, kind: K) {

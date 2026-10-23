@@ -42,6 +42,7 @@ export async function createSqliteStore({ dbPath, jobsDir }: SqliteStoreOptions)
         usageJson: json(ZERO_USAGE),
         distDir: null,
       });
+      await files.sweepTemp(id);
       return createSession(db, files, id, ownerId);
     },
 
@@ -50,7 +51,10 @@ export async function createSqliteStore({ dbPath, jobsDir }: SqliteStoreOptions)
         .update(jobs)
         .set({ ownerId, heartbeatAt: now, updatedAt: now })
         .where(and(eq(jobs.id, id), or(notInArray(jobs.status, LIVE), lt(jobs.heartbeatAt, staleBefore))));
-      return changesOf(result).changes > 0 ? createSession(db, files, id, ownerId) : null;
+      if (changesOf(result).changes === 0) return null;
+      // A previous owner may have crashed mid-write; its temp files are ours to clear now.
+      await files.sweepTemp(id);
+      return createSession(db, files, id, ownerId);
     },
 
     async reclaimStale(staleBefore, error) {

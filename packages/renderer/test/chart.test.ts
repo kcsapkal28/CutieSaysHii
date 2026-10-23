@@ -204,6 +204,57 @@ describe("chartSvg", () => {
     expect(values).toEqual(["0.001", "0.0014"]);
   });
 
+  const tickBodies = (block: ChartBlock) =>
+    boxes(chartSvg(block, { title: "T" }))
+      .filter((b) => b.cls === "" && b.size === 24)
+      .map((b) => b.body);
+  const valueBodies = (block: ChartBlock) =>
+    boxes(chartSvg(block, { title: "T" }))
+      .filter((b) => b.cls === "df-value")
+      .map((b) => b.body);
+
+  it("compact tick labels keep the digits their step needs", () => {
+    expect(tickBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [1.1e6, 4e5] }] })).toEqual([
+      "0",
+      "250K",
+      "500K",
+      "750K",
+      "1M",
+      "1.25M",
+    ]);
+    const billions = tickBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [1.1e9, 4e8] }], unit: "$" });
+    expect(billions).toContain("$1.25B");
+    expect(billions).not.toContain("$1.3B");
+  });
+
+  it("compact value labels stay distinct", () => {
+    const values = valueBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [1.04e6, 1e6] }] });
+    expect(values).toHaveLength(2);
+    expect(new Set(values).size).toBe(2);
+    expect(values).toEqual(["1.04M", "1M"]);
+  });
+
+  it("2.5-steps below one keep their third decimal", () => {
+    const ticks = tickBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [0.11, 0.03] }], unit: "%" });
+    expect(ticks).toContain("0.025%");
+    expect(ticks).toContain("0.125%");
+    expect(ticks).not.toContain("0.03%");
+    expect(ticks).not.toContain("0.13%");
+  });
+
+  it("omits direct labels that are wider than their bar slot", () => {
+    const labels = Array.from({ length: 8 }, (_, i) => `y${i}`);
+    const values = labels.map((_, i) => (i % 2 ? -123_456.78 : -100_000));
+    const svg = chartSvg({ ...bar, labels, series: [{ name: "s", values }], unit: "kWh/year" }, { title: "T" });
+    const rects = [...plotOf(svg).matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map(
+      (m) => ({ x0: Number(m[1]), y0: Number(m[2]), x1: Number(m[1]) + Number(m[3]), y1: Number(m[2]) + Number(m[4]) }),
+    );
+    expect(rects).toHaveLength(8);
+    const valueBoxes = boxes(svg).filter((b) => b.cls === "df-value");
+    for (const v of valueBoxes) for (const r of rects) expect(overlaps(v, { ...v, ...r }), v.body).toBe(false);
+    expect(valueBoxes).toHaveLength(0);
+  });
+
   it("bar marks use graphic colours only", () => {
     for (const block of [bar, solar]) {
       const marks = fills(plotOf(chartSvg(block, { title: "T" })));

@@ -14,8 +14,11 @@ const PREFIX_UNITS = new Set(["$", "€", "£", "¥"]);
 const COMPACT_FROM = 1e6;
 const MAX_DECIMALS = 6;
 const NEG_LABEL_ROOM = 40;
-const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-const GROUPED = Array.from({ length: MAX_DECIMALS + 1 }, (_, d) => new Intl.NumberFormat("en-US", { maximumFractionDigits: d }));
+const COMPACT_UNITS = [1e12, 1e9, 1e6, 1e3];
+const formatters = (opts: Intl.NumberFormatOptions) =>
+  Array.from({ length: MAX_DECIMALS + 1 }, (_, d) => new Intl.NumberFormat("en-US", { ...opts, maximumFractionDigits: d }));
+const COMPACT = formatters({ notation: "compact" });
+const GROUPED = formatters({});
 
 export type ValueFormat = { compact?: boolean; decimals?: number };
 
@@ -54,9 +57,9 @@ export function niceTicks(lo: number, hi: number, maxIntervals = 5): number[] {
   }
 }
 
-export function formatValue(v: number, unit?: string, { compact = false, decimals = 2 }: ValueFormat = {}): string {
+export function formatValue(v: number, unit?: string, { compact = false, decimals = compact ? 1 : 2 }: ValueFormat = {}): string {
   const n = finite(v);
-  const fmt = compact ? COMPACT : GROUPED[Math.min(Math.max(Math.floor(decimals), 0), MAX_DECIMALS)]!;
+  const fmt = (compact ? COMPACT : GROUPED)[Math.min(Math.max(Math.floor(decimals), 0), MAX_DECIMALS)]!;
   const digits = fmt.format(Math.abs(n));
   const sign = n < 0 && /[1-9]/.test(digits) ? "\u2212" : "";
   const u = unit?.trim() ?? "";
@@ -72,11 +75,12 @@ const decimalsOf = (ns: number[]) => {
   return MAX_DECIMALS;
 };
 
+const inCompactUnit = (t: number) => t / (COMPACT_UNITS.find((u) => Math.abs(t) >= u) ?? 1);
+
 function scaleFormat(ticks: number[], values: number[]): ValueFormat {
   const peak = Math.max(0, ...ticks.map(Math.abs), ...values.map(Math.abs));
-  if (peak >= COMPACT_FROM) return { compact: true };
-  const step = ticks.length > 1 ? ticks[1]! - ticks[0]! : 1;
-  return step < 0.01 ? { decimals: decimalsOf(ticks) } : {};
+  if (peak >= COMPACT_FROM) return { compact: true, decimals: Math.max(1, decimalsOf(ticks.map(inCompactUnit))) };
+  return { decimals: Math.max(2, decimalsOf(ticks)) };
 }
 
 export function donutSlices(labels: string[], values: number[], max = 6): { label: string; value: number }[] {
@@ -110,12 +114,14 @@ function cartesian(block: ChartBlock, values: number[][]): string {
   const ticks = niceTicks(Math.min(0, ...flat), Math.max(0, ...flat));
   const fmt = scaleFormat(ticks, flat);
   const tickText = ticks.map((t) => formatValue(t, unit, fmt));
-  const direct = block.kind === "bar" && values.length === 1 && n <= MAX_VALUE_LABELS;
   const left = Math.max(PLOT.left, Math.ceil(Math.max(0, ...tickText.map((t) => textWidth(t, 24))) + 32));
+  const plotW = PLOT.right - left;
+  const slot = n > 0 ? plotW / n : plotW;
+  const valueText = block.kind === "bar" && values.length === 1 && n <= MAX_VALUE_LABELS ? values[0]!.map((v) => formatValue(v, unit, fmt)) : [];
+  const direct = valueText.length > 0 && Math.max(...valueText.map((t) => textWidth(t, 24))) <= slot - 8;
   const bottom = PLOT.bottom - (direct && flat.some((v) => v < 0) ? NEG_LABEL_ROOM : 0);
   const lo = ticks[0]!;
   const hi = ticks[ticks.length - 1]!;
-  const plotW = PLOT.right - left;
   const plotH = bottom - PLOT.top;
   const y = (v: number) => PLOT.top + ((hi - v) / (hi - lo)) * plotH;
   const y0 = y(0);
@@ -127,7 +133,6 @@ function cartesian(block: ChartBlock, values: number[][]): string {
   });
   grid += `<line x1="${left}" x2="${PLOT.right}" y1="${num(y0)}" y2="${num(y0)}" style="stroke:var(--df-graphic-3)" stroke-width="2"/>`;
 
-  const slot = n > 0 ? plotW / n : plotW;
   const xLabels = block.labels.map((l, i) => text(left + slot * (i + 0.5), PLOT.bottom + 44, "middle", 26, l)).join("");
 
   let plot = "";
@@ -144,7 +149,7 @@ function cartesian(block: ChartBlock, values: number[][]): string {
         plot += `<rect x="${num(x)}" y="${num(top)}" width="${num(w)}" height="${num(height)}" rx="4" style="fill:${color(si)}"/>`;
         if (direct) {
           const ly = v < 0 ? top + height + 32 : top - 12;
-          labels += text(x + w / 2, ly, "middle", 24, formatValue(v, unit, fmt), "var(--df-text)", "df-value");
+          labels += text(x + w / 2, ly, "middle", 24, valueText[i]!, "var(--df-text)", "df-value");
         }
       });
     });

@@ -1,10 +1,10 @@
 import { createRequire } from "node:module";
 import { JSDOM } from "jsdom";
-import { chromium, type Page } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 import { goldenChoices, resolveTheme } from "@deckforge/catalog";
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
 import { bundleDiagramPage } from "../src/bundle.ts";
 import { mermaidConfig, renderDiagrams, reservedClassNames } from "../src/diagrams.ts";
@@ -280,6 +280,43 @@ describe("renderDiagrams", () => {
     expect(svgs.size).toBe(0);
     expect(warnings).toEqual([`diagram ${diagramKey(source)}: timed out`]);
   }, 60_000);
+
+  it("renderDiagrams rejects promptly on abort and closes chromium", async () => {
+    const launch = chromium.launch.bind(chromium);
+    const launched: Browser[] = [];
+    const spy = vi.spyOn(chromium, "launch").mockImplementation(async (...args) => {
+      const browser = await launch(...args);
+      launched.push(browser);
+      return browser;
+    });
+    try {
+      const ac = new AbortController();
+      const reason = new Error("cancelled");
+      const run = renderDiagrams(Object.values(BENIGN), theme, { signal: ac.signal });
+      await vi.waitFor(() => expect(launched).toHaveLength(1), { timeout: 15_000 });
+      const t0 = performance.now();
+      ac.abort(reason);
+      await expect(run).rejects.toBe(reason);
+      expect(performance.now() - t0).toBeLessThan(2_000);
+      expect(launched[0]?.isConnected()).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+    const later = await renderDiagrams(["graph TD; A-->B"], theme);
+    expect(later.warnings).toEqual([]);
+    expect(later.svgs.size).toBe(1);
+  }, 60_000);
+
+  it("an already-aborted signal rejects with its reason before launching chromium", async () => {
+    const spy = vi.spyOn(chromium, "launch");
+    try {
+      const reason = new Error("too late");
+      await expect(renderDiagrams(["graph TD; A-->B"], theme, { signal: AbortSignal.abort(reason) })).rejects.toBe(reason);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 
   it("empty input launches nothing", async () => {
     const t0 = performance.now();

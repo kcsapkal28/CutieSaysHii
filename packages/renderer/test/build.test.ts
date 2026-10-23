@@ -12,7 +12,8 @@ import {
   type RenderManifest,
   type ThemeSpec,
 } from "@deckforge/schemas";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { chromium } from "playwright";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build, type BuildInput } from "../src/build.ts";
 import { compileDeckCss } from "../src/css.ts";
 
@@ -134,6 +135,39 @@ describe("build", () => {
     expect(m.threeJs).toBe(true);
     expect(m.warnings).toContain("threeJs requested but not supported by this renderer yet");
     expect(manifest.warnings).not.toContain("threeJs requested but not supported by this renderer yet");
+  });
+
+  it("build rejects with the abort reason and writes no index.html", async () => {
+    const ac = new AbortController();
+    const reason = new Error("cancelled mid-render");
+    const launch = chromium.launch.bind(chromium);
+    // Abort once diagram rendering has started, so the cancel lands inside renderDiagrams.
+    const spy = vi.spyOn(chromium, "launch").mockImplementation(async (...args) => {
+      const browser = await launch(...args);
+      setTimeout(() => ac.abort(reason), 0);
+      return browser;
+    });
+    try {
+      const out = join(root, "aborted");
+      await expect(build(inputFor(out, { signal: ac.signal }))).rejects.toBe(reason);
+      expect(spy).toHaveBeenCalledOnce();
+      expect(existsSync(join(out, "index.html"))).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 60_000);
+
+  it("an already-aborted build rejects with the reason before any work", async () => {
+    const reason = new Error("never started");
+    const spy = vi.spyOn(chromium, "launch");
+    try {
+      const out = join(root, "pre-aborted");
+      await expect(build(inputFor(out, { signal: AbortSignal.abort(reason) }))).rejects.toBe(reason);
+      expect(spy).not.toHaveBeenCalled();
+      expect(existsSync(out)).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("rejects an invalid spec before writing anything", async () => {

@@ -1,11 +1,18 @@
 /// <reference lib="dom" />
 import { gsap } from "gsap";
 import { parseReducedMotion, resolveSlideMotion, type ReducedFlags, type SlideMotion } from "./motion.ts";
-import { EMPHASIS_PRESETS, ENTER_PRESETS, EXIT_PRESETS, type Preset, type PresetOptions } from "./presets.ts";
+import {
+  EMPHASIS_PRESETS,
+  ENTER_PRESETS,
+  EXIT_PRESETS,
+  restoreCountUps,
+  type Preset,
+  type PresetOptions,
+} from "./presets.ts";
 
 export type RevealApi = {
   on(
-    event: "ready" | "slidechanged",
+    event: "ready" | "slidechanged" | "overviewshown",
     cb: (e: { currentSlide: HTMLElement; previousSlide?: HTMLElement }) => void,
   ): void;
   getCurrentSlide(): HTMLElement;
@@ -35,8 +42,9 @@ function readTiming(): Timing {
 // Returns the template's reduced-motion flags, or null when the viewer has no such preference.
 function activeReduced(): ReducedFlags | null {
   if (typeof matchMedia !== "function" || !matchMedia(REDUCED_QUERY).matches) return null;
+  // Missing, empty or unparsable values fail closed: a reduced-motion viewer gets the safest fallback.
   try {
-    return parseReducedMotion(root()?.dataset.motionReduced ?? "same");
+    return parseReducedMotion(root()?.dataset.motionReduced?.trim() || "fadeOnly");
   } catch {
     return parseReducedMotion("fadeOnly");
   }
@@ -65,20 +73,29 @@ export function initMotion(reveal: RevealApi): void {
   const active = new Set<gsap.core.Animation>();
   const states = new WeakMap<Element, SlideState>();
 
+  const touched = new Set<Element>();
+  let ran = false;
+
+  // Idle only means something once the first run has built its timelines.
   const refreshIdle = () => {
-    html.dataset.dfMotionIdle = active.size === 0 ? "true" : "false";
+    html.dataset.dfMotionIdle = ran && active.size === 0 ? "true" : "false";
   };
 
+  html.dataset.dfMotionIdle = "false";
   if (motionOff()) {
     html.dataset.dfMotion = "off";
-    html.dataset.dfMotionIdle = "true";
+    reveal.on("ready", () => {
+      html.dataset.dfMotionIdle = "true";
+    });
     return;
   }
-  refreshIdle();
 
   const stateOf = (section: Element): SlideState => {
     let s = states.get(section);
-    if (!s) states.set(section, (s = { contexts: [], timelines: new Set() }));
+    if (!s) {
+      states.set(section, (s = { contexts: [], timelines: new Set() }));
+      touched.add(section);
+    }
     return s;
   };
 
@@ -87,25 +104,21 @@ export function initMotion(reveal: RevealApi): void {
     const s = states.get(section);
     if (!s) return;
     for (const ctx of s.contexts.reverse()) ctx.revert();
+    restoreCountUps(section);
     for (const t of s.timelines) active.delete(t);
     s.contexts = [];
     s.timelines.clear();
     refreshIdle();
   };
 
-  const track = (section: Element, tl: gsap.core.Timeline, onDone?: () => void) => {
-    if (tl.duration() === 0) {
-      onDone?.();
-      return;
-    }
+  const track = (section: Element, tl: gsap.core.Timeline) => {
+    if (tl.duration() === 0) return;
     stateOf(section).timelines.add(tl);
     active.add(tl);
     tl.eventCallback("onComplete", () => {
       active.delete(tl);
       refreshIdle();
-      onDone?.();
     });
-    refreshIdle();
   };
 
   // Freeze whatever the slide was doing so an exit starts from its current look.
@@ -117,7 +130,7 @@ export function initMotion(reveal: RevealApi): void {
       active.delete(t);
     }
     s.timelines.clear();
-    refreshIdle();
+    restoreCountUps(section);
   };
 
   const motionEls = (section: Element) => [...section.querySelectorAll("[data-motion-el]")];
@@ -136,7 +149,9 @@ export function initMotion(reveal: RevealApi): void {
     const reduced = activeReduced();
     const ctx = gsap.context(() => {
       const tl = pick(EXIT_PRESETS, m.exit)(motionEls(section), options(m, reduced, EXIT_DURATION, 0));
-      track(section, tl, () => revertSlide(section));
+      // The exit end state stays until the slide is entered again (or the overview opens): Reveal keeps the
+      // outgoing slide on screen for longer than the exit lasts.
+      track(section, tl);
     });
     stateOf(section).contexts.push(ctx);
   };
@@ -170,8 +185,14 @@ export function initMotion(reveal: RevealApi): void {
   const run = (current: HTMLElement, previous?: HTMLElement) => {
     if (previous && previous !== current) exitSlide(previous);
     enterSlide(current, previous !== undefined);
+    ran = true;
+    refreshIdle();
   };
 
   reveal.on("ready", (e) => run(e.currentSlide));
   reveal.on("slidechanged", (e) => run(e.currentSlide, e.previousSlide));
+  reveal.on("overviewshown", () => {
+    for (const section of touched) revertSlide(section);
+    refreshIdle();
+  });
 }

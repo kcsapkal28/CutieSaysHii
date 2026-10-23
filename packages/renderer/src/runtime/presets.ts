@@ -58,7 +58,7 @@ const glitchIn: Preset = (els, o) => {
     opacity: 0, x: -14, skewX: -24, duration: o.duration * 0.6, stagger: o.stagger, ease: "steps(4)",
   });
   if (o.flicker !== false)
-    tl.to(els, { opacity: 0.3, duration: 0.04, repeat: 3, yoyo: true, ease: "none", stagger: o.stagger / 2 }, "<0.1");
+    tl.to(els, { opacity: 0.3, duration: 0.04, repeat: 3, yoyo: true, ease: "none", stagger: o.stagger / 2 }, ">");
   return tl;
 };
 
@@ -121,6 +121,11 @@ function sweepPreset(image: string, size: string): Preset {
         { backgroundSize: `0% ${size}` },
         { backgroundSize: `100% ${size}`, duration: o.duration, stagger: o.stagger, ease: o.ease },
       );
+}
+
+// A GSAP revert cannot undo textContent, so owners of a reverted slide call this to put authored text back.
+export function restoreCountUps(scope: ParentNode): void {
+  for (const el of scope.querySelectorAll<HTMLElement>("[data-df-final]")) el.textContent = el.dataset.dfFinal ?? "";
 }
 
 const countUp: Preset = (els, o) => {

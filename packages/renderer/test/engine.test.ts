@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initMotion, type RevealApi } from "../src/runtime/engine.ts";
+import { initMotion, slideMotion, type RevealApi } from "../src/runtime/engine.ts";
 
 type Handler = Parameters<RevealApi["on"]>[1];
 
@@ -42,7 +42,7 @@ describe("initMotion", () => {
     const { s1 } = mount();
     const { api, emit } = fakeReveal();
     initMotion(api);
-    expect(document.documentElement.dataset.dfMotionIdle).toBe("true");
+    expect(document.documentElement.dataset.dfMotionIdle).toBe("false");
     emit("ready", { currentSlide: s1 });
     expect(document.documentElement.dataset.dfMotionIdle).toBe("false");
     expect(s1.querySelector("[data-count-up]")!.textContent).toBe("0%");
@@ -71,6 +71,73 @@ describe("initMotion", () => {
     expect(document.documentElement.dataset.dfMotion).toBe("off");
     expect(document.documentElement.dataset.dfMotionIdle).toBe("true");
     expect(s1.querySelector("[data-count-up]")!.textContent).toBe("42%");
+  });
+
+  it("starts not idle, and only goes idle once the first enter has run", async () => {
+    const { s1 } = mount();
+    const { api, emit } = fakeReveal();
+    initMotion(api);
+    expect(document.documentElement.dataset.dfMotionIdle).toBe("false");
+    emit("ready", { currentSlide: s1 });
+    await vi.waitFor(() => expect(document.documentElement.dataset.dfMotionIdle).toBe("true"), { timeout: 5000 });
+  });
+
+  it("?df-motion=off goes idle only after ready", () => {
+    window.history.replaceState(null, "", "/?df-motion=off");
+    const { s1 } = mount();
+    const { api, emit } = fakeReveal();
+    initMotion(api);
+    expect(document.documentElement.dataset.dfMotionIdle).toBe("false");
+    emit("ready", { currentSlide: s1 });
+    expect(document.documentElement.dataset.dfMotionIdle).toBe("true");
+  });
+
+  it("keeps the exited slide in its exit end state after the exit completes", async () => {
+    const { s1, s2 } = mount();
+    const { api, emit } = fakeReveal();
+    initMotion(api);
+    emit("ready", { currentSlide: s1 });
+    emit("slidechanged", { currentSlide: s2, previousSlide: s1 });
+    await vi.waitFor(() => expect(document.documentElement.dataset.dfMotionIdle).toBe("true"), { timeout: 5000 });
+    expect(s1.querySelector<HTMLElement>("h2")!.style.opacity).toBe("0");
+  });
+
+  it("restores authored count-up text when the overview opens mid-count", () => {
+    const { s1 } = mount();
+    const { api, emit } = fakeReveal();
+    initMotion(api);
+    emit("ready", { currentSlide: s1 });
+    const stat = s1.querySelector("[data-count-up]")!;
+    expect(stat.textContent).toBe("0%");
+    emit("overviewshown", { currentSlide: s1 });
+    expect(stat.textContent).toBe("42%");
+  });
+
+  it("shows the final count-up text when the slide is left mid-count", () => {
+    const { s1, s2 } = mount();
+    const { api, emit } = fakeReveal();
+    initMotion(api);
+    emit("ready", { currentSlide: s1 });
+    emit("slidechanged", { currentSlide: s2, previousSlide: s1 });
+    expect(s1.querySelector("[data-count-up]")!.textContent).toBe("42%");
+  });
+
+  it("fails closed to fadeOnly when data-motion-reduced is missing or empty", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { s1 } = mount();
+    for (const value of [null, "", "  "]) {
+      const reveal = document.querySelector<HTMLElement>(".reveal")!;
+      if (value === null) reveal.removeAttribute("data-motion-reduced");
+      else reveal.setAttribute("data-motion-reduced", value);
+      expect(slideMotion(s1)).toMatchObject({ enter: "fade", emphasis: "none", exit: "fade" });
+    }
+  });
+
+  it("keeps full motion for a same template under reduced motion", () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: true }));
+    const { s1 } = mount();
+    document.querySelector(".reveal")!.setAttribute("data-motion-reduced", "same");
+    expect(slideMotion(s1)).toMatchObject({ enter: "fadeUp", emphasis: "countUp" });
   });
 
   it("falls back to fade-only when reduced motion is preferred", () => {

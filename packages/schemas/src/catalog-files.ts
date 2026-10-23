@@ -151,6 +151,7 @@ export const InteractionComponentSchema = z
     id: z.string(),
     name: z.string(),
     binds: ids,
+    disallowedSlideTypes: ids.optional(),
     props: z.record(z.string(), z.unknown()),
     description: z.string(),
     cost: z.string(),
@@ -224,11 +225,11 @@ export const CompatMatrixFileSchema = z
         .object({
           minDepth: z.string().optional(),
           reason: z.string().optional(),
-          disallowedSlideTypesForHotspots: ids.optional(),
         })
         .strict(),
     ),
     densityCaps: z.object({ note: z.string() }).strict(),
+    designRules: z.object({ motionOverrideSlideTypes: ids, maxInteractiveComponentsPerSlide: z.number() }).strict(),
     golden: z.array(GoldenComboSchema),
   })
   .strict();

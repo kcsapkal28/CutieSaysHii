@@ -1,0 +1,250 @@
+{
+  "title": "How solar cells work",
+  "subtitle": "From sunlight to electric current in ten minutes",
+  "slides": [
+    {
+      "id": "s01",
+      "type": "title",
+      "title": "A ten-minute primer",
+      "body": [],
+      "notes": "Welcome everyone. Today we follow a single particle of light from the sun all the way into a wire in your home. Solar cells look mysterious, but the idea is simple: light knocks electrons loose, and a built-in electric field pushes them in one direction so they can do useful work. We will cover the physics first, then look at real numbers for efficiency and growth, then compare the main cell technologies and finish with a short history. Keep questions for the end, although feel free to interrupt if a term is unclear. There is no maths beyond multiplication, and one tiny code example near the end.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s02",
+      "type": "agenda",
+      "title": "What we will cover",
+      "body": [
+        {
+          "type": "Bullets",
+          "items": [
+            "The photovoltaic effect",
+            "Inside a silicon cell",
+            "Efficiency and growth",
+            "Technologies and history"
+          ]
+        }
+      ],
+      "notes": "Here is the plan for the next ten minutes. We start with the photovoltaic effect, which is the physical trick that makes everything else possible. Then we open up a silicon cell and look at its layers. After that we put numbers on the story, covering how efficient cells are and how quickly installations have grown. Finally we compare the main cell technologies and walk through a short timeline from the first observation in the nineteenth century to modern panels. Each section is short, so if something is unfamiliar now, it will be explained shortly.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s04",
+      "type": "bullets",
+      "title": "The photovoltaic effect in brief",
+      "body": [
+        {
+          "type": "Bullets",
+          "items": [
+            "Photons carry energy that depends on their colour",
+            "Energy above the band gap frees an electron",
+            "Jargon check: supercalifragilisticsupercalifragilisticsupercalifragilistic stays one word",
+            "Excess energy is lost as heat"
+          ]
+        }
+      ],
+      "notes": "Let us walk through this one bullet at a time. Light arrives as photons, and each photon carries energy that depends on its colour. Blue light carries more than red. A semiconductor has a band gap, which is the minimum energy needed to free an electron. Photons above that threshold can free an electron, and photons below it pass straight through. The third bullet is a deliberately silly long word, included to show that very long unbroken text wraps instead of overflowing the slide. Finally, any extra energy above the band gap is wasted as heat, which is one reason efficiency has a ceiling.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s05",
+      "type": "text",
+      "title": "The core idea",
+      "body": [
+        {
+          "type": "Paragraph",
+          "text": "A solar cell is a one-way street for electrons: light supplies the push, and the junction decides the direction."
+        }
+      ],
+      "notes": "If you remember one sentence from this talk, make it this one. A solar cell is a one-way street for electrons. Light supplies the energy that pushes electrons off their atoms, but light alone would only make them wander randomly. The junction, which is the boundary between two differently treated layers of silicon, creates an electric field that gives the motion a direction. Random wandering becomes a steady current. Without the junction you would have a warm piece of silicon; with it, you have a power source that has no moving parts at all.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s06",
+      "type": "stat",
+      "title": "Numbers worth knowing",
+      "body": [
+        {
+          "type": "Stat",
+          "value": "22%",
+          "label": "typical commercial panel efficiency",
+          "trend": "up"
+        },
+        {
+          "type": "Stat",
+          "value": "0.6 V",
+          "label": "voltage of one silicon cell",
+          "trend": "flat"
+        },
+        {
+          "type": "Stat",
+          "value": "1,000 W/m²",
+          "label": "standard test sunlight",
+          "trend": "flat"
+        }
+      ],
+      "notes": "Three numbers anchor everything else. Commercial panels convert around twenty two percent of the sunlight that hits them into electricity, and that figure keeps creeping upward. A single silicon cell produces only about point six volts regardless of its size, which is why panels wire dozens of cells in series. And laboratories test panels under a standard of one thousand watts per square metre, roughly bright midday sun, so that results from different manufacturers can be compared fairly. Everything we measure later is relative to these three reference points.",
+      "emphasisTargets": [
+        "22%",
+        "0.6 V"
+      ]
+    },
+    {
+      "id": "s07",
+      "type": "quote",
+      "title": "In one sentence",
+      "body": [
+        {
+          "type": "Quote",
+          "text": "A photon with enough energy frees an electron; the junction decides which way it goes.",
+          "attribution": "Lecture summary"
+        }
+      ],
+      "notes": "This slide restates the physics as a single line, and I am not attributing it to any famous person; it is simply the summary of this lecture. Notice the two halves of the sentence. The first half is about energy: the photon must carry at least the band gap energy. The second half is about direction: the junction must exist to steer the freed electron. Efficiency improvements almost always come from improving one half or the other, either by capturing more of the spectrum or by losing fewer electrons on the way to the contacts.",
+      "emphasisTargets": [
+        "junction"
+      ]
+    },
+    {
+      "id": "s08",
+      "type": "diagram",
+      "title": "Path of a photon",
+      "body": [
+        {
+          "type": "Diagram",
+          "mermaid": "graph LR\n  A[Sunlight] --> B[Photon absorbed]\n  B --> C[Electron and hole freed]\n  C --> D[Junction separates charge]\n  D --> E[Current in the load]"
+        }
+      ],
+      "notes": "Here is the whole journey as a flow. Sunlight arrives and a photon is absorbed in the silicon. That absorption frees an electron and leaves a hole behind. The junction field then separates the two charges, sending electrons toward one contact and holes toward the other. Finally the electrons travel through the external load, which might be a lamp, a battery charger or the grid, and return to complete the circuit. Each arrow is a place where losses can happen, so engineers spend their careers shaving small percentages off every arrow.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s09",
+      "type": "chart",
+      "title": "Global solar capacity",
+      "body": [
+        {
+          "type": "Chart",
+          "kind": "bar",
+          "labels": [
+            "2010",
+            "2015",
+            "2020",
+            "2023"
+          ],
+          "series": [
+            {
+              "name": "Installed capacity",
+              "values": [
+                40,
+                230,
+                710,
+                1420
+              ]
+            }
+          ],
+          "unit": "GW"
+        }
+      ],
+      "notes": "This chart shows approximate worldwide installed solar capacity in gigawatts. In 2010 the world had roughly forty gigawatts. By 2015 that had grown to around two hundred thirty, by 2020 to about seven hundred ten, and by 2023 to more than fourteen hundred. The exact figures vary by source, so treat them as rounded orders of magnitude rather than precise statistics. The shape is the story: falling manufacturing costs made each year of growth easier than the last, a self reinforcing loop that surprised nearly every forecaster a decade ago.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s10",
+      "type": "compare",
+      "title": "Two cell technologies",
+      "body": [
+        {
+          "type": "Compare",
+          "leftTitle": "Monocrystalline silicon",
+          "rightTitle": "Thin film",
+          "rows": [
+            {
+              "left": "Higher efficiency",
+              "right": "Lower efficiency"
+            },
+            {
+              "left": "Rigid wafers",
+              "right": "Flexible layers possible"
+            },
+            {
+              "left": "Dominant on rooftops",
+              "right": "Niche and specialist uses"
+            },
+            {
+              "left": "Energy-intensive purification",
+              "right": "Uses far less material"
+            }
+          ]
+        }
+      ],
+      "notes": "Two families of cells dominate the conversation. On the left, monocrystalline silicon, cut from a single pure crystal. It gives the highest efficiency among common panels, but it is rigid and needs energy hungry purification. On the right, thin film technologies deposit very thin layers of semiconductor on glass, metal or plastic. They are lighter, can be flexible, and use less material, but they usually convert less light into power. Silicon wins most rooftops today because efficiency and long track record matter more than weight for most buildings.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s11",
+      "type": "timeline",
+      "title": "A short history",
+      "body": [
+        {
+          "type": "Timeline",
+          "steps": [
+            {
+              "date": "1839",
+              "label": "First observation",
+              "detail": "Becquerel sees light make current"
+            },
+            {
+              "date": "1883",
+              "label": "First cell",
+              "detail": "Fritts builds a selenium cell"
+            },
+            {
+              "date": "1954",
+              "label": "Silicon cell",
+              "detail": "Bell Labs reaches 6% efficiency"
+            },
+            {
+              "date": "2010s",
+              "label": "Cost collapse",
+              "detail": "Panels reach grid parity"
+            }
+          ]
+        }
+      ],
+      "notes": "Solar power is older than most people expect. In 1839 Edmond Becquerel noticed that light could produce a small current in an electrolyte. In 1883 Charles Fritts built a selenium cell, though it converted very little light. The modern era starts in 1954 when Bell Labs demonstrated a practical silicon cell at around six percent efficiency. Then, during the twenty tens, manufacturing scale pushed prices down so far that solar became competitive with fossil generation in many places.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s14",
+      "type": "summary",
+      "title": "Key takeaways",
+      "body": [
+        {
+          "type": "Bullets",
+          "items": [
+            "Light frees electrons; the junction steers them",
+            "One silicon cell gives about 0.6 V",
+            "Commercial panels convert roughly a fifth of sunlight",
+            "Falling costs drove rapid global growth"
+          ]
+        }
+      ],
+      "notes": "To summarise. Light frees electrons, and the junction gives them direction. A single silicon cell gives about point six volts, so panels connect many cells together. Commercial panels convert roughly a fifth of the sunlight they receive, and that number improves slowly but steadily. Finally, falling costs, rather than any single breakthrough, drove the rapid global growth we saw in the chart. If you want to go further, look up the Shockley-Queisser limit, which explains why a single junction silicon cell cannot exceed roughly thirty percent efficiency, however well it is made.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "s15",
+      "type": "qa",
+      "title": "Questions?",
+      "body": [
+        {
+          "type": "Paragraph",
+          "text": "Ask about band gaps, panel choice or storage."
+        }
+      ],
+      "notes": "That is the end of the main talk, so now it is your turn. Good questions to start with include why panels are usually blue or black, what happens on cloudy days, how long panels last, and whether they can be recycled. If nobody has a question yet, I can talk about how batteries pair with solar to move energy from midday to the evening, or about the next generation of cells such as perovskites stacked on silicon. Slides and speaker notes are available afterwards for anyone who wants to review the details.",
+      "emphasisTargets": []
+    }
+  ]
+}

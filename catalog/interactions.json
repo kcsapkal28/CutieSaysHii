@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.1.0",
   "notes": "User chooses one MODE. The Design Agent places COMPONENTS from that mode's list onto slides. Every component is a dependency-free web component in packages/renderer/interactions/, ≤5KB gzipped, keyboard operable, works from file://. 'binds' says which DeckSpec block type a component consumes.",
   "modes": [
     {
@@ -25,7 +25,7 @@
   "components": [
     { "id": "df-fragment", "name": "Step reveal", "binds": ["Bullets", "Paragraph"], "props": { "mode": ["one-by-one", "all"] }, "description": "Reveal.js fragments; each bullet appears on keypress.", "cost": "none" },
     { "id": "df-notes", "name": "Speaker notes", "binds": ["*"], "props": {}, "description": "Reveal speaker view (press S).", "cost": "none" },
-    { "id": "df-hotspot", "name": "Hotspots", "binds": ["Diagram", "Image"], "props": { "points": "[{x,y,label,detail}]", "max": 6 }, "description": "Numbered markers on an image/diagram; click opens a detail card.", "cost": "low" },
+    { "id": "df-hotspot", "name": "Hotspots", "binds": ["Diagram", "Image"], "disallowedSlideTypes": ["title", "section", "qa", "summary"], "props": { "points": "[{x,y,label,detail}]", "max": 6 }, "description": "Numbered markers on an image/diagram; click opens a detail card.", "cost": "low" },
     { "id": "df-reveal", "name": "Click to reveal", "binds": ["Compare", "Quote", "Stat"], "props": { "label": "string" }, "description": "Covered card, click or Enter to uncover. Use for 'what do you think happens next' beats.", "cost": "none" },
     { "id": "df-chart", "name": "Interactive chart", "binds": ["Chart"], "props": { "kind": ["bar", "line", "area", "donut"], "scrub": "boolean", "tooltip": "boolean" }, "description": "Chart.js chart with hover tooltips and optional time scrubber. Animates in with the motion template.", "cost": "medium (Chart.js ~60KB)" },
     { "id": "df-compare", "name": "Before / after slider", "binds": ["Compare", "Image"], "props": { "orientation": ["horizontal", "vertical"] }, "description": "Drag handle to compare two states.", "cost": "low" },

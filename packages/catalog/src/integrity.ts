@@ -114,14 +114,17 @@ export function checkIntegrity(c: Catalog): IntegrityIssue[] {
       if (!componentIds.has(id)) add(F.interactions, `modes.${i}.components.${j}`, `${m.id}: unknown component "${id}"`);
     }),
   );
-  c.interactions.components.forEach((x, i) =>
+  c.interactions.components.forEach((x, i) => {
     x.binds.forEach((b, j) => {
       if (b !== "*" && !blockNames.has(b))
         add(F.interactions, `components.${i}.binds.${j}`, `${x.id}: binds "${b}", which is not a block`);
-    }),
-  );
+    });
+    x.disallowedSlideTypes?.forEach((s, j) => {
+      if (!slideTypeIds.has(s)) add(F.interactions, `components.${i}.disallowedSlideTypes.${j}`, `${x.id}: unknown slide type "${s}"`);
+    });
+  });
 
-  // Rule 7: slide types reference real blocks and modes; hotspot rules reference real slide types.
+  // Rule 7: slide types reference real blocks and modes.
   c.slideTypes.types.forEach((t, i) => {
     t.accepts.forEach((b, j) => {
       if (!blockNames.has(b)) add(F.slideTypes, `types.${i}.accepts.${j}`, `${t.id}: unknown block "${b}"`);
@@ -137,10 +140,16 @@ export function checkIntegrity(c: Catalog): IntegrityIssue[] {
     if (!modeIds.has(modeId)) add(F.compat, at, `unknown interaction mode "${modeId}"`);
     if (rule.minDepth !== undefined && !depths.has(rule.minDepth))
       add(F.compat, `${at}.minDepth`, `minDepth "${rule.minDepth}" is not a depth in ${F.slideTypes}`);
-    rule.disallowedSlideTypesForHotspots?.forEach((s, j) => {
-      if (!slideTypeIds.has(s)) add(F.compat, `${at}.disallowedSlideTypesForHotspots.${j}`, `unknown slide type "${s}"`);
-    });
   }
+
+  // Rule 12: design rules reference real slide types; the per-slide cap is a positive integer.
+  const design = c.compat.designRules;
+  design.motionOverrideSlideTypes.forEach((s, j) => {
+    if (!slideTypeIds.has(s)) add(F.compat, `designRules.motionOverrideSlideTypes.${j}`, `unknown slide type "${s}"`);
+  });
+  if (!Number.isInteger(design.maxInteractiveComponentsPerSlide) || design.maxInteractiveComponentsPerSlide < 1)
+    add(F.compat, "designRules.maxInteractiveComponentsPerSlide",
+      `maxInteractiveComponentsPerSlide must be an integer ≥ 1 (got ${design.maxInteractiveComponentsPerSlide})`);
 
   // Rule 8: golden combos resolve and obey the compat rules.
   const requiresMotion = c.compat.threeJs.requiresMotion;

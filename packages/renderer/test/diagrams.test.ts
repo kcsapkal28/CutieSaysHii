@@ -7,6 +7,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
 import { renderDiagrams } from "../src/diagrams.ts";
 
+// url(http://evil.example/escN.png) written with CSS escapes, each backslash re-escaped N-1 more times.
+function escapeLayers(n: number): string {
+  let css = "\\75 rl(\\68 ttp\\3a \\2f \\2f evil.example/esc" + n + ".png)";
+  for (let i = 1; i < n; i++) css = css.replaceAll("\\", "\\5c ");
+  return css;
+}
+
 const HOSTILE = [
   `graph TD\n A["<img src='http://evil.example/p.png'>"] --> B`,
   `graph TD\n A["<img src=x onerror=alert(1)>"] --> B`,
@@ -20,6 +27,10 @@ const HOSTILE = [
   `graph TD\n A["<span style='background-image:image-set(&quot;http://evil.example/b.png&quot; 1x)'>x</span>"] --> B`,
   `graph TD\n A["<table background='http://evil.example/c.png'><tr><td>x</td></tr></table>"] --> B`,
   `graph TD\n A["<form action=http://evil.example/f><button>go</button></form>"] --> B`,
+  ...[1, 2, 3, 4, 5].flatMap((n) => [
+    `graph TD\n A["<span style='background:${escapeLayers(n)}'>x</span>"] --> B`,
+    `graph TD\n A["<style>.x{background:${escapeLayers(n)}}</style>y"] --> B`,
+  ]),
 ];
 
 let theme: ThemeSpec;
@@ -73,6 +84,10 @@ describe("renderDiagrams", () => {
           if (/^(xlink:)?href$/i.test(name)) expect(attr.value.startsWith("#")).toBe(true);
           if (!name.startsWith("xmlns") && name !== "style") expect(attr.value).not.toMatch(/^\s*([a-z][a-z0-9+.-]*:|\/\/)/i);
         }
+      }
+      for (const el of Array.from(doc.querySelectorAll("[style], style"))) {
+        expect(el.getAttribute("style") ?? "").not.toContain("\\");
+        if (el.localName === "style") expect(el.textContent ?? "").not.toContain("\\");
       }
       expect(svg).not.toMatch(/javascript:/i);
       expect(svg).not.toMatch(/url\(\s*['"]?\s*(?!#)/i);

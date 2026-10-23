@@ -88,28 +88,17 @@ export async function renderDiagrams(
           t.innerHTML = s;
           return t.value;
         };
-        const unescapeCss = (css: string) =>
-          css.replace(/\\(?:([0-9a-f]{1,6})\s?|(.))/gi, (_m, hex?: string, ch?: string) =>
-            hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff) || 0xfffd) : (ch ?? ""),
-          );
-        const normalise = (s: string) => {
-          let cur = s;
-          for (let i = 0; i < 3; i++) {
-            const next = unescapeCss(decodeEntities(cur));
-            if (next === cur) break;
-            cur = next;
-          }
-          return cur;
-        };
+        // Mermaid output never needs CSS escapes, so anything containing a backslash is dropped
+        // rather than decoded: the browser would decode it once more than we can safely emulate.
         const BAD_VALUE =
-          /url\(\s*(?!["']?\s*#)|image-set\(|cross-fade\(|(?:^|[^\w-])image\(|src\(|element\(|paint\(|https?:|\/\//i;
+          /\\|url\(\s*(?!["']?\s*#)|image-set\(|cross-fade\(|(?:^|[^\w-])image\(|src\(|attr\(|element\(|paint\(|https?:|\/\//i;
         const scrubCss = (css: string) =>
-          normalise(css)
+          decodeEntities(css)
             .replace(/\/\*[\s\S]*?\*\//g, "")
             .replace(/@import[^;{}]*;?/gi, "")
             .replace(/@font-face\s*\{[^}]*\}?/gi, "")
             .replace(/[^;{}]+/g, (seg) => (BAD_VALUE.test(seg) ? "" : seg))
-            .replace(/</g, "");
+            .replace(/[<\\]/g, "");
 
         const cleanAttrs = (el: Element) => {
           for (const attr of Array.from(el.attributes)) {
@@ -122,7 +111,7 @@ export async function renderDiagrams(
             } else if (name === "style") {
               el.setAttribute(attr.name, scrubCss(attr.value));
             } else {
-              const v = normalise(attr.value);
+              const v = decodeEntities(attr.value);
               if (/^\s*([a-z][a-z0-9+.-]*:|\/\/)/i.test(v) || BAD_VALUE.test(v)) el.removeAttribute(attr.name);
             }
           }

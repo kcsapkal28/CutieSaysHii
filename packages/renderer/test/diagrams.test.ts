@@ -55,6 +55,10 @@ const BENIGN = {
 
 const styleTexts = (svg: string) =>
   Array.from(new JSDOM(svg).window.document.querySelectorAll("style"), (el) => el.textContent ?? "");
+// Zero-request checks allow only an exact about:blank. Chromium serves data: URLs in the renderer, so Playwright
+// never reports them as requests: the html itself is checked for data: instead.
+const DATA_URL = /\bdata:/i;
+
 const ruleCount = (svg: string) => styleTexts(svg).join("").split("}").length - 1;
 
 async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
@@ -169,10 +173,11 @@ describe("renderDiagrams", () => {
       const page = await browser.newPage();
       const requested: string[] = [];
       page.on("request", (r) => {
-        if (!/^(about|data):/.test(r.url())) requested.push(r.url());
+        if (r.url() !== "about:blank") requested.push(r.url());
       });
       await page.route("**/*", (route) => route.abort());
       const html = `<!doctype html><html><body>${[...svgs.values(), ...benign.svgs.values()].join("")}</body></html>`;
+      expect(html).not.toMatch(DATA_URL);
       await page.setContent(html);
       await page.waitForTimeout(500);
       expect(requested).toEqual([]);
@@ -204,7 +209,7 @@ describe("renderDiagrams", () => {
     await withPage(async (page) => {
       const requested: string[] = [];
       page.on("request", (r) => {
-        if (!/^(about|data):/.test(r.url())) requested.push(r.url());
+        if (r.url() !== "about:blank") requested.push(r.url());
       });
       await page.addScriptTag({ content: await bundleDiagramPage() });
       const reservedClasses = await reservedClassNames();
@@ -222,7 +227,9 @@ describe("renderDiagrams", () => {
         expect(svg.startsWith("<svg")).toBe(true);
         expect(svg).not.toMatch(/evil\.example|url\(\s*['"]?\s*(?!#)|@import|@font-face|image-set/i);
       }
-      await page.setContent(`<!doctype html><html><body>${once.join("")}</body></html>`);
+      const html = `<!doctype html><html><body>${once.join("")}</body></html>`;
+      expect(html).not.toMatch(DATA_URL);
+      await page.setContent(html);
       await page.waitForTimeout(500);
       expect(requested).toEqual([]);
     });

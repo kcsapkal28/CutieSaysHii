@@ -37,10 +37,16 @@ async function waitForIdle(page: Page) {
 
 for (const family of FAMILIES) {
   test.describe(`${family} × calm`, () => {
-    test("opens from file:// with zero console errors and zero failed requests", async ({ page }) => {
+    test("opens from file:// with zero console errors, zero failed requests and no non-file requests", async ({ page }) => {
       const consoleErrors: string[] = [];
       const pageErrors: string[] = [];
       const failedRequests: string[] = [];
+      // Every request must be a file: URL, whether or not it succeeds. Nothing else is allowed: the deck needs no
+      // about: or data: loads, and Chromium serves data: URLs without reporting them as requests anyway.
+      const nonFileRequests: string[] = [];
+      page.on("request", (r) => {
+        if (!r.url().startsWith("file:")) nonFileRequests.push(r.url());
+      });
       page.on("console", (m) => {
         if (m.type() === "error") consoleErrors.push(m.text());
       });
@@ -57,6 +63,7 @@ for (const family of FAMILIES) {
       expect(consoleErrors).toEqual([]);
       expect(pageErrors).toEqual([]);
       expect(failedRequests).toEqual([]);
+      expect(nonFileRequests).toEqual([]);
     });
 
     test("has 15 slides", async ({ page }) => {

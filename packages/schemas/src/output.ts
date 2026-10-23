@@ -30,5 +30,6 @@ export const RenderManifestSchema = z.object({
   assets: z.array(z.object({ path: z.string(), bytes: z.number().int() })),
   totalBytes: z.number().int(),
   threeJs: z.boolean(),
+  warnings: z.array(z.string()),
 });
 export type RenderManifest = z.infer<typeof RenderManifestSchema>;

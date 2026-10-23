@@ -4,7 +4,9 @@ import {
   BlockUnionSchema,
   BriefSpecSchema,
   DeckSpecSchema,
+  MotionPlanSchema,
   PatchSchema,
+  RenderManifestSchema,
   ThemeSpecSchema,
 } from "../src/index.ts";
 
@@ -38,7 +40,30 @@ const validTheme = {
   gradients: false,
   imageTreatment: "clean",
   threeJs: false,
+  mode: "light",
+  density: "low",
+  titleCase: "sentence",
 };
+
+const validMotion = {
+  templateId: "m",
+  reducedMotion: "fadeOnly",
+  timing: { enter: 0.6, stagger: 0.08, transition: 0.5, easing: "power2.out" },
+  slides: { a: { transition: "fade", enter: "fadeUp", emphasis: "none", exit: "fade" } },
+};
+
+const validManifest = {
+  jobId: "j",
+  entry: "index.html",
+  slideIds: ["a"],
+  assets: [{ path: "index.html", bytes: 10 }],
+  totalBytes: 10,
+  threeJs: false,
+  warnings: [],
+};
+
+const without = <T extends object>(obj: T, key: keyof T) =>
+  Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
 
 const slide = (id: string) => ({ id, type: "bullets", body: [], notes: "", emphasisTargets: [] });
 
@@ -103,6 +128,34 @@ describe("ThemeSpec", () => {
   it('rejects roles.bg = "#FFF"', () => {
     expect(ThemeSpecSchema.safeParse(validTheme).success).toBe(true);
     expect(ThemeSpecSchema.safeParse({ ...validTheme, roles: { ...validTheme.roles, bg: "#FFF" } }).success).toBe(false);
+  });
+});
+
+describe("ThemeSpec additions", () => {
+  it("requires mode/density/titleCase", () => {
+    for (const key of ["mode", "density", "titleCase"] as const) {
+      expect(ThemeSpecSchema.safeParse(without(validTheme, key)).success, key).toBe(false);
+    }
+  });
+
+  it("accepts optional backdropBlur/surfaceAlpha and rejects surfaceAlpha outside 0..1", () => {
+    const glass = { ...validTheme, backdropBlur: "16px", surfaceAlpha: 0.55 };
+    expect(ThemeSpecSchema.safeParse(glass).success).toBe(true);
+    expect(ThemeSpecSchema.safeParse({ ...glass, surfaceAlpha: 1.5 }).success).toBe(false);
+  });
+});
+
+describe("MotionPlan", () => {
+  it("requires timing", () => {
+    expect(MotionPlanSchema.safeParse(validMotion).success).toBe(true);
+    expect(MotionPlanSchema.safeParse(without(validMotion, "timing")).success).toBe(false);
+  });
+});
+
+describe("RenderManifest", () => {
+  it("requires warnings", () => {
+    expect(RenderManifestSchema.safeParse(validManifest).success).toBe(true);
+    expect(RenderManifestSchema.safeParse(without(validManifest, "warnings")).success).toBe(false);
   });
 });
 

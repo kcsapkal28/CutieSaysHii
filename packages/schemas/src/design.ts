@@ -36,12 +36,18 @@ export const ThemeSpecSchema = z.object({
   gradients: z.boolean(),
   imageTreatment: z.string(),
   threeJs: z.boolean(),
+  mode: z.enum(["light", "dark"]),
+  density: z.enum(["low", "medium", "high"]),
+  titleCase: z.enum(["sentence", "title", "upper"]),
+  backdropBlur: z.string().optional(),
+  surfaceAlpha: z.number().min(0).max(1).optional(),
 });
 export type ThemeSpec = z.infer<typeof ThemeSpecSchema>;
 
 export const MotionPlanSchema = z.object({
   templateId: z.string(),
   reducedMotion: z.string().min(1),
+  timing: z.object({ enter: z.number(), stagger: z.number(), transition: z.number(), easing: z.string() }),
   slides: z.record(
     z.string(),
     z.object({

@@ -4,3 +4,4 @@ export * from "./files.ts";
 export * from "./integrity.ts";
 export * from "./parse.ts";
 export * from "./compat.ts";
+export * from "./resolve.ts";

@@ -1,4 +1,5 @@
 import { JSDOM } from "jsdom";
+import { chromium } from "playwright";
 import { goldenChoices, resolveTheme } from "@deckforge/catalog";
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
@@ -6,7 +7,24 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
 import { renderDiagrams } from "../src/diagrams.ts";
 
+const HOSTILE = [
+  `graph TD\n A["<img src='http://evil.example/p.png'>"] --> B`,
+  `graph TD\n A["<img src=x onerror=alert(1)>"] --> B`,
+  `graph TD\n A["<script>alert(1)</script>"] --> B`,
+  `graph TD\n A["<svg onload=alert(1)>"] --> B`,
+  `graph TD\n A["<iframe src='http://evil.example/'></iframe>"] --> B`,
+  `graph TD\n A-->B\n click A href "javascript:alert(1)"`,
+  `%%{init: {"themeCSS": ".node{background:url(http://evil.example/p)}"}}%%\ngraph TD\n A-->B`,
+  `%%{init: {"themeCSS": "@import url('http://evil.example/x.css');"}}%%\ngraph TD\n A-->B`,
+  `graph TD\n A["<span style='background-image:image-set(#quot;http://evil.example/a.png#quot; 1x)'>x</span>"] --> B`,
+  `graph TD\n A["<span style='background-image:image-set(&quot;http://evil.example/b.png&quot; 1x)'>x</span>"] --> B`,
+  `graph TD\n A["<table background='http://evil.example/c.png'><tr><td>x</td></tr></table>"] --> B`,
+  `graph TD\n A["<form action=http://evil.example/f><button>go</button></form>"] --> B`,
+];
+
 let theme: ThemeSpec;
+let hostileRun: Promise<Map<string, string>> | undefined;
+const hostileSvgs = () => (hostileRun ??= renderDiagrams(HOSTILE, theme).then((r) => r.svgs));
 beforeAll(async () => {
   const c = await loadCatalog();
   const choices = goldenChoices(c)[0];
@@ -33,31 +51,47 @@ describe("renderDiagrams", () => {
   }, 60_000);
 
   it("hostile diagrams never yield active or network-reaching svg", async () => {
-    const hostile = [
-      `graph TD\n A["<img src='http://evil.example/p.png'>"] --> B`,
-      `graph TD\n A["<img src=x onerror=alert(1)>"] --> B`,
-      `graph TD\n A["<script>alert(1)</script>"] --> B`,
-      `graph TD\n A["<svg onload=alert(1)>"] --> B`,
-      `graph TD\n A["<iframe src='http://evil.example/'></iframe>"] --> B`,
-      `graph TD\n A-->B\n click A href "javascript:alert(1)"`,
-      `%%{init: {"themeCSS": ".node{background:url(http://evil.example/p)}"}}%%\ngraph TD\n A-->B`,
-      `%%{init: {"themeCSS": "@import url('http://evil.example/x.css');"}}%%\ngraph TD\n A-->B`,
-    ];
-    const { svgs } = await renderDiagrams(hostile, theme);
+    const svgs = await hostileSvgs();
+    expect(svgs.size).toBe(HOSTILE.length);
     for (const svg of svgs.values()) {
       const doc = new JSDOM(svg).window.document;
-      expect(doc.querySelectorAll("script, iframe, img, image, object, embed, link, audio, video")).toHaveLength(0);
+      expect(doc.querySelectorAll("script, iframe, img, image, object, embed, link, audio, video, table, form")).toHaveLength(0);
       for (const el of Array.from(doc.querySelectorAll("*"))) {
         for (const attr of Array.from(el.attributes)) {
-          expect(attr.name.toLowerCase().startsWith("on")).toBe(false);
-          expect(attr.name.toLowerCase()).not.toBe("src");
-          if (/^(xlink:)?href$/i.test(attr.name)) expect(attr.value.startsWith("#")).toBe(true);
+          const name = attr.name.toLowerCase();
+          expect(name.startsWith("on")).toBe(false);
+          expect(["src", "srcset", "background", "action", "formaction", "poster", "data", "ping"]).not.toContain(name);
+          if (/^(xlink:)?href$/i.test(name)) expect(attr.value.startsWith("#")).toBe(true);
+          if (!name.startsWith("xmlns") && name !== "style") expect(attr.value).not.toMatch(/^\s*([a-z][a-z0-9+.-]*:|\/\/)/i);
         }
       }
       expect(svg).not.toMatch(/javascript:/i);
       expect(svg).not.toMatch(/url\(\s*['"]?\s*(?!#)/i);
-      expect(svg).not.toMatch(/@import/i);
+      expect(svg).not.toMatch(/image-set|@import|@font-face/i);
       expect(svg).not.toMatch(/evil\.example/);
+    }
+  }, 60_000);
+
+  it("viewing sanitised hostile svg in a browser makes zero requests", async () => {
+    const svgs = await hostileSvgs();
+    const benign = await renderDiagrams(["graph TD; A[Hello]-->B[World]"], theme);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      const requested: string[] = [];
+      page.on("request", (r) => {
+        if (!/^(about|data):/.test(r.url())) requested.push(r.url());
+      });
+      await page.route("**/*", (route) => route.abort());
+      const html = `<!doctype html><html><body>${[...svgs.values(), ...benign.svgs.values()].join("")}</body></html>`;
+      await page.setContent(html);
+      await page.waitForTimeout(500);
+      expect(requested).toEqual([]);
+      const label = page.locator("svg").last().locator("foreignObject span.nodeLabel");
+      expect(await label.allInnerTexts()).toEqual(["Hello", "World"]);
+      expect(await label.first().isVisible()).toBe(true);
+    } finally {
+      await browser.close();
     }
   }, 60_000);
 

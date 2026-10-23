@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { Block, DeckSpec } from "@deckforge/schemas";
 import { describe, expect, it } from "vitest";
-import { chartSvg, donutSlices, formatValue, niceTicks } from "../src/blocks/chart.ts";
+import { chartSvg, donutSlices, formatValue, labelPrecision, niceTicks } from "../src/blocks/chart.ts";
 
 type ChartBlock = Extract<Block, { type: "Chart" }>;
 
@@ -103,6 +103,20 @@ describe("formatValue", () => {
   it("no tick label glues a digit to a letter", () => {
     const svg = chartSvg(solar, { title: "Global solar capacity" });
     for (const t of texts(svg)) expect(t).not.toMatch(/\d[A-Za-z]/);
+  });
+});
+
+describe("labelPrecision", () => {
+  it("uses at least 2 digits plain and 1 compact, more when the numbers need them", () => {
+    expect(labelPrecision([0, 500, 1000], false)).toBe(2);
+    expect(labelPrecision([0, 0.025, 0.125], false)).toBe(3);
+    expect(labelPrecision([1e6, 2e9], true)).toBe(1);
+    expect(labelPrecision([250_000, 1.25e6], true)).toBe(2);
+    expect(labelPrecision([1.234e6], true)).toBe(3);
+  });
+
+  it("caps at 6", () => {
+    expect(labelPrecision([1 / 3], false)).toBe(6);
   });
 });
 
@@ -232,6 +246,27 @@ describe("chartSvg", () => {
     expect(values).toHaveLength(2);
     expect(new Set(values).size).toBe(2);
     expect(values).toEqual(["1.04M", "1M"]);
+  });
+
+  it("close compact direct labels stay distinct", () => {
+    const values = valueBodies({ ...bar, labels: ["a", "b"], series: [{ name: "s", values: [1.234e6, 1.231e6] }] });
+    expect(values).toEqual(["1.234M", "1.231M"]);
+  });
+
+  const donutRows = (values: number[]) => {
+    const svg = chartSvg({ ...bar, kind: "donut", labels: ["a", "b"], series: [{ name: "s", values }] }, { title: "T" });
+    const rows = texts(/<g class="df-legend">([\s\S]*?)<\/g>/.exec(svg)![1]!);
+    const centre = boxes(svg).find((b) => b.size === 40)!.body;
+    return { rows, centre };
+  };
+
+  it("donut compact legend and centre keep the digits their values need", () => {
+    expect(donutRows([1.25e6, 2.5e6])).toEqual({ rows: ["a: 1.25M", "b: 2.5M"], centre: "3.75M" });
+  });
+
+  it("donut compact legend values stay distinct", () => {
+    const { rows } = donutRows([1.04e6, 1e6]);
+    expect(rows).toEqual(["a: 1.04M", "b: 1M"]);
   });
 
   it("2.5-steps below one keep their third decimal", () => {

@@ -77,10 +77,11 @@ const decimalsOf = (ns: number[]) => {
 
 const inCompactUnit = (t: number) => t / (COMPACT_UNITS.find((u) => Math.abs(t) >= u) ?? 1);
 
-function scaleFormat(ticks: number[], values: number[]): ValueFormat {
-  const peak = Math.max(0, ...ticks.map(Math.abs), ...values.map(Math.abs));
-  if (peak >= COMPACT_FROM) return { compact: true, decimals: Math.max(1, decimalsOf(ticks.map(inCompactUnit))) };
-  return { decimals: Math.max(2, decimalsOf(ticks)) };
+const isCompact = (numbers: number[]) => Math.max(0, ...numbers.map(Math.abs)) >= COMPACT_FROM;
+
+export function labelPrecision(numbers: number[], compact: boolean): number {
+  const digits = decimalsOf(compact ? numbers.map(inCompactUnit) : numbers);
+  return Math.min(MAX_DECIMALS, Math.max(compact ? 1 : 2, digits));
 }
 
 export function donutSlices(labels: string[], values: number[], max = 6): { label: string; value: number }[] {
@@ -112,13 +113,18 @@ function cartesian(block: ChartBlock, values: number[][]): string {
   const n = block.labels.length;
   const flat = values.flat();
   const ticks = niceTicks(Math.min(0, ...flat), Math.max(0, ...flat));
-  const fmt = scaleFormat(ticks, flat);
-  const tickText = ticks.map((t) => formatValue(t, unit, fmt));
-  const left = Math.max(PLOT.left, Math.ceil(Math.max(0, ...tickText.map((t) => textWidth(t, 24))) + 32));
-  const plotW = PLOT.right - left;
-  const slot = n > 0 ? plotW / n : plotW;
-  const valueText = block.kind === "bar" && values.length === 1 && n <= MAX_VALUE_LABELS ? values[0]!.map((v) => formatValue(v, unit, fmt)) : [];
+  const compact = isCompact([...ticks, ...flat]);
+  const candidates = block.kind === "bar" && values.length === 1 && n <= MAX_VALUE_LABELS ? values[0]! : [];
+  const layout = (shown: number[]) => {
+    const fmt: ValueFormat = { compact, decimals: labelPrecision([...ticks, ...shown], compact) };
+    const tickText = ticks.map((t) => formatValue(t, unit, fmt));
+    const left = Math.max(PLOT.left, Math.ceil(Math.max(0, ...tickText.map((t) => textWidth(t, 24))) + 32));
+    const slot = n > 0 ? (PLOT.right - left) / n : PLOT.right - left;
+    return { tickText, left, slot, valueText: shown.map((v) => formatValue(v, unit, fmt)) };
+  };
+  let { tickText, left, slot, valueText } = layout(candidates);
   const direct = valueText.length > 0 && Math.max(...valueText.map((t) => textWidth(t, 24))) <= slot - 8;
+  if (!direct) ({ tickText, left, slot, valueText } = layout([]));
   const bottom = PLOT.bottom - (direct && flat.some((v) => v < 0) ? NEG_LABEL_ROOM : 0);
   const lo = ticks[0]!;
   const hi = ticks[ticks.length - 1]!;
@@ -186,7 +192,9 @@ function donut(block: ChartBlock, values: number[]): string {
   const inner = 156;
   const slices = donutSlices(block.labels, values);
   const total = slices.reduce((a, s) => a + s.value, 0);
-  const fmt: ValueFormat = total >= COMPACT_FROM ? { compact: true } : {};
+  const numbers = [...slices.map((s) => s.value), total];
+  const compact = isCompact(numbers);
+  const fmt: ValueFormat = { compact, decimals: labelPrecision(numbers, compact) };
 
   const ring = (a0: number, a1: number, fill: string) => {
     const sweep = Math.min(a1 - a0, 359.99);

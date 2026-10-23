@@ -12,6 +12,25 @@ const IDENTITY = new Set(["none", "matrix(1, 0, 0, 1, 0, 0)"]);
 const deckUrl = (family: Family, { motion = true, slide = 0 } = {}) =>
   `${pathToFileURL(join(deckDir(family), "index.html")).href}${motion ? "" : "?df-motion=off"}#/${slide}`;
 
+const LONG_TOKEN = "x".repeat(300);
+const LONG_TOKEN_TARGETS = [
+  ["bullets", '[data-region="body"] li'],
+  ["compare", '[data-region="left"] li'],
+  ["text", '[data-region="title"]'],
+] as const;
+
+const slideIndex = (type: string) => deck.slides.findIndex((s) => s.type === type);
+
+async function regionOverflows(page: Page, index: number): Promise<string[]> {
+  return page.evaluate((h) => {
+    window.Reveal.slide(h);
+    const section = window.Reveal.getCurrentSlide();
+    return [...section.querySelectorAll<HTMLElement>("[data-region]")]
+      .filter((r) => r.scrollWidth > r.clientWidth + 1)
+      .map((r) => `${section.id} ${r.dataset.region}: scrollWidth ${r.scrollWidth} > clientWidth ${r.clientWidth}`);
+  }, index);
+}
+
 async function waitForIdle(page: Page) {
   await page.waitForFunction(() => window.Reveal?.isReady() && document.documentElement.dataset.dfMotionIdle === "true");
 }
@@ -51,25 +70,40 @@ for (const family of FAMILIES) {
       await waitForIdle(page);
       await page.evaluate(() => document.fonts.ready);
       const overflows: string[] = [];
-      for (let i = 0; i < deck.slides.length; i++) {
-        overflows.push(
-          ...(await page.evaluate((h) => {
+      for (let i = 0; i < deck.slides.length; i++) overflows.push(...(await regionOverflows(page, i)));
+      expect(overflows).toEqual([]);
+    });
+
+    // Review Focus 4: the fixture's token fits at this width, so plant tokens that cannot fit unbroken.
+    test("long unbroken tokens wrap instead of overflowing", async ({ page }) => {
+      await page.goto(deckUrl(family, { motion: false }));
+      await waitForIdle(page);
+      await page.evaluate(() => document.fonts.ready);
+      const overflows: string[] = [];
+      for (const [type, selector] of LONG_TOKEN_TARGETS) {
+        const index = slideIndex(type);
+        const planted = await page.evaluate(
+          ({ h, sel, token }) => {
             window.Reveal.slide(h);
-            const section = window.Reveal.getCurrentSlide();
-            return [...section.querySelectorAll<HTMLElement>("[data-region]")]
-              .filter((r) => r.scrollWidth > r.clientWidth + 1)
-              .map((r) => `${section.id} ${r.dataset.region}: scrollWidth ${r.scrollWidth} > clientWidth ${r.clientWidth}`);
-          }, i)),
+            const el = window.Reveal.getCurrentSlide().querySelector(sel);
+            el?.append(` ${token}`);
+            return el !== null;
+          },
+          { h: index, sel: selector, token: LONG_TOKEN },
         );
+        expect(planted, `${type} ${selector}`).toBe(true);
+        overflows.push(...(await regionOverflows(page, index)));
       }
       expect(overflows).toEqual([]);
     });
 
     test("motion runs", async ({ page }) => {
       await page.goto(deckUrl(family, { slide: 1 }));
+      // The enter timeline starts on Reveal's ready, so the window is measured from there.
+      await page.waitForFunction(() => window.Reveal?.isReady());
       const first = page.locator("section.present [data-motion-el]").first();
       const opacity = () => first.evaluate((el) => Number(getComputedStyle(el).opacity));
-      await expect.poll(opacity, { timeout: 100, intervals: [10] }).toBeLessThan(1);
+      await expect.poll(opacity, { timeout: 300, intervals: [10] }).toBeLessThan(1);
       await waitForIdle(page);
       expect(await first.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
     });
@@ -107,7 +141,7 @@ for (const family of FAMILIES) {
 
     for (const type of VISUAL_TYPES) {
       test(`visual: ${type}`, async ({ page }) => {
-        const index = deck.slides.findIndex((s) => s.type === type);
+        const index = slideIndex(type);
         expect(index).toBeGreaterThanOrEqual(0);
         await page.goto(deckUrl(family, { motion: false, slide: index }));
         await waitForIdle(page);

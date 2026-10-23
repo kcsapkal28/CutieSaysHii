@@ -83,6 +83,11 @@ describe("templates", () => {
       expect(title?.innerHTML, t.id).toBe("");
       expect(title?.classList.contains("empty:hidden"), t.id).toBe(true);
     }
+    // The title slide shows the deck title, so an empty deck title is its empty case.
+    const { html } = renderDeckHtml(inputFor({ ...deckOf(slideOf("title")), title: "" }));
+    const cover = dom(html).querySelector('section[data-slide-type="title"] [data-region="title"]');
+    expect(cover?.innerHTML).toBe("");
+    expect(cover?.classList.contains("empty:hidden")).toBe(true);
   });
 
   // The labels are already visible in every stat; a visually-hidden copy would overflow its 1px box.

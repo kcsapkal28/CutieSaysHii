@@ -5,14 +5,19 @@ import { sanitiseSvg } from "./sanitise.ts";
 
 export type Job = { id: string; key: string; source: string };
 export type Outcome = { key: string; svg?: string; error?: string };
-export type RenderRequest = { config: Record<string, unknown>; jobs: Job[]; timeoutMs: number };
+export type RenderRequest = {
+  config: Record<string, unknown>;
+  jobs: Job[];
+  timeoutMs: number;
+  reservedClasses: string[];
+};
 
 type MermaidApi = {
   initialize(config: Record<string, unknown>): void;
   render(id: string, source: string): Promise<{ svg: string }>;
 };
 
-async function renderJobs({ config, jobs, timeoutMs }: RenderRequest): Promise<Outcome[]> {
+async function renderJobs({ config, jobs, timeoutMs, reservedClasses }: RenderRequest): Promise<Outcome[]> {
   const { mermaid } = globalThis as unknown as { mermaid: MermaidApi };
   mermaid.initialize(config);
 
@@ -24,7 +29,7 @@ async function renderJobs({ config, jobs, timeoutMs }: RenderRequest): Promise<O
         timer = setTimeout(() => reject(new Error("timed out")), timeoutMs);
       });
       const { svg } = await Promise.race([mermaid.render(job.id, job.source), timeout]);
-      out.push({ key: job.key, svg: sanitiseSvg(svg) });
+      out.push({ key: job.key, svg: sanitiseSvg(svg, { idPrefix: job.id, reservedClasses }) });
     } catch (e) {
       out.push({ key: job.key, error: e instanceof Error ? e.message : String(e) });
     } finally {

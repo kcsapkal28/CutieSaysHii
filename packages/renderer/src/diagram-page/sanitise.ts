@@ -1,7 +1,14 @@
 /// <reference lib="dom" />
 // Runs inside the build page only: bundled by bundleDiagramPage() and injected as a classic script.
 
-export function sanitiseSvg(svg: string): string {
+export type SanitiseOptions = {
+  /** The diagram's own id namespace (`d-<key>`): an id on an SVG element is kept only if it starts with this. */
+  idPrefix: string;
+  /** Class tokens the deck styles or scripts against (Reveal state classes, every deck.css selector class). */
+  reservedClasses: readonly string[];
+};
+
+export function sanitiseSvg(svg: string, { idPrefix, reservedClasses }: SanitiseOptions): string {
   const SVG_NS = "http://www.w3.org/2000/svg";
   const HTML_NS = "http://www.w3.org/1999/xhtml";
   const SVG_TAGS = new Set(
@@ -15,6 +22,12 @@ export function sanitiseSvg(svg: string): string {
     "script noscript template iframe object embed audio video img image link meta base math animate set".split(" "),
   );
   const DROP_ATTRS = new Set(["src", "srcset", "background", "action", "formaction", "poster", "data", "ping"]);
+  // Hooks the deck runtime, Reveal or assistive tech read off any element, so diagram markup may not set them.
+  const DECK_HOOKS = new Set(["tabindex", "name", "aria-hidden"]);
+  // Label content (HTML inside foreignObject) only needs these; ids, roles, titles and the rest are dropped.
+  const HTML_ATTRS = new Set(["class", "style"]);
+  const RESERVED = new Set(reservedClasses);
+  const reservedClass = (token: string) => RESERVED.has(token) || token.startsWith("r-") || token.startsWith("df-");
 
   // DOM attribute values and style text are already entity-decoded exactly once, and they are what the
   // browser's CSS parser will see after the output is reparsed. Each value is judged as-is and then
@@ -33,18 +46,32 @@ export function sanitiseSvg(svg: string): string {
     const kept = css.replace(/[^;{}]+/g, (seg) => (cssOk(seg) ? seg : ""));
     return cssOk(kept) ? kept : "";
   };
+  const plainValue = (value: string) => (/^\s*[a-z][a-z0-9+.-]*:/i.test(value) || !cssOk(value) ? null : value);
+  // Reserved class tokens are removed and the rest kept verbatim. Like dropping a style declaration, this only
+  // removes whole tokens: a value with nothing reserved is emitted byte-for-byte, and a filtered value contains
+  // no reserved token, so a second pass keeps it unchanged (the idempotence invariant below re-checks this).
+  const classValue = (value: string) => {
+    // HTML splits class lists on ASCII whitespace only, so a token is exactly what the browser will match.
+    const tokens = value.split(/[\t\n\f\r ]+/).filter(Boolean);
+    const kept = tokens.filter((t) => !reservedClass(t));
+    if (kept.length === 0) return null;
+    return plainValue(kept.length === tokens.length ? value : kept.join(" "));
+  };
   // The value to emit for an attribute, or null to drop it.
-  const attrValue = (name: string, value: string): string | null => {
+  const attrValue = (el: Element, name: string, value: string): string | null => {
     if (name === "xmlns" || name.startsWith("xmlns:")) return value;
-    if (name.startsWith("on") || DROP_ATTRS.has(name)) return null;
+    if (el.namespaceURI !== SVG_NS && !HTML_ATTRS.has(name)) return null;
+    if (name.startsWith("on") || name.startsWith("data-") || DROP_ATTRS.has(name) || DECK_HOOKS.has(name)) return null;
     if (name === "href" || name.endsWith(":href")) return value.trim().startsWith("#") ? value : null;
     if (name === "style") return scrubCss(value) || null;
-    return /^\s*[a-z][a-z0-9+.-]*:/i.test(value) || !cssOk(value) ? null : value;
+    if (name === "class") return classValue(value);
+    if (name === "id") return idPrefix !== "" && value.startsWith(idPrefix) ? plainValue(value) : null;
+    return plainValue(value);
   };
 
   const cleanAttrs = (el: Element) => {
     for (const attr of Array.from(el.attributes)) {
-      const value = attrValue(attr.name.toLowerCase(), attr.value);
+      const value = attrValue(el, attr.name.toLowerCase(), attr.value);
       if (value === null) el.removeAttribute(attr.name);
       else if (value !== attr.value) el.setAttribute(attr.name, value);
     }
@@ -91,7 +118,7 @@ export function sanitiseSvg(svg: string): string {
   // Invariant: a second pass must change nothing. Anything it would change is dropped whole.
   for (const el of Array.from(doc.body.querySelectorAll("*"))) {
     for (const attr of Array.from(el.attributes)) {
-      if (attrValue(attr.name.toLowerCase(), attr.value) !== attr.value) el.removeAttribute(attr.name);
+      if (attrValue(el, attr.name.toLowerCase(), attr.value) !== attr.value) el.removeAttribute(attr.name);
     }
     if (el.localName.toLowerCase() === "style" && scrubCss(el.textContent ?? "") !== el.textContent) el.remove();
   }

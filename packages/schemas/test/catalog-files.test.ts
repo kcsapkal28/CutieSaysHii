@@ -40,4 +40,22 @@ describe("catalog file schemas", () => {
     raw.palettes[0] = { ...raw.palettes[0], mode: "dim" };
     expect(PalettesFileSchema.safeParse(raw).success).toBe(false);
   });
+
+  it("compat schema rejects disallowedSlideTypesForHotspots", () => {
+    const raw = read("compat-matrix.json") as { interactionRules: Record<string, unknown> };
+    raw.interactionRules.explorable = { disallowedSlideTypesForHotspots: ["title"] };
+    expect(CompatMatrixFileSchema.safeParse(raw).success).toBe(false);
+  });
+
+  it("compat schema requires designRules", () => {
+    const raw = read("compat-matrix.json") as Record<string, unknown>;
+    delete raw.designRules;
+    expect(CompatMatrixFileSchema.safeParse(raw).success).toBe(false);
+  });
+
+  it("interaction components accept disallowedSlideTypes", () => {
+    const raw = read("interactions.json") as { components: Record<string, unknown>[] };
+    raw.components[0] = { ...raw.components[0], disallowedSlideTypes: ["title"] };
+    expect(InteractionsFileSchema.safeParse(raw).success).toBe(true);
+  });
 });

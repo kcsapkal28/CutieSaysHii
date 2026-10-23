@@ -115,6 +115,30 @@ describe("checkIntegrity", () => {
     expect(issues[0]).toMatchObject({ file: "compat-matrix.json" });
   });
 
+  it("designRules integrity: unknown slide type", async () => {
+    const issues = await newIssues((r) => r.compat.designRules.motionOverrideSlideTypes.push("hero"));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ file: "compat-matrix.json", path: "designRules.motionOverrideSlideTypes.4" });
+    expect(issues[0]?.message).toContain("hero");
+  });
+
+  it.each([0, 1.5])("designRules integrity: maxInteractiveComponentsPerSlide %s", async (max) => {
+    const issues = await newIssues((r) => (r.compat.designRules.maxInteractiveComponentsPerSlide = max));
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ file: "compat-matrix.json", path: "designRules.maxInteractiveComponentsPerSlide" });
+  });
+
+  it("df-hotspot.disallowedSlideTypes integrity: unknown slide type", async () => {
+    const issues = await newIssues((r) => {
+      const hotspot = r.interactions.components.find((x: { id: string }) => x.id === "df-hotspot");
+      hotspot.disallowedSlideTypes.push("hero");
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ file: "interactions.json" });
+    expect(issues[0]?.path).toMatch(/^components\.\d+\.disallowedSlideTypes\.\d+$/);
+    expect(issues[0]?.message).toContain("hero");
+  });
+
   it("rule 10: flags textMuted that fails AA on bg", async () => {
     const issues = await newIssues((r) => {
       const p = r.palettes.palettes.find((x: { id: string }) => x.id === "warm-minimalist");

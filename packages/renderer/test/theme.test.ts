@@ -1,10 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { goldenChoices, passesAA, resolveTheme, type Catalog } from "@deckforge/catalog";
+import {
+  contrastRatio,
+  defaultsForFamily,
+  getPalette,
+  goldenChoices,
+  passesAA,
+  resolveTheme,
+  type Catalog,
+} from "@deckforge/catalog";
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
-import { compileThemeCss, ThemeContrastError, UnsafeThemeValueError } from "../src/theme/compile.ts";
+import { channelDelta, fillBehind, fillBorder, graphicOn, panelFills } from "../src/theme/colours.ts";
+import { compileThemeCss, ThemeContrastError, typeStep, UnsafeThemeValueError } from "../src/theme/compile.ts";
 
 let c: Catalog;
 let retro: ThemeSpec;
@@ -16,6 +25,20 @@ beforeAll(async () => {
 });
 
 const css = (patch: Partial<ThemeSpec>) => compileThemeCss({ ...retro, ...patch });
+const decl = (out: string, name: string) => new RegExp(`${name}: ([^;]+);`).exec(out)?.[1];
+
+/** The family's default type and motion, on its golden interaction, with optional overrides. */
+function themeFor(familyId: string, patch: { typeFamilyId?: string; paletteId?: string } = {}): ThemeSpec {
+  const golden = goldenChoices(c).find((g) => g.styleFamilyId === familyId);
+  if (!golden) throw new Error(`no golden choices for ${familyId}`);
+  return resolveTheme(c, { ...golden, ...defaultsForFamily(c, familyId), ...patch });
+}
+
+const combos = () =>
+  c.styles.families.flatMap((f) =>
+    f.allowedPalettes.map((paletteId) => ({ label: `${f.id} + ${paletteId}`, theme: themeFor(f.id, { paletteId }) })),
+  );
+
 const read = (rel: string) => readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 describe("compileThemeCss", () => {
@@ -65,10 +88,14 @@ describe("compileThemeCss", () => {
     const upper = css({ titleCase: "upper" });
     expect(upper).toContain("--df-title-transform: uppercase");
     expect(upper).toContain("--df-title-tracking: 0.04em");
-    const title = css({ titleCase: "title" });
-    expect(title).toContain("--df-title-transform: capitalize");
-    expect(title).toContain("--df-title-tracking: 0em");
+    expect(css({ titleCase: "title" })).toContain("--df-title-tracking: 0em");
     expect(css({ titleCase: "sentence" })).toContain("--df-title-transform: none");
+  });
+
+  it("title case no longer emits capitalize", () => {
+    const out = css({ titleCase: "title" });
+    expect(out).toContain("--df-title-transform: none");
+    expect(out).not.toContain("capitalize");
   });
 
   it("gradients true sets a linear-gradient bg-image; false sets none", () => {
@@ -159,6 +186,244 @@ describe("compileThemeCss", () => {
     );
     expect(() => css({ backdropBlur: "1px;" })).toThrow(UnsafeThemeValueError);
     expect(() => css({ roles: { ...retro.roles, accent: "red; }" } })).toThrow(UnsafeThemeValueError);
+  });
+
+  it("rejects comment markers", () => {
+    expect(() => css({ shadow: "0 0 1px red /* x" })).toThrow(UnsafeThemeValueError);
+    expect(() => css({ shadow: "*/ x" })).toThrow(UnsafeThemeValueError);
+  });
+
+  it("rejects grid spans that are not integers", () => {
+    const title = ["1; } a {", 10] as unknown as [number, number];
+    expect(() => css({ layout: { ...retro.layout, grid: { ...retro.layout.grid, title } } })).toThrow(
+      UnsafeThemeValueError,
+    );
+  });
+
+  it("node radius is 0 for square families and 50% otherwise", () => {
+    expect(compileThemeCss(themeFor("swiss"))).toContain("--df-node-radius: 0;");
+    expect(compileThemeCss(themeFor("minimal"))).toContain("--df-node-radius: 50%;");
+  });
+});
+
+describe("type scale", () => {
+  it("type steps follow the modular scale", () => {
+    expect(typeStep(1.25, 0)).toBe(2);
+    const out = css({ type: { ...retro.type, scale: 1.25 } });
+    expect(out).toContain("--df-step-0: 2rem;");
+    expect(out).toContain("--df-step-3: 3.9063rem;");
+    expect(out).toContain("--df-step-n1: 1.6rem;");
+    for (const n of ["n2", "n1", 0, 1, 2, 3, 4, 5, 6, 7]) {
+      expect(decl(out, `--df-step-${n}`)).toMatch(/^\d+(\.\d{1,4})?rem$/);
+    }
+    expect(css({ type: { ...retro.type, scale: 1.333 } })).toContain("--df-step-5: 8.4175rem;");
+  });
+
+  it("role sizes come from layout.steps", () => {
+    const out = compileThemeCss(themeFor("minimal"));
+    expect(out).toContain("--df-size-body: 2rem;");
+    expect(out).toContain("--df-size-lead: 2.5rem;");
+    expect(out).toContain("--df-size-small: 1.6rem;");
+    expect(out).toContain("--df-size-caption: 1.375rem;");
+    expect(out).toContain("--df-size-title: 3.9063rem;");
+    expect(out).toContain("--df-size-title-m: 3.125rem;");
+    expect(out).toContain("--df-size-title-l: 2.5rem;");
+    expect(out).toContain("--df-size-display: 6.1035rem;");
+    expect(out).toContain("--df-size-display-m: 4.8828rem;");
+    expect(out).toContain("--df-size-display-l: 3.9063rem;");
+    expect(out).toContain("--df-size-stat: 7.6294rem;");
+  });
+
+  it("role sizes are capped and floored", () => {
+    const out = compileThemeCss(themeFor("swiss", { typeFamilyId: "poster-grotesk" }));
+    expect(out).toContain("--df-size-title: 5.5rem;");
+    expect(out).toContain("--df-size-display: 9rem;");
+    expect(out).toContain("--df-size-stat: 12rem;");
+    expect(out).toContain("--df-size-small: 1.5rem;");
+    expect(out).toContain("--df-size-caption: 1.375rem;");
+    expect(out).toContain("--df-size-title-m: 3.9988rem;");
+    expect(out).toContain("--df-size-title-l: 2.828rem;");
+    expect(out).toContain("--df-size-display-m: 7.9952rem;");
+    expect(out).toContain("--df-size-display-l: 5.6543rem;");
+  });
+
+  it("role sizes stay ordered for every family × palette", () => {
+    const order = ["caption", "small", "body", "lead", "title-l", "title-m", "title"];
+    const displays = ["title", "display-l", "display-m", "display", "stat"];
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      const size = (n: string) => parseFloat(decl(out, `--df-size-${n}`) ?? "NaN");
+      for (const seq of [order, displays]) {
+        for (let i = 1; i < seq.length; i++) {
+          expect(size(seq[i]!), `${label} ${seq[i]} ≥ ${seq[i - 1]}`).toBeGreaterThanOrEqual(size(seq[i - 1]!));
+        }
+      }
+    }
+  });
+});
+
+describe("grid", () => {
+  it("grid spans become grid-column values", () => {
+    const minimal = compileThemeCss(themeFor("minimal"));
+    expect(minimal).toContain("--df-col-title: 1 / 10;");
+    expect(minimal).toContain("--df-col-body: 1 / 9;");
+    expect(minimal).toContain("--df-col-wide: 1 / 13;");
+    expect(minimal).toContain("--df-col-aside: 10 / 13;");
+    expect(minimal).toContain("--df-col-main: 1 / 10;");
+    expect(compileThemeCss(themeFor("swiss"))).toContain("--df-col-title: 3 / 13;");
+  });
+});
+
+describe("computed colours", () => {
+  const hexOf = (out: string, name: string) => {
+    const v = decl(out, name);
+    expect(v, name).toMatch(/^#[0-9A-F]{6}$/);
+    return v!;
+  };
+  // textMuted barely clears AA on bg in these palettes (midnight-gala via its accent fill), so a fill falls back to bg.
+  const FLAT_COMBOS = [
+    "minimal + warm-minimalist",
+    "minimal + pacific-forest",
+    "swiss + warm-minimalist",
+    "glass-soft + midnight-gala",
+    "neon + midnight-gala",
+    "maximal-pop + memphis-pastel",
+    "atmospheric + midnight-gala",
+    "atmospheric + pacific-forest",
+  ];
+
+  it("graphic colours reach 3:1 on bg and surface", () => {
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      for (let i = 1; i <= 6; i++) {
+        const g = hexOf(out, `--df-graphic-${i}`);
+        expect(contrastRatio(g, theme.roles.bg), `${label} graphic-${i}/bg`).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(g, theme.roles.surface), `${label} graphic-${i}/surface`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("fills keep text and textMuted at AA", () => {
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      for (const fill of ["--df-fill-1", "--df-fill-2"]) {
+        const f = hexOf(out, fill);
+        expect(passesAA(theme.roles.text, f), `${label} text/${fill}`).toBe(true);
+        expect(passesAA(theme.roles.textMuted, f), `${label} textMuted/${fill}`).toBe(true);
+      }
+    }
+  });
+
+  it("every combo has visible fills, or is flat with a 3:1 border", () => {
+    const flat: string[] = [];
+    for (const { label, theme } of combos()) {
+      const { roles } = theme;
+      const out = compileThemeCss(theme);
+      const isFlat = decl(out, "--df-fill-flat") === "1";
+      if (isFlat) flat.push(label);
+      else expect(decl(out, "--df-fill-flat"), label).toBe("0");
+      const border = hexOf(out, "--df-fill-border");
+      expect(contrastRatio(border, roles.bg), `${label} fill-border/bg`).toBeGreaterThanOrEqual(3);
+      for (const name of ["--df-fill-1", "--df-fill-2"]) {
+        const fill = hexOf(out, name);
+        const readable = passesAA(roles.text, fill) && passesAA(roles.textMuted, fill);
+        const visible = channelDelta(fill, roles.surface) >= 24 && readable;
+        const flatOnBg = isFlat && fill === roles.bg && passesAA(roles.text, roles.bg) && passesAA(roles.textMuted, roles.bg);
+        expect(visible || flatOnBg, `${label} ${name} ${fill}`).toBe(true);
+      }
+    }
+    // Pinned so a palette change that flattens (or un-flattens) a combo is a visible diff.
+    expect(flat).toEqual(FLAT_COMBOS);
+  });
+
+  it("panelFills matches the emitted theme.css for every combo", () => {
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      const p = panelFills(theme.roles);
+      expect(decl(out, "--df-fill-1"), label).toBe(p.fill1);
+      expect(decl(out, "--df-fill-2"), label).toBe(p.fill2);
+      expect(decl(out, "--df-fill-flat"), label).toBe(p.flat ? "1" : "0");
+      expect(decl(out, "--df-fill-border"), label).toBe(p.border);
+      expect(decl(out, "--df-fill-1-border"), label).toBe(p.fill1Border);
+      expect(decl(out, "--df-fill-2-border"), label).toBe(p.fill2Border);
+    }
+  });
+
+  it("each fill gets a 3:1 border only when it fell back to bg", () => {
+    for (const { label, theme } of combos()) {
+      const { roles } = theme;
+      const p = panelFills(roles);
+      expect(p.flat, label).toBe(p.fill1Border !== "transparent" || p.fill2Border !== "transparent");
+      for (const [fill, border] of [[p.fill1, p.fill1Border], [p.fill2, p.fill2Border]] as const) {
+        if (channelDelta(fill, roles.surface) >= 24) expect(border, label).toBe("transparent");
+        else {
+          expect(fill, label).toBe(roles.bg.toUpperCase());
+          expect(border, label).toBe(p.border);
+          expect(contrastRatio(border, roles.bg), label).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+    // midnight-gala: only the accent fill is flat, so fill-1 panels stay unoutlined.
+    const gala = panelFills(getPalette(c, "midnight-gala").roles);
+    expect([gala.flat, gala.fill1Border === "transparent", gala.fill2Border === "transparent"]).toEqual([true, true, false]);
+  });
+
+  it("every emitted colour is uppercase #RRGGBB, even from lowercase roles", () => {
+    for (const familyId of ["minimal", "atmospheric"]) {
+      const theme = themeFor(familyId);
+      const roles = Object.fromEntries(
+        Object.entries(theme.roles).map(([k, v]) => [k, v.toLowerCase()]),
+      ) as ThemeSpec["roles"];
+      const out = compileThemeCss({ ...theme, roles });
+      const hexes = out.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
+      expect(hexes.length).toBeGreaterThan(0);
+      for (const h of hexes) expect(h, familyId).toMatch(/^#[0-9A-F]{6}$/);
+      // the flat fallback to bg is uppercased too (fill-2 is flat in both default palettes)
+      expect(decl(out, "--df-fill-2")).toBe(roles.bg.toUpperCase());
+    }
+  });
+
+  it("fillBehind skips ahead to a visible step: technical-slate primary", () => {
+    const { roles } = getPalette(c, "technical-slate");
+    const fill = fillBehind(roles, roles.primary);
+    expect(fill).not.toBeNull();
+    expect(channelDelta(fill!, roles.surface)).toBeGreaterThanOrEqual(24);
+    expect(passesAA(roles.text, fill!) && passesAA(roles.textMuted, fill!)).toBe(true);
+    // The first AA-safe step alone (#323233) is only 13 from surface.
+    expect(passesAA(roles.textMuted, "#323233") && channelDelta("#323233", roles.surface) < 24).toBe(true);
+  });
+
+  it("fillBehind is null when no step is both AA-safe and visible: warm-minimalist primary", () => {
+    const { roles } = getPalette(c, "warm-minimalist");
+    expect(fillBehind(roles, roles.primary)).toBeNull();
+  });
+
+  it("fill border keeps roles.border when it already reaches 3:1, and lifts it otherwise", () => {
+    for (const p of c.palettes.palettes) {
+      const border = fillBorder(p.roles);
+      expect(contrastRatio(border, p.roles.bg), p.id).toBeGreaterThanOrEqual(3);
+      if (contrastRatio(p.roles.border, p.roles.bg) >= 3) expect(border, p.id).toBe(p.roles.border.toUpperCase());
+    }
+  });
+
+  it("compiles deterministically", () => {
+    for (const { label, theme } of combos()) {
+      expect(compileThemeCss(theme), label).toBe(compileThemeCss(structuredClone(theme)));
+    }
+  });
+
+  it("graphicOn keeps a colour that already passes", () => {
+    const { roles } = getPalette(c, "tokyo-grid");
+    expect(graphicOn(roles, roles.primary)).toBe(roles.primary.toUpperCase());
+  });
+
+  it("graphicOn lifts a failing one", () => {
+    const { roles } = getPalette(c, "midnight-gala");
+    expect(contrastRatio(roles.primary, roles.bg)).toBeLessThan(3);
+    const lifted = graphicOn(roles, roles.primary);
+    expect(lifted).not.toBe(roles.primary.toUpperCase());
+    expect(contrastRatio(lifted, roles.bg)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(lifted, roles.surface)).toBeGreaterThanOrEqual(3);
   });
 });
 

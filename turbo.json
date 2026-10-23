@@ -1,8 +1,8 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
-    "test": { "outputs": [] },
-    "lint": { "outputs": [] },
-    "typecheck": { "outputs": [] }
+    "test": { "cache": false },
+    "lint": { "cache": false },
+    "typecheck": { "cache": false }
   }
 }

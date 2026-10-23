@@ -24,7 +24,7 @@
   - A `p-queue` `JobQueue` (concurrency 2).
   - Owner-fenced jobs with a heartbeat.
 - **Adapters** (`src/adapters/`, `src/llm.ts`): node:sqlite + Drizzle, filesystem artifacts, the renderer (staged `dist` promotion), the Anthropic SDK and the system clock. They are wired only in `src/node.ts`.
-- **LLM output** arrives through strict tool use. Wire schemas are compiled from Zod per job, with catalog-derived enums, by a single walk that yields the JSON Schema and a schema-directed `normalize`. The output then passes Zod and deterministic catalog-aware validators, which drive ≤ 2 retries.
+- **LLM output** arrives through tool use, strict or non-strict per tool (see Global Constraints). Wire schemas are compiled from Zod per job, with catalog-derived enums, by a single walk that yields the JSON Schema and a schema-directed `normalize`. The output then passes Zod and deterministic catalog-aware validators, which drive ≤ 2 retries.
 - **ThemeSpec is never an LLM output.** The render stage resolves it from Choices with `resolveTheme`, so palette, type-family and threeJs changes are render-only reruns that call no LLM.
 
 **Tech Stack:**
@@ -48,7 +48,7 @@ The controller merges Task 1 to the proxy's `main` after review. The harness pre
 
 ## Global Constraints
 
-- **LLMs write JSON, never HTML** (§0.1). Every agent output arrives as a tool call (`emit_deck`, `emit_design`, `emit_patches`). Each tool declares `strict: boolean`, and the spike (Task 3, `docs/superpowers/spikes/2026-10-24-strict-tools-via-proxy.md`) fixed these values: **`emit_deck: false`** (the server rejects its grammar as too large), **`emit_design: true`**, **`emit_patches: false`** (the server counts more than 16 union params). Non-strict tools still send the full `compileWireSchema` JSON Schema as `input_schema`. Strict tools must pass `assertUnionBudget`. Re-probe `emit_design` strict-compilation if its final schema differs from the spike's approximation. It goes through `normalize` → Zod → `src/validate/*`. Invalid output is fed back as an `is_error` `tool_result`, with **at most 2 retries** (3 attempts).
+- **LLMs write JSON, never HTML** (§0.1). Every agent output arrives as a tool call (`emit_deck`, `emit_design`, `emit_patches`). Each tool declares `strict: boolean`, and the spike (Task 3, `docs/superpowers/spikes/2026-10-24-strict-tools-via-proxy.md`) fixed these values: **`emit_deck: false`** (the server rejects its grammar as too large), **`emit_design: true`**, **`emit_patches: false`** (the server counts more than 16 union params). Non-strict tools still send the full `compileWireSchema` JSON Schema as `input_schema`. Strict tools must pass `assertUnionBudget`. Task 8 must add an opt-in live test (`DECKFORGE_LIVE=1`) that sends the final `emit_design` tool with `strict:true` and `max_tokens` 32 through the proxy and asserts no 400. It must also assert `assertUnionBudget([designWire])` locally. If either fails, `emit_design` becomes non-strict and the plan's Global Constraints are updated. It goes through `normalize` → Zod → `src/validate/*`. Invalid output is fed back as an `is_error` `tool_result`, with **at most 2 retries** (3 attempts).
 - **One SDK client** (§0.6):
   - Only `packages/harness/src/llm.ts` imports `@anthropic-ai/sdk`, and only `src/node.ts` calls `createLlmClient`.
   - `localhost:4001` appears in `src/` only in `src/env.ts`.
@@ -57,7 +57,7 @@ The controller merges Task 1 to the proxy's `main` after review. The harness pre
 - **Request rules**:
   - Never send `temperature`/`top_p`/`top_k`, and never force `tool_choice`. Use `{type:"auto"}`, the tool's own `strict` flag, a prompt naming the tool, and a check that a call was made.
   - Leave thinking at its default and set `output_config.effort` per agent. Spike defaults:
-    - `CONTENT_EFFORT=medium`. A standard deck took ~18–20 s and ~2.5k output tokens; `low` was not faster.
+    - `CONTENT_EFFORT=medium`. A standard deck took ~18–20 s and ~2.5k output tokens. A single `low` sample was not faster.
     - `PROMPT_CACHE_EFFECTIVE=true`, with 3275 cached tokens read on a repeat.
     - `REFUSAL_FALLBACK_DEFAULT=true`.
   - Speaker notes often came back under the depth minimum (4/9 to 11/12 slides short). Agent A's prompt must state the per-depth notes word range explicitly, and the `notes-length` validator's feedback must name each short slide.
@@ -520,9 +520,12 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
 - Produces (`llm.ts`):
   - `createLlmClient(llm): Anthropic`: `maxRetries: 0`, with `defaultHeaders {"x-proxy-max-retries":"0"}` when `proxyControls`.
   - `createAnthropicLlm(client, { baseUrl, clock, logger, proxyControls, maxRetries = 4, fallbackModels }): LlmPort`:
-    - **Retries:** 429/529 are `rate-limit`, 408/409/5xx and connection errors are `transient`. The wait is `retry-after-ms` | `retry-after`×1000 | `min(8000, 500·2^(n-1))`. `onRetry` is called, then `clock.sleep(wait, signal)`. Exhausted → `LlmTransientError`, or `LlmUnreachableError` on `ECONNREFUSED`.
+    - **Retries:** 429/529 are `rate-limit`, 408/409/5xx and connection errors are `transient`. The wait is `retry-after-ms` | `retry-after`×1000 | `min(8000, 500·2^(n-1))`. `onRetry` is called, then `clock.sleep(wait, signal)`. Exhausted → `LlmTransientError`, or `LlmUnreachableError` on a refused connection. Per the spike (S8/S8b):
+      - Check for `APIConnectionError` before any status check.
+      - The refused-connection code is at `err.cause?.cause?.code` (`ECONNREFUSED`), not `err.cause.code`.
+      - Tests must use a closed high port, never port 1, which `fetch` blocks before connecting.
     - **Quota:** a 429 body containing any `QUOTA_PATTERNS` (`"Extra usage is required"`, `"credit balance is too low"`, `"credit balance too low"`) → `LlmQuotaError` with no retry.
-    - **Request:** `messages.create({ model, max_tokens, system, messages, tools:[{…, strict:true}], tool_choice:{type:"auto"}, output_config:{effort}, cache_control:{type:"ephemeral"} }, {signal})`. No sampling params, no `thinking`. Fallback models use `beta.messages.create` with `betas:["server-side-fallback-2026-07-01"], fallbacks:"default"`.
+    - **Request:** `messages.create({ model, max_tokens, system, messages, tools:[{…, strict: tool.strict}], tool_choice:{type:"auto"}, output_config:{effort}, cache_control:{type:"ephemeral"} }, {signal})`. No sampling params, no `thinking`. Fallback models use `beta.messages.create` with `betas:["server-side-fallback-2026-07-01"], fallbacks:"default"`.
     - **Response mapping:**
       - `toolCall` = the first `tool_use`, `text` = the joined text;
       - `refusalCategory` = `stop_details?.category`;
@@ -540,7 +543,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
   - `preflight 401 → LlmAuthError`.
   - `preflight without x-proxy-controls → LlmConfigError (controls on)`; `… → warning only (controls off)`.
   - `sends x-proxy-max-retries: 0 when proxyControls; omits it otherwise`.
-  - `body: strict tool, auto tool_choice, effort, cache_control; no temperature/top_p/top_k/thinking`.
+  - `body: tool's own strict flag (one strict and one non-strict case), auto tool_choice, effort, cache_control; no temperature/top_p/top_k/thinking`.
   - `maps usage and tool call`.
   - `replays the assistant turn verbatim`.
   - `429 with retry-after-ms: 5 then 200 → one onRetry {reason:"rate-limit", status:429, waitMs:5}`.

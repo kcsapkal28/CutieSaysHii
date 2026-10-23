@@ -1,5 +1,8 @@
 import { passesAA } from "@deckforge/catalog";
 import type { ThemeSpec } from "@deckforge/schemas";
+import { assertSafe, UNSAFE_IN_QUOTES, UnsafeThemeValueError } from "./safe.ts";
+
+export { UnsafeThemeValueError };
 
 export class ThemeContrastError extends Error {
   constructor(public readonly pairs: string[]) {
@@ -8,25 +11,10 @@ export class ThemeContrastError extends Error {
   }
 }
 
-export class UnsafeThemeValueError extends Error {
-  constructor(public readonly field: string) {
-    super(`theme value "${field}" contains characters not allowed in CSS output`);
-    this.name = "UnsafeThemeValueError";
-  }
-}
-
-// ThemeSpec comes from an LLM: nothing that could close a declaration or block may reach the CSS.
-const UNSAFE = /[;{}<>\\]/;
-const UNSAFE_IN_QUOTES = /["\r\n]/;
 const HEX = /^#[0-9a-f]{6}$/i;
 
 const PAD_GAP = { low: ["8%", "2rem"], medium: ["6%", "1.5rem"], high: ["4.5%", "1rem"] } as const;
 const TITLE_TRANSFORM = { sentence: "none", title: "capitalize", upper: "uppercase" } as const;
-
-function assertSafe(field: string, value: string, extra?: RegExp): string {
-  if (UNSAFE.test(value) || extra?.test(value)) throw new UnsafeThemeValueError(field);
-  return value;
-}
 
 function assertContrast(roles: ThemeSpec["roles"]): void {
   const failing: string[] = [];

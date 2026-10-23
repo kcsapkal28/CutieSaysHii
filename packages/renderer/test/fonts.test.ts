@@ -3,6 +3,7 @@ import { defaultsForFamily, resolveTheme, type Catalog } from "@deckforge/catalo
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
+import { UnsafeThemeValueError } from "../src/theme/compile.ts";
 import { fontFaces, fontSlug } from "../src/theme/fonts.ts";
 
 let c: Catalog;
@@ -60,5 +61,25 @@ describe("fontFaces", () => {
     for (const f of files) expect(css).toContain(`src: url("${f.to}") format("woff2")`);
     expect(css).not.toContain('url("/');
     expect(css).not.toContain('url("file:');
+  });
+
+  const withDisplayFont = (font: string): ThemeSpec => {
+    const base = themeForType(c.types.families[0]!.id);
+    return { ...base, type: { ...base.type, display: { ...base.type.display, font } } };
+  };
+
+  it("rejects a font name that breaks out of the CSS string", () => {
+    const hostile = withDisplayFont('x"; } body { color: red } a {"');
+    expect(() => fontFaces(hostile)).toThrow(UnsafeThemeValueError);
+    try {
+      fontFaces(hostile);
+    } catch (e) {
+      expect((e as UnsafeThemeValueError).field).toBe("type.display.font");
+    }
+  });
+
+  it("rejects a path-traversal font name", () => {
+    expect(() => fontFaces(withDisplayFont("../../foo/bar"))).toThrow(UnsafeThemeValueError);
+    expect(() => fontFaces(withDisplayFont(""))).toThrow(UnsafeThemeValueError);
   });
 });

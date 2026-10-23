@@ -90,6 +90,40 @@ function processEnvUses(text: string): number {
   return count;
 }
 
+// Uses of createLlmClient: calls, directly, through an import alias or as a module member, and any other
+// value use (passing it around would hide the call site). Import/export specifiers, its own declaration
+// and unrelated property names don't count.
+function createLlmClientUses(text: string): number {
+  const file = parse(text);
+  const names = new Set(["createLlmClient"]);
+  for (const st of file.statements) {
+    const bindings = ts.isImportDeclaration(st) ? st.importClause?.namedBindings : undefined;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const el of bindings.elements) if ((el.propertyName ?? el.name).text === "createLlmClient") names.add(el.name.text);
+  }
+  let count = 0;
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "createLlmClient") {
+      if (node.body) visit(node.body);
+      return;
+    }
+    if (ts.isPropertyAccessExpression(node)) {
+      if (node.name.text === "createLlmClient") count += 1;
+      visit(node.expression);
+      return;
+    }
+    if (ts.isPropertyAssignment(node)) {
+      visit(node.initializer);
+      return;
+    }
+    if (ts.isIdentifier(node) && names.has(node.text)) count += 1;
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return count;
+}
+
 const isPkg = (spec: string, name: string) => spec === name || spec.startsWith(`${name}/`);
 const isRelative = (spec: string) => spec.startsWith("./") || spec.startsWith("../");
 const inPureLayer = (abs: string) => PURE_LAYERS.some((layer) => abs.startsWith(join(SRC, layer) + sep));
@@ -98,6 +132,7 @@ const isNodeEntry = (spec: string) => !isRelative(spec) && spec.split("/").at(-1
 const harnessSrc = walk(SRC).map((abs) => load(abs, HARNESS));
 const pure = harnessSrc.filter((s) => inPureLayer(s.abs));
 const allPackages = ["packages", "apps", "scripts"].flatMap((d) => walk(join(REPO, d))).map((abs) => load(abs, REPO));
+const isTestFile = (rel: string) => /(^|\/)test\//.test(rel) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(rel);
 
 function pureImportViolation(source: Source, spec: string): string | null {
   if (spec.startsWith("node:") || isBuiltin(spec)) {
@@ -129,6 +164,14 @@ describe("architecture", () => {
       .filter((s) => s.imports.some((spec) => isPkg(spec, "@anthropic-ai/sdk")))
       .map((s) => s.rel)
       .filter((rel) => rel !== "packages/harness/src/llm.ts");
+    expect(offenders).toEqual([]);
+  });
+
+  it("only src/node.ts calls createLlmClient (all packages, tests excepted)", () => {
+    const offenders = allPackages
+      .filter((s) => !isTestFile(s.rel) && createLlmClientUses(s.text) > 0)
+      .map((s) => s.rel)
+      .filter((rel) => rel !== "packages/harness/src/node.ts");
     expect(offenders).toEqual([]);
   });
 
@@ -197,6 +240,27 @@ describe("architecture detectors", () => {
     expect(processEnvUses('import proc from "node:process"; const k = proc.env.K;')).toBe(1);
     expect(processEnvUses('import * as p from "node:process"; const k = p["env"];')).toBe(1);
     expect(processEnvUses('import { argv } from "node:process"; const env = {}; const k = env;')).toBe(0);
+  });
+
+  it("find createLlmClient calls and value uses, but not imports, exports or its declaration", () => {
+    expect(createLlmClientUses('import { createLlmClient } from "./llm.ts"; const c = createLlmClient(env.llm);')).toBe(1);
+    expect(createLlmClientUses('import { createLlmClient as make } from "./llm.ts"; const c = make(env.llm);')).toBe(1);
+    expect(createLlmClientUses('import * as llm from "./llm.ts"; const c = llm.createLlmClient(env.llm);')).toBe(1);
+    expect(createLlmClientUses("const f = createLlmClient; f(x);")).toBe(1);
+    expect(createLlmClientUses("const c = await (await import('./llm.ts')).createLlmClient(x);")).toBe(1);
+    expect(createLlmClientUses('export { createLlmClient } from "./llm.ts"; export * from "./env.ts";')).toBe(0);
+    expect(createLlmClientUses("export function createLlmClient(llm) { return new Anthropic(llm); }")).toBe(0);
+    expect(createLlmClientUses('// createLlmClient(x)\nconst s = "createLlmClient(x)";')).toBe(0);
+    expect(createLlmClientUses("const o = { createLlmClient: 1 }; const n = o.other;")).toBe(0);
+    expect(createLlmClientUses("const o = { createLlmClient };")).toBe(1);
+  });
+
+  it("tell test files from sources", () => {
+    expect(isTestFile("packages/harness/test/llm/anthropic.test.ts")).toBe(true);
+    expect(isTestFile("packages/harness/test/cli/fake-entry.ts")).toBe(true);
+    expect(isTestFile("packages/web/src/x.spec.tsx")).toBe(true);
+    expect(isTestFile("packages/harness/src/node.ts")).toBe(false);
+    expect(isTestFile("scripts/record-golden.ts")).toBe(false);
   });
 
   it("allow exactly the whitelisted @deckforge imports", () => {

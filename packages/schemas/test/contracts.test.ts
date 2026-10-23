@@ -1,0 +1,114 @@
+import { describe, expect, it } from "vitest";
+import {
+  BlockSchema,
+  BlockUnionSchema,
+  BriefSpecSchema,
+  DeckSpecSchema,
+  PatchSchema,
+  ThemeSpecSchema,
+} from "../src/index.ts";
+
+const validBrief = {
+  topic: "Solar",
+  brief: "x".repeat(20),
+  audience: "general",
+  durationMin: 10,
+  language: "en",
+};
+
+const font = { font: "Inter", weights: [400] };
+const validTheme = {
+  familyId: "f",
+  paletteId: "p",
+  typeFamilyId: "t",
+  roles: {
+    bg: "#FFFFFF",
+    surface: "#F0F0F0",
+    text: "#111111",
+    textMuted: "#444444",
+    primary: "#123456",
+    accent: "#654321",
+    border: "#DDDDDD",
+  },
+  type: { display: font, body: font, mono: font, scale: 1.25, bodyLineHeight: 1.5, displayLineHeight: 1.1 },
+  radius: "0",
+  borderWidth: "1px",
+  shadow: "none",
+  texture: "none",
+  gradients: false,
+  imageTreatment: "clean",
+  threeJs: false,
+};
+
+const slide = (id: string) => ({ id, type: "bullets", body: [], notes: "", emphasisTargets: [] });
+
+describe("BriefSpec", () => {
+  it("accepts a minimal valid brief", () => {
+    expect(BriefSpecSchema.safeParse(validBrief).success).toBe(true);
+  });
+
+  it("rejects topic of 2 chars, brief of 1501 chars, durationMin 15", () => {
+    expect(BriefSpecSchema.safeParse({ ...validBrief, topic: "ab" }).success).toBe(false);
+    expect(BriefSpecSchema.safeParse({ ...validBrief, brief: "x".repeat(1501) }).success).toBe(false);
+    expect(BriefSpecSchema.safeParse({ ...validBrief, durationMin: 15 }).success).toBe(false);
+  });
+
+  it("trims before checking length", () => {
+    expect(BriefSpecSchema.safeParse({ ...validBrief, topic: "  ab  " }).success).toBe(false);
+  });
+});
+
+describe("Block", () => {
+  it("rejects Quiz with answerIndex === options.length", () => {
+    const quiz = { type: "Quiz", question: "q", options: ["a", "b", "c"], answerIndex: 3, explanation: "e" };
+    expect(BlockSchema.safeParse(quiz).success).toBe(false);
+    expect(BlockSchema.safeParse({ ...quiz, answerIndex: 2 }).success).toBe(true);
+  });
+
+  it("rejects Chart whose series length differs from labels", () => {
+    const chart = { type: "Chart", kind: "bar", labels: ["a", "b", "c"], series: [{ name: "s", values: [1, 2] }] };
+    expect(BlockSchema.safeParse(chart).success).toBe(false);
+  });
+
+  it("accepts all 11 kinds", () => {
+    const fixtures = [
+      { type: "Bullets", items: ["a"] },
+      { type: "Paragraph", text: "t" },
+      { type: "Stat", value: "42%", label: "l", trend: "up" },
+      { type: "Quote", text: "t", attribution: "a" },
+      { type: "Diagram", mermaid: "graph TD; A-->B", hotspots: [{ nodeId: "A", label: "l", detail: "d" }] },
+      { type: "Chart", kind: "line", labels: ["a", "b", "c"], series: [{ name: "s", values: [1, 2, 3] }], unit: "%" },
+      { type: "Compare", leftTitle: "l", rightTitle: "r", rows: [{ left: "a", right: "b" }] },
+      { type: "Timeline", steps: [{ label: "l", detail: "d", date: "2026" }] },
+      { type: "Code", lang: "ts", code: "let x = 1;", highlightLines: [1] },
+      { type: "Image", prompt: "p", alt: "a" },
+      { type: "Quiz", question: "q", options: ["a", "b", "c"], answerIndex: 0, explanation: "e" },
+    ];
+    for (const f of fixtures) {
+      expect(BlockSchema.safeParse(f).success, f.type).toBe(true);
+    }
+    expect(BlockUnionSchema.options.length).toBe(11);
+  });
+});
+
+describe("DeckSpec", () => {
+  it("rejects duplicate slide ids", () => {
+    const deck = { title: "t", subtitle: "s", slides: [slide("a"), slide("a")] };
+    expect(DeckSpecSchema.safeParse(deck).success).toBe(false);
+    expect(DeckSpecSchema.safeParse({ ...deck, slides: [slide("a"), slide("b")] }).success).toBe(true);
+  });
+});
+
+describe("ThemeSpec", () => {
+  it('rejects roles.bg = "#FFF"', () => {
+    expect(ThemeSpecSchema.safeParse(validTheme).success).toBe(true);
+    expect(ThemeSpecSchema.safeParse({ ...validTheme, roles: { ...validTheme.roles, bg: "#FFF" } }).success).toBe(false);
+  });
+});
+
+describe("Patch", () => {
+  it('rejects op "rewrite"', () => {
+    expect(PatchSchema.safeParse({ slideId: "a", op: "rewrite", payload: {} }).success).toBe(false);
+    expect(PatchSchema.safeParse({ slideId: "a", op: "splitSlide", payload: {} }).success).toBe(true);
+  });
+});

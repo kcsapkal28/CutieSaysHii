@@ -1,0 +1,194 @@
+{
+  "title": "Solar under stress",
+  "subtitle": "Long titles, wide values, uneven rows and busy diagrams",
+  "slides": [
+    {
+      "id": "t01",
+      "type": "title",
+      "title": "Why semiconductors turn ordinary sunlight into usable power",
+      "body": [],
+      "notes": "A deliberately long cover title with one long word, to test that titles step down and wrap.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t02",
+      "type": "agenda",
+      "title": "Where this deck goes",
+      "body": [
+        {
+          "type": "Bullets",
+          "items": [
+            "Numbers at every scale",
+            "Silicon against thin film",
+            "Where the energy goes",
+            "Two centuries of progress",
+            "What to remember"
+          ]
+        }
+      ],
+      "notes": "Five agenda items, one more than the solar deck.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t03",
+      "type": "stat",
+      "title": "Three awkward numbers",
+      "body": [
+        { "type": "Stat", "value": "1,000,000 W/m²", "label": "peak flux in a solar furnace", "trend": "up" },
+        { "type": "Stat", "value": "$1.2 trillion", "label": "yearly clean-energy spending", "trend": "down" },
+        { "type": "Stat", "value": "−3.5 °C", "label": "panel temperature change", "trend": "flat" }
+      ],
+      "notes": "Long values with units, currency and a true minus sign must stay on one line.",
+      "emphasisTargets": ["$1.2 trillion"]
+    },
+    {
+      "id": "t04",
+      "type": "compare",
+      "title": "Silicon against thin film",
+      "body": [
+        {
+          "type": "Compare",
+          "leftTitle": "Monocrystalline silicon",
+          "rightTitle": "Thin film",
+          "rows": [
+            {
+              "left": "Cut from a single pure crystal, it reaches the highest efficiency of any common panel on the market",
+              "right": "Lower"
+            },
+            { "left": "Rigid", "right": "Flexible layers on glass, metal or plastic" },
+            { "left": "Dominant on rooftops", "right": "Niche uses" },
+            { "left": "Energy-intensive purification", "right": "Less material" },
+            { "left": "Decades of field data", "right": "Newer" }
+          ]
+        }
+      ],
+      "notes": "Five rows; the first left cell is about eighteen words while its neighbour is one word.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t05",
+      "type": "chart",
+      "title": "Where panels are installed",
+      "body": [
+        {
+          "type": "Chart",
+          "kind": "donut",
+          "labels": ["China", "United States", "Japan", "Germany", "India", "Italy", "Australia", "Spain", "Brazil", "Other"],
+          "series": [{ "name": "Share of capacity", "values": [43, 12, 6, 6, 6, 2, 2, 2, 2, 19] }],
+          "unit": "%"
+        }
+      ],
+      "notes": "A donut with ten labels, more than the legend should list.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t06",
+      "type": "diagram",
+      "title": "Inside the circuit",
+      "body": [
+        {
+          "type": "Diagram",
+          "mermaid": "flowchart LR\n  subgraph Cell[Inside the cell]\n    A[Photon absorbed] -->|frees| B[Electron and hole]\n    B -->|field splits| C[Separated charge]\n  end\n  C -->|wire| D[Load]\n  D -->|returns| A"
+        }
+      ],
+      "notes": "A flowchart with a subgraph cluster and labelled edges.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t07",
+      "type": "diagram",
+      "title": "One electron's trip",
+      "body": [
+        {
+          "type": "Diagram",
+          "mermaid": "sequenceDiagram\n  participant S as Sun\n  participant C as Cell\n  participant G as Grid\n  S->>C: Photon arrives\n  Note over C: Junction separates charge\n  C->>G: Current flows\n  G-->>C: Circuit returns"
+        }
+      ],
+      "notes": "A sequence diagram with a note.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t08",
+      "type": "diagram",
+      "title": "Where the energy goes",
+      "body": [
+        {
+          "type": "Diagram",
+          "mermaid": "pie title Fate of incoming sunlight\n  \"Electricity\" : 22\n  \"Heat\" : 55\n  \"Reflection\" : 8\n  \"Passes through\" : 15"
+        }
+      ],
+      "notes": "A mermaid pie chart.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t09",
+      "type": "timeline",
+      "title": "Two centuries of progress",
+      "body": [
+        {
+          "type": "Timeline",
+          "steps": [
+            { "date": "1839", "label": "Observation", "detail": "Becquerel sees a photocurrent" },
+            { "date": "1883", "label": "Selenium", "detail": "Fritts builds a cell" },
+            { "date": "1954", "label": "Silicon", "detail": "Bell Labs reaches 6%" },
+            { "date": "1958", "label": "Orbit", "detail": "Vanguard 1 goes solar" },
+            { "date": "2010s", "label": "Cost collapse", "detail": "Panels reach grid parity" },
+            { "date": "2023", "label": "Terawatt", "detail": "Capacity passes 1 TW" }
+          ]
+        }
+      ],
+      "notes": "A six-step timeline, one more step than the solar deck.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t10",
+      "type": "image",
+      "body": [
+        {
+          "type": "Image",
+          "prompt": "Rows of solar panels on a hillside at dawn, long shadows, quiet landscape photograph",
+          "alt": "Rows of solar panels on a hillside at dawn"
+        },
+        {
+          "type": "Paragraph",
+          "text": "Rows of panels catch the first light of dawn across a quiet hillside near town."
+        }
+      ],
+      "notes": "An image with a fifteen-word caption.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t11",
+      "type": "quote",
+      "title": "A long view",
+      "body": [
+        {
+          "type": "Quote",
+          "text": "Every panel on every roof is a small promise that the sun, which has always warmed our days, can also light our homes, move our cars and keep our hospitals running through the long night.",
+          "attribution": "Workshop closing remarks"
+        }
+      ],
+      "notes": "A thirty-five-word quote.",
+      "emphasisTargets": ["small promise"]
+    },
+    {
+      "id": "t12",
+      "type": "summary",
+      "title": "What to remember",
+      "body": [
+        {
+          "type": "Bullets",
+          "items": [
+            "Values with units must never wrap",
+            "Rows align even when cells differ",
+            "Diagrams stay readable on dark themes",
+            "Long titles step down and wrap",
+            "Every graphic keeps 3:1 contrast"
+          ]
+        }
+      ],
+      "notes": "A five-item summary.",
+      "emphasisTargets": []
+    }
+  ]
+}

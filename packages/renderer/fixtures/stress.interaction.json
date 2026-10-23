@@ -1,0 +1,9 @@
+{
+  "modeId": "linear",
+  "slides": [
+    {
+      "slideId": "t12",
+      "components": [{ "componentId": "df-fragment", "blockIndex": 0, "props": { "mode": "one-by-one" } }]
+    }
+  ]
+}

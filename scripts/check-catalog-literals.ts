@@ -12,7 +12,9 @@ export type LiteralHit = { path: string; line: number; value: string };
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SCAN_DIRS = ["apps", "packages"];
 const EXTENSIONS = /\.(ts|tsx|js|mjs|css|hbs)$/;
-const SKIP_DIRS = new Set(["node_modules", "dist", ".next", ".turbo", "test", "fixtures"]);
+const SKIP_DIRS = new Set([
+  "node_modules", "dist", ".next", ".turbo", "test", "fixtures", "test-results", "playwright-report", ".cache",
+]);
 const SKIP_FILES = new Set(["packages/schemas/src/catalog-files.ts"]);
 
 const STRING_LITERAL = /(['"`])((?:\\.|(?!\1)[^\\])*)\1/g;

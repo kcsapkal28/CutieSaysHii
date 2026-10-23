@@ -1,0 +1,58 @@
+{
+  "name": "@deckforge/renderer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@deckforge/catalog": "workspace:*",
+    "@deckforge/schemas": "workspace:*",
+    "@fontsource/archivo": "^5",
+    "@fontsource/archivo-black": "^5",
+    "@fontsource/courier-prime": "^5",
+    "@fontsource/fira-code": "^5",
+    "@fontsource/fraunces": "^5",
+    "@fontsource/fredoka": "^5",
+    "@fontsource/ibm-plex-mono": "^5",
+    "@fontsource/ibm-plex-sans": "^5",
+    "@fontsource/inter": "^5",
+    "@fontsource/inter-tight": "^5",
+    "@fontsource/jetbrains-mono": "^5",
+    "@fontsource/josefin-sans": "^5",
+    "@fontsource/lobster": "^5",
+    "@fontsource/nunito-sans": "^5",
+    "@fontsource/orbitron": "^5",
+    "@fontsource/playfair-display": "^5",
+    "@fontsource/poiret-one": "^5",
+    "@fontsource/rajdhani": "^5",
+    "@fontsource/rubik": "^5",
+    "@fontsource/share-tech-mono": "^5",
+    "@fontsource/source-serif-4": "^5",
+    "@fontsource/space-grotesk": "^5",
+    "@fontsource/space-mono": "^5",
+    "@fontsource/work-sans": "^5",
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/cli": "^4.3.3",
+    "esbuild": "^0.28.2",
+    "gsap": "^3.15.0",
+    "handlebars": "^4.7.10",
+    "highlight.js": "^11.12.0",
+    "mermaid": "^12.2.0",
+    "playwright": "1.64.1",
+    "reveal.js": "5.2.1",
+    "tailwindcss": "^4.3.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "jsdom": "^30"
+  }
+}

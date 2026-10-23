@@ -7,3 +7,6 @@ jobs/
 .env.local
 *.tsbuildinfo
 .DS_Store
+packages/*/.cache/
+test-results/
+playwright-report/

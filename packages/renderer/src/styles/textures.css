@@ -1,0 +1,55 @@
+/* Page-wide texture overlays, selected by [data-df-texture] on the deck root. Opacity stays <= 0.12. */
+
+[data-df-texture] .slides::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+[data-df-texture="grain"] .slides::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: multiply;
+  opacity: 0.1;
+}
+
+[data-df-texture="paper"] .slides::before {
+  background-image:
+    repeating-linear-gradient(97deg, transparent 0 3px, var(--df-border) 3px 4px, transparent 4px 9px),
+    repeating-linear-gradient(8deg, transparent 0 5px, var(--df-text-muted) 5px 6px, transparent 6px 13px),
+    radial-gradient(ellipse at 20% 15%, var(--df-accent), transparent 60%);
+  mix-blend-mode: multiply;
+  opacity: 0.06;
+}
+
+[data-df-texture="scanlines"] .slides::before {
+  background-image: repeating-linear-gradient(
+    0deg,
+    var(--df-text) 0 1px,
+    transparent 1px 4px
+  );
+  opacity: 0.08;
+}
+
+[data-df-texture="fog"] .slides::before {
+  background-image:
+    radial-gradient(ellipse 60% 40% at 15% 20%, var(--df-text), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 85% 30%, var(--df-primary), transparent 70%),
+    radial-gradient(ellipse 70% 40% at 50% 90%, var(--df-text-muted), transparent 70%);
+  filter: blur(40px);
+  opacity: 0.1;
+}
+
+[data-df-texture="confetti"] .slides::before {
+  background-image:
+    radial-gradient(circle at 12% 18%, var(--df-accent) 0 3px, transparent 4px),
+    radial-gradient(circle at 63% 8%, var(--df-primary) 0 2px, transparent 3px),
+    radial-gradient(circle at 82% 42%, var(--df-accent) 0 3px, transparent 4px),
+    radial-gradient(circle at 31% 67%, var(--df-primary) 0 2px, transparent 3px),
+    radial-gradient(circle at 91% 88%, var(--df-accent) 0 2px, transparent 3px),
+    radial-gradient(circle at 47% 93%, var(--df-primary) 0 3px, transparent 4px);
+  background-size: 360px 360px;
+  opacity: 0.12;
+}

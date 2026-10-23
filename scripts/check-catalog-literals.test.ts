@@ -50,4 +50,10 @@ describe("isScannedPath", () => {
     expect(isScannedPath("packages/schemas/src/catalog-files.ts")).toBe(false);
     expect(isScannedPath("packages/x/README.md")).toBe(false);
   });
+
+  it("skips generated decks, reports and caches", () => {
+    expect(isScannedPath("packages/renderer/test-results/decks/x/assets/theme.css")).toBe(false);
+    expect(isScannedPath("packages/renderer/playwright-report/index.js")).toBe(false);
+    expect(isScannedPath("packages/renderer/.cache/mermaid/a.js")).toBe(false);
+  });
 });

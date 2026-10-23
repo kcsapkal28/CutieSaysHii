@@ -76,30 +76,32 @@ async function runStage(replies: FakeReply[]) {
 describe("toSkeleton", () => {
   it("skeleton fields only", () => {
     expect(SKELETON.slides).toHaveLength(STANDARD_DECK.slides.length);
-    for (const s of SKELETON.slides) expect(Object.keys(s).sort()).toEqual(["blockTypes", "emphasisTargets", "id", "type"]);
+    for (const s of SKELETON.slides) expect(Object.keys(s).sort()).toEqual(["blockTypes", "emphasisCount", "id", "type"]);
     expect(SKELETON.slides.find((s) => s.id === "s06")).toEqual({
       id: "s06",
       type: "stat",
-      emphasisTargets: ["22%", "0.6 V"],
+      emphasisCount: 2,
       blockTypes: ["Stat", "Stat", "Stat"],
     });
   });
 });
 
 describe("buildDesignRequest", () => {
-  it("request contains no slide text", () => {
+  it("request contains no string from the deck's slide text (emphasis targets included)", () => {
     const json = JSON.stringify(request());
-    const texts = [STANDARD_DECK.title, STANDARD_DECK.subtitle];
-    for (const s of STANDARD_DECK.slides) {
-      texts.push(s.notes);
-      if (s.title) texts.push(s.title);
-      for (const b of s.body) {
-        if (b.type === "Bullets") texts.push(...b.items);
-        if (b.type === "Paragraph" || b.type === "Quote") texts.push(b.text);
-        if (b.type === "Stat") texts.push(b.label);
-      }
-    }
-    for (const t of texts) expect(json).not.toContain(JSON.stringify(t).slice(1, -1));
+    // Every string in the deck except structural ids and enum values.
+    const STRUCTURAL = new Set(["id", "type", "kind", "trend", "lang"]);
+    const texts: string[] = [];
+    const walk = (v: unknown, key?: string): void => {
+      if (typeof v === "string") {
+        if (!key || !STRUCTURAL.has(key)) texts.push(v);
+      } else if (Array.isArray(v)) v.forEach((x) => walk(x, key));
+      else if (typeof v === "object" && v !== null) for (const [k, x] of Object.entries(v)) walk(x, k);
+    };
+    walk(STANDARD_DECK);
+    expect(texts).toEqual(expect.arrayContaining(["22%", "0.6 V", "junction", STANDARD_DECK.title]));
+    const leaked = texts.filter((t) => json.includes(JSON.stringify(t).slice(1, -1)));
+    expect(leaked).toEqual([]);
   });
 
   it("request carries no theme, palette, type-family or family-token fields (N3)", () => {

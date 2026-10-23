@@ -6,7 +6,7 @@ You see the deck's structure only, never its text. The user message holds an `<i
 - `vocabulary`: the only allowed values for `transition`, `enter`, `emphasis`, `exit` and `easing`.
 - `mode`: the chosen interaction mode, with its `components` (each with `binds`, optional `disallowedSlideTypes`, `props` and a description), `minComponentsPerSlides` and `questionCount`.
 - `designRules`: `motionOverrideSlideTypes` and `maxInteractiveComponentsPerSlide`.
-- `skeleton`: the slides in order, each with its `id`, `type`, `emphasisTargets` and `blockTypes` (the type of each body block, in order, indexed from 0).
+- `skeleton`: the slides in order, each with its `id`, `type`, `emphasisCount` (how many words or phrases the slide highlights) and `blockTypes` (the type of each body block, in order, indexed from 0).
 
 ## How to answer
 
@@ -20,7 +20,7 @@ The template already animates every slide, so most decks need few overrides, and
 - Set `transition`, `enter`, `emphasis` and `exit` to values from `vocabulary`. Set `easing` to a `vocabulary.easing` value, or to `null` to keep the template's easing.
 - Give every override a `reason`: one sentence on what it emphasises and why. An override without a reason is rejected.
 - Stay in the template's character: a subtle template gets subtle overrides, a bold one may go further.
-- Slides with `emphasisTargets` are good candidates for an `emphasis` effect.
+- Slides whose `emphasisCount` is above 0 highlight key words, so they are good candidates for an `emphasis` effect.
 
 ## Interaction placements
 

@@ -62,13 +62,13 @@ export function totalTokens(u: TokenUsage): number {
 export const DesignPlanSchema = z.object({ motion: MotionPlanSchema, interaction: InteractionPlanSchema });
 export type DesignPlan = z.infer<typeof DesignPlanSchema>;
 
-// What Agent B sees of the deck: structure only, no slide text.
+// What Agent B sees of the deck: structure only, no slide text (not even emphasis targets, only their count).
 export const DeckSkeletonSchema = z.object({
   slides: z.array(
     z.object({
       id: z.string(),
       type: z.string(),
-      emphasisTargets: z.array(z.string()),
+      emphasisCount: count,
       blockTypes: z.array(z.string()),
     }),
   ),

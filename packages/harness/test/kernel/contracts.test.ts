@@ -94,10 +94,12 @@ describe("documents", () => {
     expect(DesignPlanSchema.parse({ ...design, theme: { paletteId: "pal" } })).toEqual(design);
   });
 
-  it("DeckSkeleton has ids, types, emphasis targets and block types only", () => {
-    const skel = { slides: [{ id: "s01", type: "title", emphasisTargets: ["solar"], blockTypes: ["Paragraph"] }] };
+  it("DeckSkeleton has ids, types, emphasis counts and block types only (no slide text)", () => {
+    const skel = { slides: [{ id: "s01", type: "title", emphasisCount: 1, blockTypes: ["Paragraph"] }] };
     expect(DeckSkeletonSchema.parse(skel)).toEqual(skel);
-    expect(DeckSkeletonSchema.safeParse({ slides: [{ id: "s01", type: "title", emphasisTargets: [] }] }).success).toBe(false);
+    expect(DeckSkeletonSchema.parse({ slides: [{ ...skel.slides[0], emphasisTargets: ["solar"] }] })).toEqual(skel);
+    expect(DeckSkeletonSchema.safeParse({ slides: [{ id: "s01", type: "title", emphasisCount: 0 }] }).success).toBe(false);
+    expect(DeckSkeletonSchema.safeParse({ slides: [{ id: "s01", type: "title", emphasisCount: -1, blockTypes: [] }] }).success).toBe(false);
   });
 
   it("AcceptedDoc carries its content inline, discriminated by kind", () => {

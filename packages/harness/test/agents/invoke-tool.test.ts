@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { invokeTool, type ParseResult } from "../../src/agents/invoke-tool.ts";
 import { renderInput, type AgentRequest } from "../../src/agents/messages.ts";
 import { FakeLlm, type FakeReply } from "../../src/fakes/llm.ts";
@@ -26,7 +26,10 @@ const request: AgentRequest = {
 };
 
 const parsed: string[] = [];
-const parse = (input: unknown): ParseResult<{ ok: true }> => {
+beforeEach(() => {
+  parsed.length = 0;
+});
+const parse =(input: unknown): ParseResult<{ ok: true }> => {
   parsed.push(JSON.stringify(input));
   return (input as { ok?: unknown }).ok === true ? { ok: true, value: { ok: true } } : { ok: false, issues: [NOT_OK] };
 };
@@ -115,7 +118,6 @@ describe("invokeTool", () => {
   it("max_tokens feedback", async () => {
     // A truncated call is never parsed, even when its partial input happens to be valid.
     const { fake, ctx, attempts, events } = await setup([{ kind: "tool", input: { ok: true }, stopReason: "max_tokens" }, valid]);
-    parsed.length = 0;
     await invokeTool(ctx, request, parse);
     expect(parsed).toHaveLength(1);
     const feedback = fake.calls[1]!.messages[2];
@@ -125,6 +127,27 @@ describe("invokeTool", () => {
     });
     expect(attempts[0]).toMatchObject({ outcome: "truncated" });
     expect(retries(events)).toEqual([expect.objectContaining({ reason: "validation", attempt: 1, detail: expect.stringContaining("max_tokens") })]);
+  });
+
+  it.each(["model_context_window_exceeded", "pause_turn"] as const)("%s is treated as truncation and never parsed", async (stopReason) => {
+    const { fake, ctx, attempts } = await setup([{ kind: "tool", input: { ok: true }, stopReason }, valid]);
+    await invokeTool(ctx, request, parse);
+    expect(parsed).toHaveLength(1);
+    expect(attempts[0]).toMatchObject({ outcome: "truncated", issues: [{ code: "truncated", message: expect.stringContaining(stopReason) }] });
+    expect(fake.calls[1]!.messages[2]).toEqual({
+      role: "user",
+      content: [{ type: "tool_result", toolUseId: "toolu_fake_1", isError: true, content: expect.stringContaining(stopReason) }],
+    });
+  });
+
+  it("usage is reported before parsing, and a throwing parse still records the attempt", async () => {
+    const { ctx, attempts, meter } = await setup([valid]);
+    const boom = () => {
+      throw new Error("parser bug");
+    };
+    await expect(invokeTool(ctx, request, boom)).rejects.toThrow("parser bug");
+    expect(meter.total).toBe(1500);
+    expect(attempts).toEqual([expect.objectContaining({ n: 1, outcome: "error", usageKnown: true })]);
   });
 
   it("max_tokens without a tool call is fed back as text", async () => {

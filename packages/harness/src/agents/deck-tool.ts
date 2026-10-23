@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { ContentChoices } from "../kernel/contracts.ts";
 import { zodToIssues } from "../kernel/issues.ts";
 import type { Effort, ToolSpec } from "../kernel/llm-port.ts";
-import { deckRules, type DeckRules } from "../validate/rules.ts";
+import { acceptedBlocks, deckRules, type DeckRules } from "../validate/rules.ts";
 import { validateDeck } from "../validate/deck.ts";
 import { enumOrString } from "../validate/design-wire.ts";
 import { compileWireSchema } from "../wire/schema.ts";
@@ -41,7 +41,7 @@ export function contentRules(c: Catalog, rules: DeckRules) {
     slideTypes: c.slideTypes.types.map((t) => ({
       id: t.id,
       name: t.name,
-      accepts: t.accepts,
+      accepts: acceptedBlocks(t, rules.coverTypes.includes(t.id)),
       limits: t.limits ?? {},
       ...(t.required === undefined ? {} : { required: t.required }),
       ...(t.onlyIn === undefined ? {} : { onlyIn: t.onlyIn }),

@@ -35,9 +35,10 @@ Prefer varied, well-matched types over a run of `bullets` slides.
 ## Body blocks and limits
 
 - A slide's body holds only the block types listed in that type's `accepts`. A type whose `accepts` is empty has an empty body.
-- Stay inside each type's `limits`. A number is a maximum, and a [min, max] pair is an inclusive range. `items` is the number of bullets, `wordsPerItem` the words in one bullet, `words` the words of prose, `stats`, `steps`, `rows`, `series`, `points` and `options` count those parts, `lines` and `cols` bound a code block, and `titleWords`/`subtitleWords` on the cover type bound `deck.title` and `deck.subtitle`.
-- Keep titles short: at most 8 words.
-- Bullets: at most 5 per slide, each at most 12 words, and each one a phrase rather than a sentence.
+- On a type with a subtitle, aside or caption region, `accepts` also lists Paragraph: that Paragraph renders as the type's subtitle, aside or caption and is optional. Add one only when it helps, such as a line under a `section` heading, a note beside a `diagram` or a caption under an `image`.
+- Stay inside each type's `limits`. A number is a maximum, and a [min, max] pair is an inclusive range. `items` is the number of bullets, `wordsPerItem` the words in one bullet, `words` the words of prose, `stats`, `steps`, `rows`, `series`, `points` and `options` count those parts, and `lines` and `cols` bound a code block. `titleWords` bounds `slide.title`, except on the cover type, where it bounds `deck.title`. `subtitleWords` bounds `deck.subtitle` on the cover.
+- Keep slide titles to at most 8 words, and within the type's `titleWords` limit where it is lower.
+- On a `bullets` slide: at most 5 bullets, each at most 12 words. Other types that take Bullets, such as `agenda` and `summary`, follow their own `items` limits. Write each bullet as a phrase, not a sentence.
 - Visible words per slide must stay at or under `rules.wordsPerSlideMax`. Visible words are the slide title plus all body text the audience reads: bullets, paragraphs, stat values and labels, quotes and attributions, compare titles and cells, timeline labels, details and dates, chart labels and series names, and quiz questions and options. Speaker notes, code, diagram source and image prompts do not count.
 - Charts: every series has exactly one value per label.
 - Quiz: the number of options the `quiz` type's `limits` allow, `answerIndex` points at the correct option, and the explanation says why it is correct.

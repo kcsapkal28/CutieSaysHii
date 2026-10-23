@@ -26,6 +26,15 @@ export type DeckRules = {
 const QUIZ_BLOCK: Block["type"] = "Quiz";
 const COVER_REGION = "meta";
 const REQUIRED_WHEN = /^depth\s*(==|!=)\s*([\w-]+)$/;
+// Off the cover, a Paragraph renders into one of these regions when the body doesn't take it.
+const PARAGRAPH_REGIONS = ["subtitle", "aside", "caption"];
+const PARAGRAPH: Block["type"] = "Paragraph";
+
+/** The block types a slide of `type` may hold: its `accepts`, plus Paragraph when it has a region for one. */
+export function acceptedBlocks(type: SlideType, cover: boolean): string[] {
+  const takesParagraph = !cover && !type.accepts.includes(PARAGRAPH) && type.regions.some((r) => PARAGRAPH_REGIONS.includes(r));
+  return takesParagraph ? [...type.accepts, PARAGRAPH] : [...type.accepts];
+}
 
 export function evalRequiredWhen(expr: string, choices: Pick<ContentChoices, "depth">): boolean {
   const m = REQUIRED_WHEN.exec(expr.trim());

@@ -1,8 +1,10 @@
 import { goldenChoices, wordsPerSlideMax, type Catalog } from "@deckforge/catalog";
-import type { BriefSpec, Choices, DeckSpec } from "@deckforge/schemas";
+import type { Block, BriefSpec, Choices, DeckSpec, Slide } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildContentRequest, DEFAULT_CONTENT_EFFORT } from "../../src/agents/deck-tool.ts";
-import type { AgentPrompt } from "../../src/agents/messages.ts";
+import { requestFingerprintOf, type AgentPrompt } from "../../src/agents/messages.ts";
+import { validateDeck } from "../../src/validate/deck.ts";
+import { acceptedBlocks, deckRules } from "../../src/validate/rules.ts";
 import { FakeLlm, type FakeReply } from "../../src/fakes/llm.ts";
 import { ContentChoicesSchema, type PipelineState } from "../../src/kernel/contracts.ts";
 import type { StageEvent } from "../../src/kernel/events.ts";
@@ -19,6 +21,20 @@ const BRIEF: BriefSpec = {
   audience: "general",
   durationMin: 10,
   language: "en",
+};
+
+const SAMPLE_BLOCKS: Record<Block["type"], Block> = {
+  Bullets: { type: "Bullets", items: ["a"] },
+  Paragraph: { type: "Paragraph", text: "a" },
+  Stat: { type: "Stat", value: "1", label: "a" },
+  Quote: { type: "Quote", text: "a", attribution: "b" },
+  Diagram: { type: "Diagram", mermaid: "flowchart LR\n  A --> B" },
+  Chart: { type: "Chart", kind: "bar", labels: ["a"], series: [{ name: "s", values: [1] }] },
+  Compare: { type: "Compare", leftTitle: "a", rightTitle: "b", rows: [{ left: "a", right: "b" }] },
+  Timeline: { type: "Timeline", steps: [{ label: "a", detail: "b" }] },
+  Code: { type: "Code", lang: "ts", code: "x" },
+  Image: { type: "Image", prompt: "a", alt: "b" },
+  Quiz: { type: "Quiz", question: "q", options: ["a", "b", "c"], answerIndex: 0, explanation: "e" },
 };
 
 let c: Catalog;
@@ -98,7 +114,24 @@ describe("buildContentRequest", () => {
     expect(types.map((t) => t.id)).toEqual(c.slideTypes.types.map((t) => t.id));
     expect(types[0]).toEqual({ id: "title", name: "Title", accepts: [], limits: { titleWords: 8, subtitleWords: 14 }, required: "first" });
     expect(types.find((t) => t.id === "quiz")).toMatchObject({ onlyIn: ["assessment"] });
+    expect(types.find((t) => t.id === "section")).toMatchObject({ accepts: ["Paragraph"] });
+    expect(types.find((t) => t.id === "diagram")).toMatchObject({ accepts: ["Diagram", "Paragraph"] });
     for (const t of types) expect(Object.keys(t).every((k) => ["id", "name", "accepts", "limits", "required", "onlyIn"].includes(k))).toBe(true);
+  });
+
+  it("the request's accepted blocks equal the validator's for every catalog type", () => {
+    const rules = deckRules(c, ContentChoicesSchema.parse(linear));
+    const advertised = new Map(rulesOf(linear).slideTypes.map((t) => [t.id as string, t.accepts as string[]]));
+    for (const type of c.slideTypes.types) {
+      const accepts = advertised.get(type.id)!;
+      expect(accepts).toEqual(acceptedBlocks(type, rules.coverTypes.includes(type.id)));
+      // Behaviourally: validateDeck rejects exactly the block types the request leaves out.
+      for (const [blockType, block] of Object.entries(SAMPLE_BLOCKS)) {
+        const slide: Slide = { id: "x", type: type.id, title: "T", body: [block], notes: "n", emphasisTargets: [] };
+        const rejected = validateDeck(c, rules, { title: "T", subtitle: "S", slides: [slide] }).some((i) => i.code === "block-not-accepted");
+        expect(rejected, `${blockType} on ${type.id}`).toBe(!accepts.includes(blockType));
+      }
+    }
   });
 
   it("assessment questionCount 4 → quizSlides 4", () => {
@@ -147,13 +180,28 @@ describe("content stage", () => {
     expect(events.filter((e) => e.type === "stage:retry")).toEqual([expect.objectContaining({ reason: "validation", attempt: 1, maxAttempts: 3 })]);
   });
 
-  it("notes-length feedback names the short slide verbatim", async () => {
+  it("notes-length feedback is one line naming every short slide with its count and the range", async () => {
     const shortNotes = deck((d) => {
       d.slides.find((s) => s.id === "s04")!.notes = "Too short here.";
+      d.slides.find((s) => s.id === "s09")!.notes = "Also far too short.";
     });
     const { result, fake } = await runStage([{ kind: "tool", input: shortNotes }, { kind: "tool", input: deck() }]);
     await result;
-    expect(feedbackOf(fake, 1)).toContain("slide s04 notes have 3 words; need 60–120 at standard depth");
+    const text = (fake.calls[1]!.messages.at(-1) as { content: { content: string }[] }).content[0]!.content;
+    const lines = text.split("\n").filter((l) => l.includes("notes-length"));
+    expect(lines).toEqual([expect.stringContaining("s04 (3 words), s09 (4 words)")]);
+    expect(lines[0]).toContain("60–120 words at standard depth");
+  });
+
+  it("feeds back up to 60 issues", async () => {
+    const noisy = deck((d) => {
+      d.slides.forEach((s) => (s.emphasisTargets = ["zzz-1", "zzz-2", "zzz-3", "zzz-4"]));
+    });
+    const { result, fake } = await runStage([{ kind: "tool", input: noisy }, { kind: "tool", input: deck() }]);
+    await result;
+    const feedback = feedbackOf(fake, 1);
+    expect(feedback.match(/emphasis-missing/g)).toHaveLength(48);
+    expect(feedback).not.toContain("more");
   });
 
   it("schema errors are fed back too", async () => {
@@ -196,6 +244,15 @@ describe("content stage", () => {
     expect(fp({}, { ...linear, typeFamilyId: "another-type" })).toBe(base);
     expect(fp({}, { ...linear, motionTemplateId: "another-motion" })).toBe(base);
     expect(fp({}, { ...linear, threeJs: !linear.threeJs })).toBe(base);
+  });
+
+  it("fingerprint changes when only the tool schema changes", () => {
+    const req = request(linear);
+    const changed = { ...req, tool: { ...req.tool, inputSchema: { ...req.tool.inputSchema, description: "changed" } } };
+    const before = requestFingerprintOf(req);
+    const after = requestFingerprintOf(changed);
+    expect(after.toolSchemaHash).not.toBe(before.toolSchemaHash);
+    expect({ ...after, toolSchemaHash: before.toolSchemaHash }).toEqual(before);
   });
 
   it("emits progress", async () => {

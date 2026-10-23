@@ -6,9 +6,11 @@ import {
   type LlmMessage,
   type LlmRequest,
   type RequestFingerprint,
+  type StopReason,
   type ToolName,
   type ToolSpec,
 } from "../kernel/llm-port.ts";
+import { groupNotesLength } from "../validate/deck.ts";
 
 /** A versioned system prompt; `name` is its file stem, e.g. "content.v1". */
 export type AgentPrompt = { name: string; text: string };
@@ -42,12 +44,28 @@ export function requestFingerprintOf(r: AgentRequest): RequestFingerprint {
 
 export const noToolCallFeedback = (tool: ToolName): string => `Call the ${tool} tool exactly once with the complete result.`;
 
-export const truncatedFeedback = (tool: ToolName, maxTokens: number): string =>
-  `Your reply was cut off at the ${maxTokens}-token output limit before the ${tool} call was complete. ` +
-  `Call the ${tool} tool again exactly once with the complete result, written more concisely so it fits.`;
+/** Stop reasons that end a reply early; any tool call in it is incomplete and never parsed. */
+export const TRUNCATING_STOPS: readonly StopReason[] = ["max_tokens", "model_context_window_exceeded", "pause_turn"];
+
+export function truncatedIssue(tool: ToolName, stop: StopReason, maxTokens: number): Issue {
+  const where = stop === "max_tokens" ? `cut off at max_tokens (${maxTokens})` : `stopped early (${stop})`;
+  return { path: "", code: "truncated", message: `the reply was ${where} before the ${tool} call was complete` };
+}
+
+export function truncatedFeedback(tool: ToolName, stop: StopReason, maxTokens: number): string {
+  const where = stop === "max_tokens" ? `was cut off at the ${maxTokens}-token output limit` : `stopped early (${stop})`;
+  return (
+    `Your reply ${where} before the ${tool} call was complete. ` +
+    `Call the ${tool} tool again exactly once with the complete result, written more concisely so it fits.`
+  );
+}
+
+/** Enough to cover a deck's worth of issues in one round; notes-length issues are folded into one line. */
+export const FEEDBACK_MAX_ISSUES = 60;
 
 export const invalidFeedback = (tool: ToolName, issues: readonly Issue[]): string =>
-  `The ${tool} call failed validation. Fix every issue below, keep everything else, and call ${tool} again exactly once with the complete corrected result.\n${formatIssues(issues)}`;
+  `The ${tool} call failed validation. Fix every issue below, keep everything else, and call ${tool} again exactly once with the complete corrected result.\n` +
+  formatIssues(groupNotesLength(issues), FEEDBACK_MAX_ISSUES);
 
 const IGNORED_CALL = "Ignored: only the first call in a turn is used.";
 

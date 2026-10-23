@@ -9,7 +9,9 @@ import {
   invalidFeedback,
   noToolCallFeedback,
   toLlmRequest,
+  TRUNCATING_STOPS,
   truncatedFeedback,
+  truncatedIssue,
   type AgentRequest,
 } from "./messages.ts";
 
@@ -51,9 +53,16 @@ export async function invokeTool<T>(ctx: InvokeContext, req: AgentRequest, parse
       throw e;
     }
 
-    const verdict = judge(req, c, parse);
+    // Usage is metered before anything can throw; a budget or parser failure still leaves an attempt record.
+    let verdict: Verdict<T>;
+    try {
+      ctx.report.usage(c.usage);
+      verdict = judge(req, c, parse);
+    } catch (e) {
+      ctx.report.attempt({ n, outcome: "error", usage: { ...c.usage }, usageKnown: true, durationMs: durationMs() });
+      throw e;
+    }
     ctx.report.attempt(attemptRecord(n, verdict, c, durationMs()));
-    ctx.report.usage(c.usage);
 
     if (verdict.outcome === "refusal") throw new LlmRefusalError(c.refusalCategory);
     if (verdict.outcome === "ok") return verdict.value;
@@ -69,9 +78,9 @@ export async function invokeTool<T>(ctx: InvokeContext, req: AgentRequest, parse
 function judge<T>(req: AgentRequest, c: LlmCompletion, parse: (input: unknown) => ParseResult<T>): Verdict<T> {
   const tool = req.tool.name;
   if (c.stopReason === "refusal") return { outcome: "refusal" };
-  if (c.stopReason === "max_tokens") {
-    const message = `the reply was cut off at max_tokens (${req.maxTokens}) before the ${tool} call was complete`;
-    return { outcome: "truncated", issues: [{ path: "", code: "truncated", message }], detail: message, feedback: truncatedFeedback(tool, req.maxTokens) };
+  if (TRUNCATING_STOPS.includes(c.stopReason)) {
+    const issue = truncatedIssue(tool, c.stopReason, req.maxTokens);
+    return { outcome: "truncated", issues: [issue], detail: issue.message, feedback: truncatedFeedback(tool, c.stopReason, req.maxTokens) };
   }
   if (!c.toolCall) {
     const message = `the reply did not call ${tool}`;

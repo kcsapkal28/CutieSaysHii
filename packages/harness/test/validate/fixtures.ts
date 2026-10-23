@@ -12,7 +12,7 @@ export const skeletonOf = (deck: DeckSpec): DeckSkeleton => ({
   slides: deck.slides.map((s) => ({
     id: s.id,
     type: s.type,
-    emphasisTargets: [...s.emphasisTargets],
+    emphasisCount: s.emphasisTargets.length,
     blockTypes: s.body.map((b) => b.type),
   })),
 });

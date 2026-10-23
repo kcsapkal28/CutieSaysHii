@@ -108,6 +108,30 @@ describe("prompt text", () => {
     }
   });
 
+  it("the content prompt's limit statements match the catalog", () => {
+    const text = prompts.content!.text;
+    const limit = (id: string, key: string) => c.slideTypes.types.find((t) => t.id === id)!.limits![key]!;
+    const max = (l: number | [number, number]) => (typeof l === "number" ? l : l[1]);
+
+    expect(text).toContain("`titleWords` bounds `slide.title`, except on the cover type, where it bounds `deck.title`");
+    const titleWords = c.slideTypes.types.flatMap((t) => (t.limits?.titleWords === undefined ? [] : [max(t.limits.titleWords)]));
+    const [, title] = /slide titles to at most (\d+) words, and within the type's `titleWords` limit where it is lower/.exec(text) ?? [];
+    expect(Number(title)).toBe(Math.max(...titleWords));
+
+    const [, items, words] = /On a `bullets` slide: at most (\d+) bullets, each at most (\d+) words/.exec(text) ?? [];
+    expect(Number(items)).toBe(max(limit("bullets", "items")));
+    expect(Number(words)).toBe(max(limit("bullets", "wordsPerItem")));
+  });
+
+  it("the content prompt explains optional Paragraphs in subtitle, aside and caption regions", () => {
+    expect(prompts.content!.text).toMatch(/Paragraph[^\n]*subtitle, aside or caption[^\n]*optional/);
+  });
+
+  it("the design prompt sees emphasis counts, not targets", () => {
+    expect(prompts.design!.text).toContain("emphasisCount");
+    expect(prompts.design!.text).not.toContain("emphasisTargets");
+  });
+
   it("the content prompt covers the deck rules", () => {
     const text = prompts.content!.text;
     for (const phrase of ["exactly once", "rules.notesWords", "rules.quizSlides", "rules.wordsPerSlideMax", "rules.requiredTypes", "emphasisTargets", "verbatim"])

@@ -225,6 +225,7 @@ describe("response", () => {
     });
     const out = await llm.complete(request(), { signal: signal() });
     expect(out.toolCall).toEqual({ id: "toolu_9", name: "emit_design", input: { ok: true } });
+    expect(out.toolUseIds).toEqual(["toolu_9", "toolu_10"]);
     expect(out.text).toBe("Here is the plan.");
     expect(out.stopReason).toBe("tool_use");
     expect(out.refusalCategory).toBeNull();
@@ -236,6 +237,7 @@ describe("response", () => {
     server.reply({ body: toolMessage({ content: [{ type: "text", text: "I can't." }], stop_reason: "end_turn" }) });
     const out = await llm.complete(request(), { signal: signal() });
     expect(out.toolCall).toBeNull();
+    expect(out.toolUseIds).toEqual([]);
     expect(out.stopReason).toBe("end_turn");
   });
 

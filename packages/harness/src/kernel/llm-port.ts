@@ -56,6 +56,8 @@ export type ToolCall = { id: string; name: string; input: unknown };
 export type LlmCompletion = {
   /** The first tool_use block, if any. */
   toolCall: ToolCall | null;
+  /** The id of every tool_use block in the turn, in order; each needs a tool_result in the next user turn. */
+  toolUseIds: string[];
   /** All text blocks joined. */
   text: string;
   stopReason: StopReason;

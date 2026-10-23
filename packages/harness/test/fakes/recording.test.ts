@@ -74,6 +74,7 @@ describe("RecordingLlm", () => {
       complete: () =>
         Promise.resolve({
           toolCall: { id: "toolu_1", name: "emit_deck", input: { title: "So" } },
+          toolUseIds: ["toolu_1"],
           text: "",
           stopReason: "max_tokens",
           refusalCategory: null,
@@ -99,6 +100,7 @@ describe("RecordingLlm", () => {
       complete: () =>
         Promise.resolve({
           toolCall: { id: "toolu_2", name: "emit_deck", input: {} },
+          toolUseIds: ["toolu_2"],
           text: "",
           stopReason: "refusal",
           refusalCategory: "cyber",
@@ -121,6 +123,7 @@ describe("RecordingLlm", () => {
       complete: () =>
         Promise.resolve({
           toolCall: { id: "toolu_3", name: "emit_deck", input },
+          toolUseIds: ["toolu_3"],
           text: "",
           stopReason: "tool_use",
           refusalCategory: null,

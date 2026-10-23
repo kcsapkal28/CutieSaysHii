@@ -198,6 +198,7 @@ function toCompletion(msg: ProviderMessage): LlmCompletion {
   };
   return {
     toolCall: tool ? { id: tool.id ?? "", name: tool.name ?? "", input: tool.input } : null,
+    toolUseIds: blocks.flatMap((b) => (b.type === "tool_use" ? [b.id ?? ""] : [])),
     text: blocks.flatMap((b) => (b.type === "text" && typeof b.text === "string" ? [b.text] : [])).join(""),
     stopReason: stop.data,
     refusalCategory: msg.stop_details?.category ?? null,

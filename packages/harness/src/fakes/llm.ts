@@ -164,6 +164,7 @@ export class FakeLlm implements LlmPort {
         const toolCall = { id: `toolu_fake_${this.#nextId++}`, name: tool, input: structuredClone(reply.input) };
         return {
           toolCall,
+          toolUseIds: [toolCall.id],
           text: "",
           stopReason: reply.stopReason ?? "tool_use",
           refusalCategory: null,
@@ -174,6 +175,7 @@ export class FakeLlm implements LlmPort {
       case "text":
         return {
           toolCall: null,
+          toolUseIds: [],
           text: reply.text,
           stopReason: reply.stopReason ?? "end_turn",
           refusalCategory: null,
@@ -183,6 +185,7 @@ export class FakeLlm implements LlmPort {
       case "refusal":
         return {
           toolCall: null,
+          toolUseIds: [],
           text: "",
           stopReason: "refusal",
           refusalCategory: reply.category ?? null,

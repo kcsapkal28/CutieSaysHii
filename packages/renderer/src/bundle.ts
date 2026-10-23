@@ -1,15 +1,21 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { build } from "esbuild";
 import { PACKAGE_ROOT, packageVersion, readCache, sha256, writeCache } from "./cache.ts";
+
+/** Every file under `dir`, at any depth, as sorted `/`-separated paths relative to `dir`. */
+export function listSources(dir: string): string[] {
+  return readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => relative(dir, join(e.parentPath, e.name)).split(sep).join("/"))
+    .sort();
+}
 
 // Bundles <dir>/main.ts into one minified classic-script IIFE, cached by the sources and dependency versions.
 async function bundleIife(dirRel: string, cachePrefix: string, deps: string[]): Promise<string> {
   const dir = join(PACKAGE_ROOT, dirRel);
-  const sources = readdirSync(dir)
-    .sort()
-    .map((f) => [f, readFileSync(join(dir, f), "utf8")] as const);
-  const key = sha256([...sources.flat(), packageVersion("esbuild"), ...deps.map(packageVersion)]);
+  const sources = listSources(dir).flatMap((f) => [f, readFileSync(join(dir, f), "utf8")]);
+  const key = sha256([...sources, packageVersion("esbuild"), ...deps.map(packageVersion)]);
   const name = `${cachePrefix}-${key}.js`;
   const cached = readCache(name);
   if (cached !== undefined) return cached;

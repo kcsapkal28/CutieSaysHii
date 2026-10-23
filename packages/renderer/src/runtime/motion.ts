@@ -44,9 +44,18 @@ export function resolveSlideMotion(m: SlideMotion, reduced: ReducedFlags | null)
     ...m,
     transition: keepTransition ? m.transition : "fade",
     enter: "fade",
-    emphasis: "none",
+    // The engine passes glowStatic to the preset, so a kept glow is shown without animating.
+    emphasis: m.emphasis === "glow" && reduced.glowStatic ? "glow" : "none",
     exit: "fade",
   };
+}
+
+// Opacity dips used by glitch and glow: each dip is one flash, halfPeriod seconds down then halfPeriod up.
+export const FLICKER = { dips: 2, halfPeriod: 0.2 } as const;
+
+/** The most flashes any closed 1 s window can contain when the dips run back to back (WCAG 2.3.1 allows 3). */
+export function flashesPerSecond(f: { dips: number; halfPeriod: number }): number {
+  return Math.min(f.dips, Math.floor(1 / (2 * f.halfPeriod)) + 1);
 }
 
 export type CountUp = { prefix: string; value: number; decimals: number; suffix: string; grouping: boolean };

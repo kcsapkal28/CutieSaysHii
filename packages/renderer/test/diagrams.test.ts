@@ -294,6 +294,17 @@ describe("renderDiagrams", () => {
     expect(svgs.size).toBe(1);
   }, 60_000);
 
+  // Mermaid draws some shapes with seeded randomness (roughjs); a different seed each run would change the svg.
+  it("rendering the same diagram twice gives byte-identical svg, whatever its siblings", async () => {
+    const sources = Object.values(BENIGN);
+    const first = await renderDiagrams(sources, theme);
+    const second = await renderDiagrams(sources, theme);
+    const alone = await renderDiagrams([BENIGN.class], theme);
+    expect(first.svgs.size).toBe(sources.length);
+    for (const source of sources) expect(second.svgs.get(diagramKey(source)), source).toBe(first.svgs.get(diagramKey(source)));
+    expect(alone.svgs.get(diagramKey(BENIGN.class))).toBe(first.svgs.get(diagramKey(BENIGN.class)));
+  }, 60_000);
+
   it("keeps good diagrams when a sibling fails", async () => {
     const { svgs, warnings } = await renderDiagrams(["graph TD; A-->", "graph TD; X-->Y"], theme);
     expect(svgs.size).toBe(1);

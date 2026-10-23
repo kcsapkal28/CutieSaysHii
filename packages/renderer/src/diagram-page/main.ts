@@ -17,6 +17,20 @@ type MermaidApi = {
   render(id: string, source: string): Promise<{ svg: string }>;
 };
 
+const RANDOM_SEED = 0x9e3779b9;
+
+// mulberry32: a fixed sequence in place of Math.random, so mermaid's random shapes (roughjs) render identically.
+function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 async function renderJobs({ config, jobs, timeoutMs, reservedClasses }: RenderRequest): Promise<Outcome[]> {
   const { mermaid } = globalThis as unknown as { mermaid: MermaidApi };
   mermaid.initialize(config);
@@ -24,6 +38,8 @@ async function renderJobs({ config, jobs, timeoutMs, reservedClasses }: RenderRe
   const out: Outcome[] = [];
   for (const job of jobs) {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Reseeded per job: a diagram's svg depends only on its own source, never on the diagrams before it.
+    Math.random = seededRandom(RANDOM_SEED);
     try {
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("timed out")), timeoutMs);

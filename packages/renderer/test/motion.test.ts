@@ -2,6 +2,8 @@ import { loadCatalog } from "@deckforge/catalog/node";
 import type { Catalog } from "@deckforge/catalog";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  FLICKER,
+  flashesPerSecond,
   formatCountUp,
   parseCountUp,
   parseReducedMotion,
@@ -58,6 +60,33 @@ describe("resolveSlideMotion", () => {
 
   it("same leaves motion unchanged", () => {
     expect(resolveSlideMotion(base, parseReducedMotion("same"))).toEqual(base);
+  });
+
+  it("fadeOnly with glow static keeps glow", () => {
+    const out = resolveSlideMotion({ ...base, emphasis: "glow" }, parseReducedMotion("fadeOnly; no flicker; glow static"));
+    expect(out).toMatchObject({ enter: "fade", emphasis: "glow", exit: "fade" });
+  });
+
+  it("fadeOnly without glow static still drops glow", () => {
+    expect(resolveSlideMotion({ ...base, emphasis: "glow" }, parseReducedMotion("fadeOnly; no flicker")).emphasis).toBe("none");
+  });
+
+  it("glow static keeps only glow, not other emphasis", () => {
+    expect(resolveSlideMotion(base, parseReducedMotion("fadeOnly; glow static")).emphasis).toBe("none");
+  });
+});
+
+describe("flashesPerSecond", () => {
+  it("flicker stays within WCAG 2.3.1", () => {
+    expect(flashesPerSecond(FLICKER)).toBeLessThanOrEqual(3);
+  });
+
+  it("counts every dip that can start inside one closed 1 s window", () => {
+    expect(flashesPerSecond({ dips: 10, halfPeriod: 0.2 })).toBe(3);
+    expect(flashesPerSecond({ dips: 10, halfPeriod: 0.125 })).toBe(5);
+    expect(flashesPerSecond({ dips: 10, halfPeriod: 0.04 })).toBe(10);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.01 })).toBe(2);
+    expect(flashesPerSecond({ dips: 0, halfPeriod: 0.2 })).toBe(0);
   });
 });
 

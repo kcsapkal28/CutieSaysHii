@@ -347,7 +347,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
   - `JobStatus = "queued"|"running"|"succeeded"|"qa_failed"|"failed"|"cancelled"`.
   - `TokenUsage {inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens}`, `ZERO_USAGE`, `addUsage`, `totalTokens`.
   - `DesignPlanSchema = z.object({ motion: MotionPlanSchema, interaction: InteractionPlanSchema })`, `DesignPlan`. There is no theme (N3).
-  - `DeckSkeletonSchema {slides: {id, type, emphasisTargets, blockTypes}[]}`.
+  - `DeckSkeletonSchema {slides: {id, type, emphasisCount, blockTypes}[]}`.
   - `ContentChoicesSchema = ChoicesSchema.pick({depth, styleFamilyId, interactionModeId, questionCount})`.
   - `DesignChoicesSchema = ChoicesSchema.pick({motionTemplateId, interactionModeId, questionCount})`.
   - `JobInputs {brief, choices}`.

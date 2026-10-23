@@ -4,14 +4,22 @@ type Timer = { id: number; dueAt: number; fire: () => void };
 
 const flushMicrotasks = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-/** Manual time. `advance` fires due timers in order and lets their continuations run before moving on. */
+/**
+ * Manual time. `advance` and `runUntilIdle` fire due timers in order; before each one they let
+ * continuations run and wait for every `track`ed I/O promise, so fake time moves only when the
+ * code is waiting on time.
+ */
 export class FakeClock implements Clock {
   #now: number;
   #nextId = 1;
   readonly #timers = new Map<number, Timer>();
+  readonly #tracked = new Set<Promise<unknown>>();
+  readonly #settleTimeoutMs: number;
 
-  constructor(start = 0) {
+  /** `settleTimeoutMs`: real time to wait for tracked I/O before failing (it may be waiting on fake time). */
+  constructor(start = 0, { settleTimeoutMs = 5_000 }: { settleTimeoutMs?: number } = {}) {
     this.#now = start;
+    this.#settleTimeoutMs = settleTimeoutMs;
   }
 
   now(): number {
@@ -49,10 +57,18 @@ export class FakeClock implements Clock {
     };
   }
 
+  /** Marks real I/O (a file write, a rename) that must settle before the next timer fires. */
+  track<T>(p: Promise<T>): Promise<T> {
+    this.#tracked.add(p);
+    const untrack = () => void this.#tracked.delete(p);
+    p.then(untrack, untrack);
+    return p;
+  }
+
   async advance(ms: number): Promise<void> {
     const target = this.#now + ms;
     for (;;) {
-      await flushMicrotasks();
+      await this.#settle();
       const next = this.#earliest(target);
       if (!next) break;
       this.#timers.delete(next.id);
@@ -60,19 +76,21 @@ export class FakeClock implements Clock {
       next.fire();
     }
     this.#now = target;
-    await flushMicrotasks();
+    await this.#settle();
   }
 
   /**
-   * Fires every pending timer in due order, giving real I/O (file writes, renames) `ioGraceMs` of
-   * real time to settle before each one, so fake time moves only when the code is waiting on time.
-   * Throws after `maxTimers` firings, which means a repeating timer is still running.
+   * Fires every pending timer in due order, settling tracked I/O before each one. `ioGraceMs` adds
+   * real time on top, as a fallback for I/O nobody tracks. Throws after `maxTimers` firings, which
+   * means a repeating timer is still running.
    */
-  async runUntilIdle({ ioGraceMs = 10, maxTimers = 1_000 }: { ioGraceMs?: number; maxTimers?: number } = {}): Promise<void> {
+  async runUntilIdle({ ioGraceMs = 0, maxTimers = 200 }: { ioGraceMs?: number; maxTimers?: number } = {}): Promise<void> {
     for (let fired = 0; ; fired++) {
-      await flushMicrotasks();
-      await new Promise<void>((resolve) => setTimeout(resolve, ioGraceMs));
-      await flushMicrotasks();
+      await this.#settle();
+      if (ioGraceMs > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, ioGraceMs));
+        await this.#settle();
+      }
       const next = this.#earliest(Infinity);
       if (!next) return;
       if (fired >= maxTimers) throw new Error(`runUntilIdle: timers still pending after ${maxTimers} timers (a running every()?)`);
@@ -84,6 +102,26 @@ export class FakeClock implements Clock {
 
   pendingTimers(): number {
     return this.#timers.size;
+  }
+
+  /** Flushes continuations until no tracked I/O is pending; I/O tracked meanwhile is waited for too. */
+  async #settle(): Promise<void> {
+    for (;;) {
+      await flushMicrotasks();
+      if (this.#tracked.size === 0) return;
+      let guard: ReturnType<typeof setTimeout> | undefined;
+      const stuck = new Promise<"stuck">((resolve) => {
+        guard = setTimeout(() => resolve("stuck"), this.#settleTimeoutMs);
+      });
+      const outcome = await Promise.race([Promise.allSettled([...this.#tracked]), stuck]);
+      clearTimeout(guard);
+      if (outcome === "stuck") {
+        throw new Error(
+          `FakeClock: tracked I/O did not settle within ${this.#settleTimeoutMs} ms of real time; ` +
+            "track only real I/O, never a promise that waits on fake time",
+        );
+      }
+    }
   }
 
   #earliest(until: number): Timer | undefined {

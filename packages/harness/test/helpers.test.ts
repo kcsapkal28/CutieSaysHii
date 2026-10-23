@@ -52,16 +52,16 @@ describe("FakeClock", () => {
     await expect(clock.sleep(1, ac.signal)).rejects.toBeInstanceOf(CancelledError);
   });
 
-  it("runUntilIdle fires timers in order and lets real I/O between them settle", async () => {
+  it("runUntilIdle fires timers in order and waits for tracked I/O between them", async () => {
     const clock = new FakeClock();
     const dir = await mkdtemp(join(tmpdir(), "fake-clock-"));
     const trail: string[] = [];
     const work = (async () => {
       await clock.sleep(100);
-      await writeFile(join(dir, "a.json"), "{}");
+      await clock.track(writeFile(join(dir, "a.json"), "{}"));
       trail.push(`wrote@${clock.now()}`);
       await clock.sleep(50);
-      await rename(join(dir, "a.json"), join(dir, "b.json"));
+      await clock.track(rename(join(dir, "a.json"), join(dir, "b.json")));
       trail.push(`renamed@${clock.now()}`);
     })();
     const deadline = clock.sleep(1_000).then(() => trail.push(`deadline@${clock.now()}`));
@@ -70,6 +70,55 @@ describe("FakeClock", () => {
     expect(trail).toEqual(["wrote@100", "renamed@150", "deadline@1000"]);
     expect(clock.pendingTimers()).toBe(0);
     await rm(dir, { recursive: true });
+  });
+
+  it("runUntilIdle waits for I/O tracked by a continuation of tracked I/O", async () => {
+    const clock = new FakeClock();
+    const trail: string[] = [];
+    const slow = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    void (async () => {
+      await clock.sleep(10);
+      await clock.track(slow(15));
+      await clock.track(slow(15));
+      trail.push(`io@${clock.now()}`);
+    })();
+    void clock.sleep(20).then(() => trail.push(`timer@${clock.now()}`));
+    await clock.runUntilIdle();
+    expect(trail).toEqual(["io@10", "timer@20"]);
+  });
+
+  it("advance waits for tracked I/O before firing the next due timer", async () => {
+    const clock = new FakeClock();
+    const trail: string[] = [];
+    void (async () => {
+      await clock.sleep(10);
+      await clock.track(new Promise<void>((resolve) => setTimeout(resolve, 15)));
+      trail.push(`io@${clock.now()}`);
+    })();
+    void clock.sleep(20).then(() => trail.push(`timer@${clock.now()}`));
+    await clock.advance(30);
+    expect(trail).toEqual(["io@10", "timer@20"]);
+  });
+
+  it("track returns the promise's own outcome", async () => {
+    const clock = new FakeClock();
+    expect(await clock.track(Promise.resolve(7))).toBe(7);
+    await expect(clock.track(Promise.reject(new Error("io failed")))).rejects.toThrow("io failed");
+    await clock.runUntilIdle();
+  });
+
+  it("runUntilIdle fails clearly when tracked I/O never settles", async () => {
+    const clock = new FakeClock(0, { settleTimeoutMs: 20 });
+    void clock.track(clock.sleep(10));
+    await expect(clock.runUntilIdle()).rejects.toThrow("tracked I/O did not settle within 20 ms");
+    await expect(clock.advance(5)).rejects.toThrow("tracked I/O did not settle within 20 ms");
+  });
+
+  it("runUntilIdle defaults to failing fast on a forgotten every()", async () => {
+    const clock = new FakeClock();
+    const stop = clock.every(5, () => {});
+    await expect(clock.runUntilIdle()).rejects.toThrow("still pending after 200 timers");
+    stop();
   });
 
   it("runUntilIdle refuses to spin on a repeating timer", async () => {

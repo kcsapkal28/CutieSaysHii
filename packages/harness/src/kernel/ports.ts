@@ -132,7 +132,11 @@ export interface Store {
    * heartbeat is older than `staleBefore`. Returns null otherwise.
    */
   claim(id: string, ownerId: string, now: number, staleBefore: number): Promise<JobSession | null>;
-  /** Fails stale queued/running jobs and their running stage rows in one transaction; returns their ids. */
+  /**
+   * Fails stale queued/running jobs and their running stage rows in one transaction; returns their ids.
+   * A reclaimed job keeps its ownerId, so an owner that was only paused may resume writing to it;
+   * the next `claim` re-fences it. Accepted by design.
+   */
   reclaimStale(staleBefore: number, error: ErrorInfo): Promise<string[]>;
   close(): Promise<void>;
 }

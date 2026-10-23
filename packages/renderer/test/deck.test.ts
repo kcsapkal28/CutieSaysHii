@@ -329,9 +329,14 @@ describe("stress fixture", () => {
     const diagram = (re: RegExp) => blocks("Diagram").some((d) => re.test(d.mermaid));
     const items = (type: string) => firstOf(type)?.body.find((b) => b.type === "Bullets")?.items;
 
-    expect(deck.slides).toHaveLength(12);
+    expect(deck.slides).toHaveLength(14);
     const longTitle = (t = "") => words(t) === 8 && t.split(/\s+/).some((w) => /^\p{L}{14}$/u.test(w));
     expect(deck.slides.some((s) => longTitle(s.title))).toBe(true);
+    const bullets = firstOf("bullets");
+    expect(words(bullets?.title ?? "")).toBe(8);
+    expect(items("bullets")).toHaveLength(5);
+    expect(items("bullets")?.every((i) => words(i) <= 12)).toBe(true);
+    expect(deck.slides.some((s) => s.type !== "image" && s.title === "")).toBe(true);
     const stats = blocks("Stat");
     expect(stats.map((s) => s.value)).toEqual(["1,000,000 W/m²", "$1.2 trillion", "−3.5 °C"]);
     expect(stats.map((s) => s.trend)).toEqual(["up", "down", "flat"]);

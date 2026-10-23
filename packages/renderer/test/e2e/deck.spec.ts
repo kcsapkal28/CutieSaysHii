@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { DeckSpec } from "@deckforge/schemas";
-import { DECKS, readDeckSpec } from "./global-setup.ts";
-import { deckUrl, waitForIdle } from "./metrics.ts";
+import { DECKS, FAMILIES, readDeckSpec } from "./global-setup.ts";
+import { deckUrl, settleSlide, waitForIdle } from "./metrics.ts";
 
 const deck = readDeckSpec("solar");
 const stress = readDeckSpec("stress");
@@ -9,7 +9,6 @@ const VISUAL_TYPES = [
   "title", "agenda", "section", "bullets", "stat", "quote", "chart", "diagram", "compare", "timeline", "code", "image", "summary",
 ] as const;
 const STRESS_FAMILIES = new Set(["neon", "atmospheric", "retro"]);
-const IDENTITY = new Set(["none", "matrix(1, 0, 0, 1, 0, 0)"]);
 // Elements that motion presets animate: split and typewriter presets animate the children.
 const MOTION_TARGETS = "section.present [data-motion-el], section.present [data-motion-el] *";
 
@@ -46,15 +45,16 @@ async function screenshotSlide(page: Page, url: string, name: string) {
   await page.goto(url);
   await waitForIdle(page);
   // The final state of a slide includes all of its fragments.
-  await page.evaluate(async () => {
-    while (window.Reveal.nextFragment());
-    await document.fonts.ready;
-  });
+  await settleSlide(page);
   await expect(page).toHaveScreenshot(name);
 }
 
-for (const { family } of DECKS.filter((d) => d.deck === "solar")) {
-  test.describe(`${family} solar`, () => {
+test("stress visuals name catalog families", () => {
+  for (const family of STRESS_FAMILIES) expect(FAMILIES).toContain(family);
+});
+
+for (const { family, deck: kind } of DECKS) {
+  test.describe(`${family} ${kind}`, () => {
     test("opens from file:// with zero console errors, zero failed requests and no non-file requests", async ({ page }) => {
       const consoleErrors: string[] = [];
       const pageErrors: string[] = [];
@@ -71,7 +71,7 @@ for (const { family } of DECKS.filter((d) => d.deck === "solar")) {
       page.on("pageerror", (e) => pageErrors.push(e.message));
       page.on("requestfailed", (r) => failedRequests.push(`${r.url()} ${r.failure()?.errorText ?? ""}`));
 
-      await page.goto(deckUrl(family, "solar"));
+      await page.goto(deckUrl(family, kind));
       await waitForIdle(page);
       // Visit every slide so per-slide resources and motion code run too.
       const total = await page.evaluate(() => window.Reveal.getTotalSlides());
@@ -83,6 +83,9 @@ for (const { family } of DECKS.filter((d) => d.deck === "solar")) {
       expect(failedRequests).toEqual([]);
       expect(nonFileRequests).toEqual([]);
     });
+
+    // The remaining checks run once per family, on the solar deck.
+    if (kind !== "solar") return;
 
     test("has 15 slides", async ({ page }) => {
       await page.goto(deckUrl(family, "solar"));
@@ -162,26 +165,33 @@ for (const { family } of DECKS.filter((d) => d.deck === "solar")) {
     test("reduced motion uses fades only", async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto(deckUrl(family, "solar", { slide: 1 }));
-      // Sample every frame until the enter timeline finishes; only frames where it is running count.
-      const frames = await page.evaluate(
+      // Sample every frame until the enter timeline finishes; only frames where it is running count. While it runs,
+      // each element must keep its own resting transform (which the layout may set), never a moving one.
+      const result = await page.evaluate(
         (sel) =>
-          new Promise<string[][]>((resolve) => {
-            const out: string[][] = [];
+          new Promise<{ frames: number; moved: string[] }>((resolve) => {
+            const seen = new Map<Element, Set<string>>();
+            let frames = 0;
             const tick = () => {
               const idle = document.documentElement.dataset.dfMotionIdle;
-              const ready = window.Reveal?.isReady();
-              const styles = ready ? [...document.querySelectorAll(sel)].map((el) => getComputedStyle(el)) : [];
-              if (idle === "false" && styles.some((s) => Number(s.opacity) < 1)) out.push(styles.map((s) => s.transform));
-              if (idle === "true") resolve(out);
-              else requestAnimationFrame(tick);
+              const els = window.Reveal?.isReady() ? [...document.querySelectorAll(sel)] : [];
+              if (idle === "false" && els.some((el) => Number(getComputedStyle(el).opacity) < 1)) {
+                frames++;
+                for (const el of els) seen.set(el, (seen.get(el) ?? new Set<string>()).add(getComputedStyle(el).transform));
+              }
+              if (idle !== "true") return void requestAnimationFrame(tick);
+              const moved = [...seen].flatMap(([el, transforms]) => {
+                const rest = getComputedStyle(el).transform;
+                return [...transforms].filter((t) => t !== rest).map((t) => `<${el.localName}> ${t}, at rest ${rest}`);
+              });
+              resolve({ frames, moved });
             };
             tick();
           }),
         MOTION_TARGETS,
       );
-      expect(frames.length).toBeGreaterThan(0);
-      const moved = frames.flat().filter((t) => !IDENTITY.has(t));
-      expect(moved).toEqual([]);
+      expect(result.frames).toBeGreaterThan(0);
+      expect(result.moved).toEqual([]);
     });
 
     test("speaker notes are wired", async ({ page }) => {

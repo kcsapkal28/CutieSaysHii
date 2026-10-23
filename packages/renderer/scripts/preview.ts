@@ -7,7 +7,7 @@ import { parseArgs } from "node:util";
 import { loadCatalog } from "@deckforge/catalog/node";
 import { chromium } from "playwright";
 import { buildFamilyDeck, DECK_KINDS, FAMILIES, readDeckSpec, type DeckKind } from "../test/e2e/global-setup.ts";
-import { waitForIdle } from "../test/e2e/metrics.ts";
+import { showSlide, waitForIdle } from "../test/e2e/metrics.ts";
 
 const OUT = fileURLToPath(new URL("../test-results/preview/", import.meta.url));
 
@@ -42,13 +42,9 @@ try {
   for (const type of wanted) {
     const indexes = spec.slides.flatMap((s, i) => (s.type === type ? [i] : []));
     for (const [n, h] of indexes.entries()) {
-      await page.evaluate(async (i) => {
-        window.Reveal.slide(i);
-        while (window.Reveal.nextFragment());
-        await document.fonts.ready;
-      }, h);
+      await showSlide(page, h);
       const path = join(OUT, `${family}-${deck}-${type}${n === 0 ? "" : `-${n + 1}`}.png`);
-      await page.screenshot({ path });
+      await page.screenshot({ path, animations: "disabled" });
       console.log(path);
     }
   }

@@ -30,6 +30,25 @@
       "emphasisTargets": []
     },
     {
+      "id": "t13",
+      "type": "bullets",
+      "title": "What really limits the efficiency of solar panels",
+      "body": [
+        {
+          "type": "Bullets",
+          "items": [
+            "Photons below the band gap pass straight through without freeing any electrons",
+            "Photons far above the band gap waste their extra energy as heat",
+            "Some freed electrons recombine with holes before they reach a contact",
+            "Metal contacts on the front surface shade part of every cell",
+            "Hot panels lose voltage, so output falls on the brightest days"
+          ]
+        }
+      ],
+      "notes": "An eight-word title over the maximum five bullets of up to twelve words each.",
+      "emphasisTargets": []
+    },
+    {
       "id": "t03",
       "type": "stat",
       "title": "Three awkward numbers",
@@ -155,6 +174,19 @@
         }
       ],
       "notes": "An image with a fifteen-word caption.",
+      "emphasisTargets": []
+    },
+    {
+      "id": "t14",
+      "type": "text",
+      "title": "",
+      "body": [
+        {
+          "type": "Paragraph",
+          "text": "A slide with no title still needs a composition: the statement carries the slide on its own."
+        }
+      ],
+      "notes": "A statement slide whose title is empty.",
       "emphasisTargets": []
     },
     {

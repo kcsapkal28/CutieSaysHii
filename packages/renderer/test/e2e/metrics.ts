@@ -139,6 +139,21 @@ export function lineCount(el: Element): number {
   return lines.length;
 }
 
+/** Slide px by which glyphs may extend past their line boxes in `el`: half of (glyph box − line-height). */
+export function textSpill(el: Element): number {
+  const k = slideScale(el);
+  let spill = 0;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const lineHeight = n.parentElement ? parseFloat(getComputedStyle(n.parentElement).lineHeight) : NaN;
+    if (!n.textContent?.trim() || Number.isNaN(lineHeight)) continue;
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    for (const r of range.getClientRects()) spill = Math.max(spill, (r.height / k - lineHeight) / 2);
+  }
+  return spill;
+}
+
 /** Slide px of rendered text: computed font-size, times the svg's viewBox scaling for HTML inside an svg. */
 export function renderedFontSize(el: Element): number {
   const size = parseFloat(getComputedStyle(el).fontSize);
@@ -159,7 +174,7 @@ export function drawingSize(svg: SVGSVGElement): { width: number; height: number
 
 const BROWSER = {
   parseColour, composite, rgbContrast, resolveColour, effectiveBackground, slideScale, safeFrame, isShown,
-  contentExtent, lineCount, renderedFontSize, drawingSize,
+  contentExtent, lineCount, textSpill, renderedFontSize, drawingSize,
 };
 
 declare global {
@@ -191,11 +206,19 @@ export async function openDeck(page: Page, family: string, deck: DeckKind): Prom
   await page.evaluate(() => document.fonts.ready);
 }
 
-/** Shows slide `h` in its final state (every fragment shown) once its fonts are loaded. */
-export async function showSlide(page: Page, h: number): Promise<void> {
-  await page.evaluate(async (i) => {
-    window.Reveal.slide(i);
+/** Brings the current slide to its final state: every fragment shown, every CSS transition finished, fonts loaded. */
+export async function settleSlide(page: Page): Promise<void> {
+  await page.evaluate(async () => {
     while (window.Reveal.nextFragment());
+    // Fragments fade in through CSS transitions; finish them so nothing is measured mid-fade.
+    // getAnimations() flushes style first, so transitions just started are included. Infinite ones cannot finish.
+    for (const a of document.getAnimations()) if (a.effect?.getTiming().iterations !== Infinity) a.finish();
     await document.fonts.ready;
-  }, h);
+  });
+}
+
+/** Shows slide `h` in its final state. */
+export async function showSlide(page: Page, h: number): Promise<void> {
+  await page.evaluate((i) => window.Reveal.slide(i), h);
+  await settleSlide(page);
 }

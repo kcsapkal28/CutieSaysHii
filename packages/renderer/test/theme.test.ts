@@ -12,7 +12,7 @@ import {
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
-import { graphicOn } from "../src/theme/colours.ts";
+import { channelDelta, fillBehind, fillBorder, graphicOn } from "../src/theme/colours.ts";
 import { compileThemeCss, ThemeContrastError, typeStep, UnsafeThemeValueError } from "../src/theme/compile.ts";
 
 let c: Catalog;
@@ -280,7 +280,17 @@ describe("computed colours", () => {
     expect(v, name).toMatch(/^#[0-9A-F]{6}$/);
     return v!;
   };
-  const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  // textMuted barely clears AA on bg in these palettes (midnight-gala via its accent fill), so a fill falls back to bg.
+  const FLAT_COMBOS = [
+    "minimal + warm-minimalist",
+    "minimal + pacific-forest",
+    "swiss + warm-minimalist",
+    "glass-soft + midnight-gala",
+    "neon + midnight-gala",
+    "maximal-pop + memphis-pastel",
+    "atmospheric + midnight-gala",
+    "atmospheric + pacific-forest",
+  ];
 
   it("graphic colours reach 3:1 on bg and surface", () => {
     for (const { label, theme } of combos()) {
@@ -304,16 +314,48 @@ describe("computed colours", () => {
     }
   });
 
-  // PENDING PLAN DECISION (task-2-report.md): in these palettes textMuted barely passes AA on bg, so the only
-  // AA-safe step toward bg sits within 24 of surface. Remove an id once the palette or fillBehind is fixed.
-  const FLAT_FILL_PALETTES = new Set(["warm-minimalist", "pacific-forest", "technical-slate", "memphis-pastel"]);
-
-  it("fill-1 is visibly different from surface", () => {
+  it("every combo has visible fills, or is flat with a 3:1 border", () => {
+    const flat: string[] = [];
     for (const { label, theme } of combos()) {
-      if (FLAT_FILL_PALETTES.has(theme.paletteId)) continue;
-      const fill = channels(hexOf(compileThemeCss(theme), "--df-fill-1"));
-      const surface = channels(theme.roles.surface);
-      expect(Math.max(...fill.map((x, i) => Math.abs(x - surface[i]!))), label).toBeGreaterThanOrEqual(24);
+      const { roles } = theme;
+      const out = compileThemeCss(theme);
+      const isFlat = decl(out, "--df-fill-flat") === "1";
+      if (isFlat) flat.push(label);
+      else expect(decl(out, "--df-fill-flat"), label).toBe("0");
+      const border = hexOf(out, "--df-fill-border");
+      expect(contrastRatio(border, roles.bg), `${label} fill-border/bg`).toBeGreaterThanOrEqual(3);
+      for (const name of ["--df-fill-1", "--df-fill-2"]) {
+        const fill = hexOf(out, name);
+        const readable = passesAA(roles.text, fill) && passesAA(roles.textMuted, fill);
+        const visible = channelDelta(fill, roles.surface) >= 24 && readable;
+        const flatOnBg = isFlat && fill === roles.bg && passesAA(roles.text, roles.bg) && passesAA(roles.textMuted, roles.bg);
+        expect(visible || flatOnBg, `${label} ${name} ${fill}`).toBe(true);
+      }
+    }
+    // Pinned so a palette change that flattens (or un-flattens) a combo is a visible diff.
+    expect(flat).toEqual(FLAT_COMBOS);
+  });
+
+  it("fillBehind skips ahead to a visible step: technical-slate primary", () => {
+    const { roles } = getPalette(c, "technical-slate");
+    const fill = fillBehind(roles, roles.primary);
+    expect(fill).not.toBeNull();
+    expect(channelDelta(fill!, roles.surface)).toBeGreaterThanOrEqual(24);
+    expect(passesAA(roles.text, fill!) && passesAA(roles.textMuted, fill!)).toBe(true);
+    // The first AA-safe step alone (#323233) is only 13 from surface.
+    expect(passesAA(roles.textMuted, "#323233") && channelDelta("#323233", roles.surface) < 24).toBe(true);
+  });
+
+  it("fillBehind is null when no step is both AA-safe and visible: warm-minimalist primary", () => {
+    const { roles } = getPalette(c, "warm-minimalist");
+    expect(fillBehind(roles, roles.primary)).toBeNull();
+  });
+
+  it("fill border keeps roles.border when it already reaches 3:1, and lifts it otherwise", () => {
+    for (const p of c.palettes.palettes) {
+      const border = fillBorder(p.roles);
+      expect(contrastRatio(border, p.roles.bg), p.id).toBeGreaterThanOrEqual(3);
+      if (contrastRatio(p.roles.border, p.roles.bg) >= 3) expect(border, p.id).toBe(p.roles.border.toUpperCase());
     }
   });
 

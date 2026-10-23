@@ -1,6 +1,6 @@
-import { passesAA } from "@deckforge/catalog";
+import { contrastRatio, passesAA } from "@deckforge/catalog";
 import type { ThemeSpec } from "@deckforge/schemas";
-import { fillBehind, graphicPalette, legibleOn } from "./colours.ts";
+import { fillBehind, fillBorder, GRAPHIC_RATIO, graphicPalette, legibleOn } from "./colours.ts";
 import { assertSafe, UNSAFE_IN_QUOTES, UnsafeThemeValueError } from "./safe.ts";
 
 export { legibleOn, UnsafeThemeValueError };
@@ -77,12 +77,22 @@ function gridDecls({ layout: { grid } }: ThemeSpec): Decl[] {
 }
 
 function computedColourDecls(roles: ThemeSpec["roles"]): Decl[] {
+  const fills = [fillBehind(roles, roles.primary), fillBehind(roles, roles.accent)];
+  const border = fillBorder(roles);
+  if (contrastRatio(border, roles.bg) < GRAPHIC_RATIO) throw new ThemeContrastError(["fillBorder/bg"]);
   return [
+    // Brand roles as text colours, AA on bg and surface.
     ["--df-primary-text", legibleOn(roles, roles.primary)],
     ["--df-accent-text", legibleOn(roles, roles.accent)],
+    // Series colours for charts, nodes and lines, 3:1 on bg and surface.
     ...graphicPalette(roles).map((c, i): Decl => [`--df-graphic-${i + 1}`, c]),
-    ["--df-fill-1", fillBehind(roles, roles.primary)],
-    ["--df-fill-2", fillBehind(roles, roles.accent)],
+    // Tinted panel fills that keep text and textMuted at AA and differ visibly from surface; bg when none can.
+    ["--df-fill-1", fills[0] ?? roles.bg],
+    ["--df-fill-2", fills[1] ?? roles.bg],
+    // 1 when either fill fell back to bg: panels should then be outlined with --df-fill-border instead of tinted.
+    ["--df-fill-flat", fills.includes(null) ? 1 : 0],
+    // Outline for flat panels, 3:1 on bg (WCAG 1.4.11).
+    ["--df-fill-border", border],
   ];
 }
 

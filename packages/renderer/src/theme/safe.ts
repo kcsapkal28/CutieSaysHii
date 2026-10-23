@@ -5,8 +5,8 @@ export class UnsafeThemeValueError extends Error {
   }
 }
 
-// ThemeSpec comes from an LLM: nothing that could close a declaration or block may reach the CSS.
-const UNSAFE = /[;{}<>\\]/;
+// ThemeSpec comes from an LLM: nothing that could close a declaration or block, or open a comment, may reach the CSS.
+const UNSAFE = /[;{}<>\\]|\/\*|\*\//;
 export const UNSAFE_IN_QUOTES = /["\r\n]/;
 
 export function assertSafe(field: string, value: string, extra?: RegExp): string {

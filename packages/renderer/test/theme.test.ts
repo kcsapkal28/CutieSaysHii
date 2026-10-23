@@ -1,10 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { goldenChoices, passesAA, resolveTheme, type Catalog } from "@deckforge/catalog";
+import {
+  contrastRatio,
+  defaultsForFamily,
+  getPalette,
+  goldenChoices,
+  passesAA,
+  resolveTheme,
+  type Catalog,
+} from "@deckforge/catalog";
 import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
-import { compileThemeCss, ThemeContrastError, UnsafeThemeValueError } from "../src/theme/compile.ts";
+import { graphicOn } from "../src/theme/colours.ts";
+import { compileThemeCss, ThemeContrastError, typeStep, UnsafeThemeValueError } from "../src/theme/compile.ts";
 
 let c: Catalog;
 let retro: ThemeSpec;
@@ -16,6 +25,20 @@ beforeAll(async () => {
 });
 
 const css = (patch: Partial<ThemeSpec>) => compileThemeCss({ ...retro, ...patch });
+const decl = (out: string, name: string) => new RegExp(`${name}: ([^;]+);`).exec(out)?.[1];
+
+/** The family's default type and motion, on its golden interaction, with optional overrides. */
+function themeFor(familyId: string, patch: { typeFamilyId?: string; paletteId?: string } = {}): ThemeSpec {
+  const golden = goldenChoices(c).find((g) => g.styleFamilyId === familyId);
+  if (!golden) throw new Error(`no golden choices for ${familyId}`);
+  return resolveTheme(c, { ...golden, ...defaultsForFamily(c, familyId), ...patch });
+}
+
+const combos = () =>
+  c.styles.families.flatMap((f) =>
+    f.allowedPalettes.map((paletteId) => ({ label: `${f.id} + ${paletteId}`, theme: themeFor(f.id, { paletteId }) })),
+  );
+
 const read = (rel: string) => readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 
 describe("compileThemeCss", () => {
@@ -65,10 +88,14 @@ describe("compileThemeCss", () => {
     const upper = css({ titleCase: "upper" });
     expect(upper).toContain("--df-title-transform: uppercase");
     expect(upper).toContain("--df-title-tracking: 0.04em");
-    const title = css({ titleCase: "title" });
-    expect(title).toContain("--df-title-transform: capitalize");
-    expect(title).toContain("--df-title-tracking: 0em");
+    expect(css({ titleCase: "title" })).toContain("--df-title-tracking: 0em");
     expect(css({ titleCase: "sentence" })).toContain("--df-title-transform: none");
+  });
+
+  it("title case no longer emits capitalize", () => {
+    const out = css({ titleCase: "title" });
+    expect(out).toContain("--df-title-transform: none");
+    expect(out).not.toContain("capitalize");
   });
 
   it("gradients true sets a linear-gradient bg-image; false sets none", () => {
@@ -159,6 +186,155 @@ describe("compileThemeCss", () => {
     );
     expect(() => css({ backdropBlur: "1px;" })).toThrow(UnsafeThemeValueError);
     expect(() => css({ roles: { ...retro.roles, accent: "red; }" } })).toThrow(UnsafeThemeValueError);
+  });
+
+  it("rejects comment markers", () => {
+    expect(() => css({ shadow: "0 0 1px red /* x" })).toThrow(UnsafeThemeValueError);
+    expect(() => css({ shadow: "*/ x" })).toThrow(UnsafeThemeValueError);
+  });
+
+  it("rejects grid spans that are not integers", () => {
+    const title = ["1; } a {", 10] as unknown as [number, number];
+    expect(() => css({ layout: { ...retro.layout, grid: { ...retro.layout.grid, title } } })).toThrow(
+      UnsafeThemeValueError,
+    );
+  });
+
+  it("node radius is 0 for square families and 50% otherwise", () => {
+    expect(compileThemeCss(themeFor("swiss"))).toContain("--df-node-radius: 0;");
+    expect(compileThemeCss(themeFor("minimal"))).toContain("--df-node-radius: 50%;");
+  });
+});
+
+describe("type scale", () => {
+  it("type steps follow the modular scale", () => {
+    expect(typeStep(1.25, 0)).toBe(2);
+    const out = css({ type: { ...retro.type, scale: 1.25 } });
+    expect(out).toContain("--df-step-0: 2rem;");
+    expect(out).toContain("--df-step-3: 3.9063rem;");
+    expect(out).toContain("--df-step-n1: 1.6rem;");
+    for (const n of ["n2", "n1", 0, 1, 2, 3, 4, 5, 6, 7]) {
+      expect(decl(out, `--df-step-${n}`)).toMatch(/^\d+(\.\d{1,4})?rem$/);
+    }
+    expect(css({ type: { ...retro.type, scale: 1.333 } })).toContain("--df-step-5: 8.4175rem;");
+  });
+
+  it("role sizes come from layout.steps", () => {
+    const out = compileThemeCss(themeFor("minimal"));
+    expect(out).toContain("--df-size-body: 2rem;");
+    expect(out).toContain("--df-size-lead: 2.5rem;");
+    expect(out).toContain("--df-size-small: 1.6rem;");
+    expect(out).toContain("--df-size-caption: 1.375rem;");
+    expect(out).toContain("--df-size-title: 3.9063rem;");
+    expect(out).toContain("--df-size-title-m: 3.125rem;");
+    expect(out).toContain("--df-size-title-l: 2.5rem;");
+    expect(out).toContain("--df-size-display: 6.1035rem;");
+    expect(out).toContain("--df-size-display-m: 4.8828rem;");
+    expect(out).toContain("--df-size-display-l: 3.9063rem;");
+    expect(out).toContain("--df-size-stat: 7.6294rem;");
+  });
+
+  it("role sizes are capped and floored", () => {
+    const out = compileThemeCss(themeFor("swiss", { typeFamilyId: "poster-grotesk" }));
+    expect(out).toContain("--df-size-title: 5.5rem;");
+    expect(out).toContain("--df-size-display: 9rem;");
+    expect(out).toContain("--df-size-stat: 12rem;");
+    expect(out).toContain("--df-size-small: 1.5rem;");
+    expect(out).toContain("--df-size-caption: 1.375rem;");
+    expect(out).toContain("--df-size-title-m: 3.9988rem;");
+    expect(out).toContain("--df-size-title-l: 2.828rem;");
+    expect(out).toContain("--df-size-display-m: 7.9952rem;");
+    expect(out).toContain("--df-size-display-l: 5.6543rem;");
+  });
+
+  it("role sizes stay ordered for every family × palette", () => {
+    const order = ["caption", "small", "body", "lead", "title-l", "title-m", "title"];
+    const displays = ["title", "display-l", "display-m", "display", "stat"];
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      const size = (n: string) => parseFloat(decl(out, `--df-size-${n}`) ?? "NaN");
+      for (const seq of [order, displays]) {
+        for (let i = 1; i < seq.length; i++) {
+          expect(size(seq[i]!), `${label} ${seq[i]} ≥ ${seq[i - 1]}`).toBeGreaterThanOrEqual(size(seq[i - 1]!));
+        }
+      }
+    }
+  });
+});
+
+describe("grid", () => {
+  it("grid spans become grid-column values", () => {
+    const minimal = compileThemeCss(themeFor("minimal"));
+    expect(minimal).toContain("--df-col-title: 1 / 10;");
+    expect(minimal).toContain("--df-col-body: 1 / 9;");
+    expect(minimal).toContain("--df-col-wide: 1 / 13;");
+    expect(minimal).toContain("--df-col-aside: 10 / 13;");
+    expect(minimal).toContain("--df-col-main: 1 / 10;");
+    expect(compileThemeCss(themeFor("swiss"))).toContain("--df-col-title: 3 / 13;");
+  });
+});
+
+describe("computed colours", () => {
+  const hexOf = (out: string, name: string) => {
+    const v = decl(out, name);
+    expect(v, name).toMatch(/^#[0-9A-F]{6}$/);
+    return v!;
+  };
+  const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+  it("graphic colours reach 3:1 on bg and surface", () => {
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      for (let i = 1; i <= 6; i++) {
+        const g = hexOf(out, `--df-graphic-${i}`);
+        expect(contrastRatio(g, theme.roles.bg), `${label} graphic-${i}/bg`).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(g, theme.roles.surface), `${label} graphic-${i}/surface`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("fills keep text and textMuted at AA", () => {
+    for (const { label, theme } of combos()) {
+      const out = compileThemeCss(theme);
+      for (const fill of ["--df-fill-1", "--df-fill-2"]) {
+        const f = hexOf(out, fill);
+        expect(passesAA(theme.roles.text, f), `${label} text/${fill}`).toBe(true);
+        expect(passesAA(theme.roles.textMuted, f), `${label} textMuted/${fill}`).toBe(true);
+      }
+    }
+  });
+
+  // PENDING PLAN DECISION (task-2-report.md): in these palettes textMuted barely passes AA on bg, so the only
+  // AA-safe step toward bg sits within 24 of surface. Remove an id once the palette or fillBehind is fixed.
+  const FLAT_FILL_PALETTES = new Set(["warm-minimalist", "pacific-forest", "technical-slate", "memphis-pastel"]);
+
+  it("fill-1 is visibly different from surface", () => {
+    for (const { label, theme } of combos()) {
+      if (FLAT_FILL_PALETTES.has(theme.paletteId)) continue;
+      const fill = channels(hexOf(compileThemeCss(theme), "--df-fill-1"));
+      const surface = channels(theme.roles.surface);
+      expect(Math.max(...fill.map((x, i) => Math.abs(x - surface[i]!))), label).toBeGreaterThanOrEqual(24);
+    }
+  });
+
+  it("compiles deterministically", () => {
+    for (const { label, theme } of combos()) {
+      expect(compileThemeCss(theme), label).toBe(compileThemeCss(structuredClone(theme)));
+    }
+  });
+
+  it("graphicOn keeps a colour that already passes", () => {
+    const { roles } = getPalette(c, "tokyo-grid");
+    expect(graphicOn(roles, roles.primary)).toBe(roles.primary.toUpperCase());
+  });
+
+  it("graphicOn lifts a failing one", () => {
+    const { roles } = getPalette(c, "midnight-gala");
+    expect(contrastRatio(roles.primary, roles.bg)).toBeLessThan(3);
+    const lifted = graphicOn(roles, roles.primary);
+    expect(lifted).not.toBe(roles.primary.toUpperCase());
+    expect(contrastRatio(lifted, roles.bg)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(lifted, roles.surface)).toBeGreaterThanOrEqual(3);
   });
 });
 

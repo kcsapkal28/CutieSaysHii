@@ -128,9 +128,8 @@ for (const { family, deck } of DECKS) {
     );
 
     const images = slidesOf(["image"]);
-    check("image-caption-legible", "a bleed image's caption sits on an opaque background plate", (page) =>
-      onSlides(page, images, probe.imageCaptionLegible, null),
-      layout.imageLayout !== "bleed" ? "only bleed images put the caption over the picture" : absent(images, "image slide"),
+    check("image-caption-legible", "image caption and kicker are AA, on an opaque plate where they overlap the picture", (page) =>
+      onSlides(page, images, probe.imageCaptionLegible, null), absent(images, "image slide"),
     );
   });
 }

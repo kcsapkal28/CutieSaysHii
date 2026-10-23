@@ -6,7 +6,8 @@ import { loadCatalog } from "@deckforge/catalog/node";
 import type { ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
-import { mermaidConfig, renderDiagrams, sanitiseSvg } from "../src/diagrams.ts";
+import { bundleDiagramPage } from "../src/bundle.ts";
+import { mermaidConfig, renderDiagrams } from "../src/diagrams.ts";
 
 // url(http://evil.example/escN.png) written with CSS escapes, each backslash re-escaped N-1 more times.
 function escapeLayers(n: number): string {
@@ -14,6 +15,8 @@ function escapeLayers(n: number): string {
   for (let i = 1; i < n; i++) css = css.replaceAll("\\", "\\5c ");
   return css;
 }
+
+type SanitiserGlobal = { deckforgeDiagrams: { sanitiseSvg: (s: string) => string } };
 
 const spanStyle = (css: string) => `graph TD\n A["<span style='${css}'>x</span>"] --> B`;
 
@@ -111,8 +114,8 @@ describe("renderDiagrams", () => {
       `<svg style="max-width: 120px; background-color: white;"><foreignObject>` +
       `<div style="max-width: 200px; text-align: center;">x</div></foreignObject></svg>`;
     const out = await withPage(async (page) => {
-      await page.addScriptTag({ content: `globalThis.sanitiseSvg = ${sanitiseSvg.toString()};` });
-      return page.evaluate((svg) => (globalThis as unknown as { sanitiseSvg: (s: string) => string }).sanitiseSvg(svg), raw);
+      await page.addScriptTag({ content: await bundleDiagramPage() });
+      return page.evaluate((svg) => (globalThis as unknown as SanitiserGlobal).deckforgeDiagrams.sanitiseSvg(svg), raw);
     });
     const doc = new JSDOM(out).window.document;
     expect(doc.querySelector("svg")?.getAttribute("style")).toBe("; background-color: white;");
@@ -180,9 +183,9 @@ describe("renderDiagrams", () => {
   it("re-sanitising any emitted svg is a no-op", async () => {
     const svgs = [...(await hostileSvgs()).values(), ...(await renderDiagrams(Object.values(BENIGN), theme)).svgs.values()];
     const again = await withPage(async (page) => {
-      await page.addScriptTag({ content: `globalThis.sanitiseSvg = ${sanitiseSvg.toString()};` });
+      await page.addScriptTag({ content: await bundleDiagramPage() });
       return page.evaluate(
-        (list) => list.map((svg) => (globalThis as unknown as { sanitiseSvg: (s: string) => string }).sanitiseSvg(svg)),
+        (list) => list.map((svg) => (globalThis as unknown as SanitiserGlobal).deckforgeDiagrams.sanitiseSvg(svg)),
         svgs,
       );
     });
@@ -195,9 +198,9 @@ describe("renderDiagrams", () => {
       page.on("request", (r) => {
         if (!/^(about|data):/.test(r.url())) requested.push(r.url());
       });
-      await page.addScriptTag({ content: `globalThis.sanitiseSvg = ${sanitiseSvg.toString()};` });
+      await page.addScriptTag({ content: await bundleDiagramPage() });
       const { once, twice } = await page.evaluate((list) => {
-        const sanitise = (globalThis as unknown as { sanitiseSvg: (s: string) => string }).sanitiseSvg;
+        const sanitise = (globalThis as unknown as SanitiserGlobal).deckforgeDiagrams.sanitiseSvg;
         const once = list.map(sanitise);
         return { once, twice: once.map(sanitise) };
       }, RAW_HOSTILE_SVG);

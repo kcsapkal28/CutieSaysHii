@@ -1,7 +1,7 @@
 import type { Catalog } from "@deckforge/catalog";
 import type { Block, DeckSpec, Slide } from "@deckforge/schemas";
 import { issuePath, type Issue } from "../kernel/issues.ts";
-import type { DeckRules } from "./rules.ts";
+import { acceptedBlocks, type DeckRules } from "./rules.ts";
 import { countWords, emphasisTexts, visibleWords } from "./words.ts";
 
 type Path = (string | number)[];
@@ -11,9 +11,30 @@ type MeasureInput = { deck: DeckSpec; slide: Slide; index: number; cover: boolea
 type Measure = (x: MeasureInput) => Measurement[];
 type BlockOf<T extends Block["type"]> = Extract<Block, { type: T }>;
 
-// Off the cover, a Paragraph renders into one of these regions when the body doesn't take it.
-const PARAGRAPH_REGIONS = ["subtitle", "aside", "caption"];
-const PARAGRAPH: Block["type"] = "Paragraph";
+const NOTES_LENGTH = "notes-length";
+// The message and the pattern that reads it back stay side by side.
+const notesLengthMessage = (id: string, words: number, need: string, depth: string) =>
+  `slide ${id} notes have ${words} words; need ${need} at ${depth} depth`;
+const NOTES_LENGTH_MESSAGE = /^slide (\S+) notes have (\d+) words; need (\S+) at (\S+) depth$/;
+
+/**
+ * For agent feedback: folds the notes-length issues into one line naming every slide with its word
+ * count and the range, in place of the first. Messages it cannot read are left as they are.
+ */
+export function groupNotesLength(issues: readonly Issue[]): Issue[] {
+  const parsed = issues.map((i) => (i.code === NOTES_LENGTH ? NOTES_LENGTH_MESSAGE.exec(i.message) : null));
+  const found = parsed.flatMap((m) => (m ? [m] : []));
+  if (found.length === 0) return [...issues];
+  const [, , , need, depth] = found[0]!;
+  const slides = found.map(([, id, words]) => `${id} (${words} words)`).join(", ");
+  const grouped: Issue = {
+    path: "slides[].notes",
+    code: NOTES_LENGTH,
+    message: `speaker notes need ${need} words at ${depth} depth; these slides are outside it: ${slides}`,
+  };
+  const first = parsed.findIndex((m) => m !== null);
+  return issues.flatMap((issue, i) => (i === first ? [grouped] : parsed[i] ? [] : [issue]));
+}
 
 function blocksOf<T extends Block["type"]>(slide: Slide, type: T): { block: BlockOf<T>; at: number }[] {
   return slide.body.flatMap((block, at) => (block.type === type ? [{ block: block as BlockOf<T>, at }] : []));
@@ -131,8 +152,7 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
       add(at("type"), "quiz-adjacent", `quiz slides ${slides[index - 1]!.id} and ${slide.id} are adjacent; put a content slide between them`);
 
     if (type) {
-      const accepted = new Set(type.accepts);
-      if (!cover && type.regions.some((r) => PARAGRAPH_REGIONS.includes(r))) accepted.add(PARAGRAPH);
+      const accepted = new Set(acceptedBlocks(type, cover));
       slide.body.forEach((block, b) => {
         if (!accepted.has(block.type)) {
           const takes = accepted.size > 0 ? `it takes ${[...accepted].join(", ")}` : "it takes no body blocks";
@@ -155,7 +175,7 @@ export function validateDeck(_c: Catalog, rules: DeckRules, deck: DeckSpec): Iss
     if (index > 0) {
       const notes = countWords(slide.notes);
       if (notes < rules.notesWords[0] || notes > rules.notesWords[1])
-        add(at("notes"), "notes-length", `slide ${slide.id} notes have ${notes} words; need ${range(rules.notesWords)} at ${rules.depth} depth`);
+        add(at("notes"), NOTES_LENGTH, notesLengthMessage(slide.id, notes, range(rules.notesWords), rules.depth));
     }
 
     // Mirrors the renderer's emphasize(): case-insensitive, within one emphasised field; nothing on the cover.

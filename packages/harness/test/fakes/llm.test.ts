@@ -57,6 +57,7 @@ describe("FakeLlm", () => {
       usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0 },
     });
     expect(deck1.turn).toEqual({ role: "assistant", content: [{ type: "tool_use", ...deck1.toolCall }] });
+    expect(deck1.toolUseIds).toEqual([deck1.toolCall?.id]);
     expect(deck2.toolCall?.input).toEqual({ title: "two" });
     expect(deck2.usage).toEqual({ inputTokens: 7, outputTokens: 3, cacheReadTokens: 2, cacheWriteTokens: 1 });
     expect(new Set([design, deck1, deck2].map((c) => c.toolCall?.id)).size).toBe(3);

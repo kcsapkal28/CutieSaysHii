@@ -28,7 +28,7 @@ export function renderBlock(block: Block, ctx: BlockContext): string {
       const trend = block.trend
         ? `<span class="df-stat-trend" data-trend="${block.trend}" aria-label="trend ${block.trend}">${TREND_GLYPH[block.trend]}</span>`
         : "";
-      return `<div class="df-stat"><div class="df-stat-value">${em(block.value)}${trend}</div><div class="df-stat-label">${em(block.label)}</div></div>`;
+      return `<div class="df-stat"><div class="df-stat-value"><span class="df-stat-number">${em(block.value)}</span>${trend}</div><div class="df-stat-label">${em(block.label)}</div></div>`;
     }
     case "Quote":
       return `<figure class="df-quote"><blockquote><p>${em(block.text)}</p></blockquote><figcaption>${em(block.attribution)}</figcaption></figure>`;

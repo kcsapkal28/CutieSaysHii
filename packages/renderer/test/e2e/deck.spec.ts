@@ -108,6 +108,30 @@ for (const family of FAMILIES) {
       expect(await first.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
     });
 
+    // Review I2: countUp once flattened .df-stat-value to text, eating the trend span and the emphasis mark.
+    test("countUp leaves the stat markup intact", async ({ page }) => {
+      const index = slideIndex("stat");
+      const slide = deck.slides[index]!;
+      const stats = slide.body.flatMap((b) => (b.type === "Stat" ? [b] : []));
+      const emphasised = (text: string) => slide.emphasisTargets.some((t) => t && text.toLowerCase().includes(t.toLowerCase()));
+      await page.goto(deckUrl(family, { slide: index }));
+      await waitForIdle(page);
+      const values = await page.locator("section.present .df-stat-value").evaluateAll((els) =>
+        els.map((el) => ({
+          text: [...el.childNodes]
+            .filter((n) => !(n instanceof Element && n.classList.contains("df-stat-trend")))
+            .map((n) => n.textContent)
+            .join(""),
+          trend: el.querySelector(".df-stat-trend")?.getAttribute("aria-label") ?? null,
+          marks: el.querySelectorAll("mark[data-emphasis]").length,
+        })),
+      );
+      expect(values).toEqual(
+        stats.map((s) => ({ text: s.value, trend: s.trend ? `trend ${s.trend}` : null, marks: emphasised(s.value) ? 1 : 0 })),
+      );
+      expect(values.some((v) => v.marks > 0)).toBe(true);
+    });
+
     test("reduced motion uses fades only", async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto(deckUrl(family, { slide: 1 }));

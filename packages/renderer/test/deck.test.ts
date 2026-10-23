@@ -163,12 +163,19 @@ describe("renderDeckHtml on the solar fixture", () => {
     expect(doc.body.lastElementChild).toBe(scripts[0]);
   });
 
-  it("marks animatable children with data-motion-el, stat values with data-count-up", () => {
+  it("marks animatable children with data-motion-el, stat numbers with data-count-up", () => {
     const doc = dom(renderDeckHtml(inputFor(fixture, { interaction })).html);
     expect(doc.querySelectorAll("#s04 [data-motion-el]").length).toBeGreaterThanOrEqual(5);
     expect(doc.querySelectorAll("#s04 ul.df-bullets > li:not([data-motion-el])")).toHaveLength(0);
     expect(doc.querySelectorAll("#s06 .df-stat[data-motion-el]").length).toBe(3);
-    expect(doc.querySelectorAll("#s06 .df-stat-value[data-count-up]").length).toBe(3);
+    // Count-up targets wrap only number text: never the value div, which also holds the trend glyph.
+    expect(doc.querySelectorAll("#s06 .df-stat-value[data-count-up]")).toHaveLength(0);
+    for (const el of doc.querySelectorAll("#s06 [data-count-up]")) expect(el.children).toHaveLength(0);
+    expect(doc.querySelectorAll("#s06 [data-count-up] [data-emphasis], #s06 [data-emphasis] [data-count-up]")).toHaveLength(0);
+    // Each stat's number is counted once: by its emphasis mark, or else by its own count-up span.
+    for (const value of doc.querySelectorAll("#s06 .df-stat-value"))
+      expect(value.querySelectorAll("[data-count-up], [data-emphasis]")).toHaveLength(1);
+    expect(doc.querySelectorAll("#s06 [data-count-up]")).toHaveLength(1);
     expect(doc.querySelectorAll("#s11 .df-timeline-step[data-motion-el]").length).toBeGreaterThanOrEqual(3);
     expect(doc.querySelector("#s12 pre.df-code[data-motion-el]")).not.toBeNull();
     expect(doc.querySelector("#s13 figure.df-image[data-motion-el]")).not.toBeNull();

@@ -2,7 +2,7 @@
 import { gsap } from "gsap";
 import { beforeEach, describe, expect, it } from "vitest";
 import { formatCountUp, parseCountUp } from "../src/runtime/motion.ts";
-import { EMPHASIS_PRESETS, ENTER_PRESETS, EXIT_PRESETS, restoreCountUps } from "../src/runtime/presets.ts";
+import { countUpTargets, EMPHASIS_PRESETS, ENTER_PRESETS, EXIT_PRESETS, restoreCountUps } from "../src/runtime/presets.ts";
 
 const opts = (flicker: boolean) => ({ duration: 0.5, stagger: 0.1, ease: "none", flicker, glowStatic: false });
 
@@ -65,6 +65,35 @@ describe("countUp", () => {
     restoreCountUps(document.body);
     expect(el.textContent).toBe("1,200+");
     expect(formatCountUp(parseCountUp(el.textContent!)!, 1200)).toBe("1,200+");
+  });
+});
+
+describe("countUp target selection", () => {
+  const MARKUP =
+    `<div id="whole" data-count-up>22%<span class="trend" aria-label="trend up">▲</span></div>` +
+    `<span id="outer" data-count-up><mark id="inner" data-emphasis>7</mark></span>` +
+    `<span id="leaf" data-count-up>42%</span><mark id="mark" data-emphasis>9 V</mark>`;
+  const all = () => [...document.querySelectorAll<HTMLElement>("[data-emphasis], [data-count-up]")];
+
+  beforeEach(() => {
+    document.body.innerHTML = MARKUP;
+  });
+
+  it("keeps only targets with no element children and no target ancestor or descendant", () => {
+    expect(countUpTargets(all()).map((e) => e.id)).toEqual(["leaf", "mark"]);
+  });
+
+  it("never rewrites an element that holds markup, and counts each number once", () => {
+    const tl = EMPHASIS_PRESETS.countUp!(all(), opts(true));
+    tl.progress(0.4);
+    expect(document.getElementById("whole")!.innerHTML).toBe(`22%<span class="trend" aria-label="trend up">▲</span>`);
+    expect(document.getElementById("outer")!.innerHTML).toBe(`<mark id="inner" data-emphasis="">7</mark>`);
+    expect([...document.querySelectorAll("[data-df-final]")].map((e) => e.id)).toEqual(["leaf", "mark"]);
+    expect(document.getElementById("leaf")!.textContent).not.toBe("42%");
+    playThrough(tl);
+    expect(document.body.innerHTML.replace(/ data-df-final="[^"]*"/g, "")).toBe(
+      MARKUP.replace("data-emphasis>", 'data-emphasis="">').replace("data-emphasis>", 'data-emphasis="">').replace(/data-count-up>/g, 'data-count-up="">'),
+    );
   });
 });
 

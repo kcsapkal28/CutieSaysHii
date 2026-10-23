@@ -59,7 +59,10 @@ const stripXmlns = (html: string) => html.replace(/ xmlns(?::\w+)?="https?:\/\/[
 function blockHtml(block: Block, ctx: BlockContext): string {
   let html = stripXmlns(renderBlock(block, ctx));
   for (const open of MOTION_TAGS[block.type] ?? []) html = addAttr(html, open, "data-motion-el");
-  if (block.type === "Stat") html = addAttr(html, '<div class="df-stat-value"', "data-count-up");
+  // countUp rewrites its target's text, so it targets the number alone; an emphasised number is already
+  // counted through its <mark data-emphasis>, and nesting a second target around it would count it twice.
+  if (block.type === "Stat" && !emphasize(block.value, ctx.emphasis).includes("<"))
+    html = addAttr(html, '<span class="df-stat-number"', "data-count-up");
   return html;
 }
 

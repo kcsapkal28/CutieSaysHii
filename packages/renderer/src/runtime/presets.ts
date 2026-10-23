@@ -128,9 +128,20 @@ export function restoreCountUps(scope: ParentNode): void {
   for (const el of scope.querySelectorAll<HTMLElement>("[data-df-final]")) el.textContent = el.dataset.dfFinal ?? "";
 }
 
+/**
+ * The targets countUp may rewrite. Counting replaces textContent, which would destroy any child element
+ * (trend glyph, emphasis mark), and a target nested in another would be counted twice, so only leaf
+ * targets with no other target above or below them qualify.
+ */
+export function countUpTargets(els: Element[]): Element[] {
+  return els.filter(
+    (el) => el.childElementCount === 0 && !els.some((other) => other !== el && (other.contains(el) || el.contains(other))),
+  );
+}
+
 const countUp: Preset = (els, o) => {
   const tl = gsap.timeline();
-  els.forEach((el, i) => {
+  countUpTargets(els).forEach((el, i) => {
     // An interrupted count leaves partial text behind, so remember the authored value once.
     const data = (el as HTMLElement).dataset;
     const original = (data.dfFinal ??= el.textContent ?? "");

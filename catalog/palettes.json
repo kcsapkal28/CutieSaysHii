@@ -1,0 +1,91 @@
+{
+  "version": "1.0.1",
+  "notes": "Every palette maps to the same 7 roles so the renderer never guesses. Corrections to source: 'Seafoam Green #778BEB' was actually periwinkle (renamed); 'Fern' key had a stray quote. Added palettes required by style families: bauhaus-primary, brutal-pop, memphis-pastel, deco-gold. 'contrast' lists text/bg pairs that pass WCAG AA (≥4.5:1) — renderer must only use listed pairs for body text. text and textMuted pass AA on both bg and surface in every palette; primary and accent are fill colours only, never text on bg. v1.0.1 contrast fixes: retro-sorbet Pale Iris #786FA6→#60578D; bauhaus-primary Signal Red #D7263D→#D0253B; midnight-gala textMuted #9A7B56→#B59A7B; technical-slate textMuted #8892B0→#949DB8.",
+  "roles": ["bg", "surface", "text", "textMuted", "primary", "accent", "border"],
+  "palettes": [
+    {
+      "id": "nordic-mist", "name": "Nordic Mist", "group": "Pastel", "mode": "light",
+      "swatches": { "Soft Lavender": "#E6E6FA", "Powder Blue": "#B0E0E6", "Mint Cream": "#E5F9E0", "Chiffon Yellow": "#FFF2CC", "Blush Pink": "#FFD1DC", "Frosted Pearl": "#F8F9FA", "Ink": "#2B2D42" },
+      "roles": { "bg": "#F8F9FA", "surface": "#E6E6FA", "text": "#2B2D42", "textMuted": "#5C5F7A", "primary": "#B0E0E6", "accent": "#FFD1DC", "border": "#D8D9E8" },
+      "contrast": [["#2B2D42", "#F8F9FA"], ["#2B2D42", "#E6E6FA"], ["#2B2D42", "#B0E0E6"]]
+    },
+    {
+      "id": "retro-sorbet", "name": "Retro Sorbet", "group": "Pastel", "mode": "light",
+      "swatches": { "Muted Coral": "#F3A683", "Soft Flamingo": "#F7D794", "Periwinkle": "#778BEB", "Pale Iris": "#60578D", "Light Peach": "#F8A5C2", "Creamy Vanilla": "#F5CD79", "Cocoa": "#3D2C29" },
+      "roles": { "bg": "#FBF3E4", "surface": "#F7D794", "text": "#3D2C29", "textMuted": "#60578D", "primary": "#F3A683", "accent": "#778BEB", "border": "#E8D5B5" },
+      "contrast": [["#3D2C29", "#FBF3E4"], ["#3D2C29", "#F7D794"], ["#3D2C29", "#F3A683"], ["#FBF3E4", "#60578D"]]
+    },
+    {
+      "id": "tokyo-grid", "name": "Tokyo Grid", "group": "Neon & Cyberpunk", "mode": "dark",
+      "swatches": { "Obsidian Base": "#0B0C10", "Cyber Lime": "#00FF66", "Fluorescent Cyan": "#00F0FF", "Neon Pink": "#FF007F", "Electric Purple": "#9D00FF", "Steel": "#C5C6C7" },
+      "roles": { "bg": "#0B0C10", "surface": "#15171E", "text": "#E6F1FF", "textMuted": "#C5C6C7", "primary": "#00F0FF", "accent": "#FF007F", "border": "#00F0FF" },
+      "contrast": [["#E6F1FF", "#0B0C10"], ["#C5C6C7", "#0B0C10"], ["#00F0FF", "#0B0C10"], ["#00FF66", "#0B0C10"]]
+    },
+    {
+      "id": "synthwave-sunset", "name": "Synthwave Sunset", "group": "Neon & Cyberpunk", "mode": "dark",
+      "swatches": { "Deep Velvet": "#1A0033", "Laser Fuchsia": "#FF0055", "Hot Magenta": "#D3045D", "Electric Violet": "#3F00FF", "Neon Tangerine": "#FF7900", "Haze": "#F2E9FF" },
+      "roles": { "bg": "#1A0033", "surface": "#2A0A4D", "text": "#F2E9FF", "textMuted": "#C9B8E8", "primary": "#FF7900", "accent": "#FF0055", "border": "#3F00FF" },
+      "contrast": [["#F2E9FF", "#1A0033"], ["#F2E9FF", "#2A0A4D"], ["#FF7900", "#1A0033"]]
+    },
+    {
+      "id": "desert-trail", "name": "Desert Trail", "group": "Earthy & Organic", "mode": "light",
+      "swatches": { "Terracotta": "#E2725B", "Warm Ochre": "#D4A373", "Oatmeal": "#EAE7DC", "Burnt Sienna": "#8A3324", "Sage Green": "#9CAF88", "Olive Drab": "#4A533C" },
+      "roles": { "bg": "#EAE7DC", "surface": "#F4F2EA", "text": "#4A533C", "textMuted": "#8A3324", "primary": "#E2725B", "accent": "#9CAF88", "border": "#D4A373" },
+      "contrast": [["#4A533C", "#EAE7DC"], ["#4A533C", "#F4F2EA"], ["#8A3324", "#EAE7DC"], ["#EAE7DC", "#4A533C"]]
+    },
+    {
+      "id": "pacific-forest", "name": "Pacific Forest", "group": "Earthy & Organic", "mode": "dark",
+      "swatches": { "Moss Green": "#3B5249", "Fern": "#A4B494", "Eucalyptus": "#BEC5AD", "River Clay": "#513B3C", "Soft Sand": "#F4F1EA" },
+      "roles": { "bg": "#3B5249", "surface": "#2F423B", "text": "#F4F1EA", "textMuted": "#BEC5AD", "primary": "#A4B494", "accent": "#F4F1EA", "border": "#513B3C" },
+      "contrast": [["#F4F1EA", "#3B5249"], ["#F4F1EA", "#2F423B"], ["#BEC5AD", "#3B5249"]]
+    },
+    {
+      "id": "royal-court", "name": "Royal Court", "group": "Jewel Tone", "mode": "dark",
+      "swatches": { "Sapphire Blue": "#0F52BA", "Emerald Green": "#046307", "Ruby Red": "#9B111E", "Amethyst Purple": "#6C3082", "Antique Gold": "#D4AF37", "Imperial Jade": "#00A86B", "Ivory": "#FAF6EC" },
+      "roles": { "bg": "#14213D", "surface": "#1C2B52", "text": "#FAF6EC", "textMuted": "#D4AF37", "primary": "#0F52BA", "accent": "#D4AF37", "border": "#6C3082" },
+      "contrast": [["#FAF6EC", "#14213D"], ["#FAF6EC", "#1C2B52"], ["#D4AF37", "#14213D"], ["#FAF6EC", "#0F52BA"]]
+    },
+    {
+      "id": "midnight-gala", "name": "Midnight Gala", "group": "Jewel Tone", "mode": "dark",
+      "swatches": { "Deep Plum": "#4A0E4E", "Teal Sapphire": "#004B49", "Burgundy Crust": "#581845", "Burnished Bronze": "#9A7B56", "Rich Navy": "#1F2833", "Pearl": "#EDE8E0" },
+      "roles": { "bg": "#1F2833", "surface": "#2A3545", "text": "#EDE8E0", "textMuted": "#B59A7B", "primary": "#004B49", "accent": "#9A7B56", "border": "#4A0E4E" },
+      "contrast": [["#EDE8E0", "#1F2833"], ["#EDE8E0", "#2A3545"], ["#EDE8E0", "#004B49"], ["#EDE8E0", "#4A0E4E"]]
+    },
+    {
+      "id": "technical-slate", "name": "Technical Slate", "group": "Monochrome & Grayscale", "mode": "dark",
+      "swatches": { "Jet Black": "#121212", "Cool Charcoal": "#2E3440", "Slate Gray": "#8892B0", "Frosted Glass": "#E5E9F0", "Pure Chalk": "#F8F9FA" },
+      "roles": { "bg": "#121212", "surface": "#2E3440", "text": "#F8F9FA", "textMuted": "#949DB8", "primary": "#E5E9F0", "accent": "#8892B0", "border": "#3B4252" },
+      "contrast": [["#F8F9FA", "#121212"], ["#F8F9FA", "#2E3440"], ["#8892B0", "#121212"]]
+    },
+    {
+      "id": "warm-minimalist", "name": "Warm Minimalist", "group": "Monochrome & Grayscale", "mode": "light",
+      "swatches": { "Deep Onyx": "#1C1A17", "Espresso Shade": "#3D3A36", "Taupe Gray": "#706E6B", "Soft Bone": "#D9D7D2", "Warm White": "#F4F3EF" },
+      "roles": { "bg": "#F4F3EF", "surface": "#FFFFFF", "text": "#1C1A17", "textMuted": "#706E6B", "primary": "#3D3A36", "accent": "#1C1A17", "border": "#D9D7D2" },
+      "contrast": [["#1C1A17", "#F4F3EF"], ["#1C1A17", "#FFFFFF"], ["#706E6B", "#F4F3EF"], ["#F4F3EF", "#1C1A17"]]
+    },
+    {
+      "id": "bauhaus-primary", "name": "Bauhaus Primary", "group": "Added", "mode": "light",
+      "swatches": { "Signal Red": "#D0253B", "Cobalt": "#1B4FD8", "Chrome Yellow": "#F2C14E", "Black": "#111111", "Paper": "#F5F2EB" },
+      "roles": { "bg": "#F5F2EB", "surface": "#FFFFFF", "text": "#111111", "textMuted": "#4A4A4A", "primary": "#D0253B", "accent": "#1B4FD8", "border": "#111111" },
+      "contrast": [["#111111", "#F5F2EB"], ["#F5F2EB", "#1B4FD8"], ["#F5F2EB", "#D0253B"], ["#111111", "#F2C14E"]]
+    },
+    {
+      "id": "brutal-pop", "name": "Brutal Pop", "group": "Added", "mode": "light",
+      "swatches": { "Acid Yellow": "#FFEE32", "Hot Coral": "#FF5E5B", "Electric Blue": "#4D7CFE", "Ink Black": "#000000", "Plain White": "#FFFFFF" },
+      "roles": { "bg": "#FFFFFF", "surface": "#FFEE32", "text": "#000000", "textMuted": "#333333", "primary": "#FF5E5B", "accent": "#4D7CFE", "border": "#000000" },
+      "contrast": [["#000000", "#FFFFFF"], ["#000000", "#FFEE32"], ["#000000", "#FF5E5B"], ["#FFFFFF", "#000000"]]
+    },
+    {
+      "id": "memphis-pastel", "name": "Memphis Pastel", "group": "Added", "mode": "light",
+      "swatches": { "Bubblegum": "#FF8FAB", "Aqua Pop": "#5BE7C4", "Lemon Fizz": "#FFE066", "Grape Soda": "#7C5CBF", "Cream": "#FFF8F0", "Charcoal": "#2D2A32" },
+      "roles": { "bg": "#FFF8F0", "surface": "#FFFFFF", "text": "#2D2A32", "textMuted": "#7C5CBF", "primary": "#FF8FAB", "accent": "#5BE7C4", "border": "#2D2A32" },
+      "contrast": [["#2D2A32", "#FFF8F0"], ["#2D2A32", "#FFE066"], ["#2D2A32", "#5BE7C4"], ["#FFF8F0", "#7C5CBF"]]
+    },
+    {
+      "id": "deco-gold", "name": "Deco Gold", "group": "Added", "mode": "dark",
+      "swatches": { "Onyx": "#0E0E10", "Gatsby Gold": "#C9A227", "Champagne": "#F1E3B3", "Emerald Velvet": "#0B3D2E", "Smoke": "#5A5A5A" },
+      "roles": { "bg": "#0E0E10", "surface": "#0B3D2E", "text": "#F1E3B3", "textMuted": "#C9A227", "primary": "#C9A227", "accent": "#F1E3B3", "border": "#C9A227" },
+      "contrast": [["#F1E3B3", "#0E0E10"], ["#F1E3B3", "#0B3D2E"], ["#C9A227", "#0E0E10"]]
+    }
+  ]
+}

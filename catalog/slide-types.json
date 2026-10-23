@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "notes": "Slide archetypes the Content Agent may use. One Handlebars template per type in packages/renderer/templates/<id>.hbs. 'regions' are the named slots; 'accepts' lists DeckSpec block types allowed in 'body'. Limits are enforced by QA.",
+  "depth": {
+    "overview": { "slides": [6, 8],   "wordsPerSlideMax": 30, "notesWordsPerSlide": [40, 80] },
+    "standard": { "slides": [10, 14], "wordsPerSlideMax": 40, "notesWordsPerSlide": [60, 120] },
+    "deep":     { "slides": [16, 22], "wordsPerSlideMax": 45, "notesWordsPerSlide": [80, 160] }
+  },
+  "types": [
+    { "id": "title",    "name": "Title",        "regions": ["title", "subtitle", "meta"],       "accepts": [], "limits": { "titleWords": 8, "subtitleWords": 14 }, "required": "first" },
+    { "id": "agenda",   "name": "Agenda",       "regions": ["title", "body"],                   "accepts": ["Bullets"], "limits": { "items": [3, 6] }, "requiredWhen": "depth != overview" },
+    { "id": "section",  "name": "Section break","regions": ["title", "subtitle"],               "accepts": [], "limits": { "titleWords": 6 } },
+    { "id": "bullets",  "name": "Bullets",      "regions": ["title", "body"],                   "accepts": ["Bullets"], "limits": { "items": [2, 5], "wordsPerItem": 12 } },
+    { "id": "text",     "name": "Statement",    "regions": ["title", "body"],                   "accepts": ["Paragraph"], "limits": { "words": 40 } },
+    { "id": "stat",     "name": "Big number",   "regions": ["title", "body", "footer"],         "accepts": ["Stat"], "limits": { "stats": [1, 3] } },
+    { "id": "quote",    "name": "Quote",        "regions": ["body", "footer"],                  "accepts": ["Quote"], "limits": { "words": 35 } },
+    { "id": "diagram",  "name": "Diagram",      "regions": ["title", "body", "aside"],          "accepts": ["Diagram"], "limits": { "nodes": 9 }, "renderer": "mermaid → inline SVG at build time" },
+    { "id": "chart",    "name": "Chart",        "regions": ["title", "body", "footer"],         "accepts": ["Chart"], "limits": { "series": 3, "points": 12 } },
+    { "id": "compare",  "name": "Compare",      "regions": ["title", "left", "right"],          "accepts": ["Compare"], "limits": { "columns": 2, "rows": 5 } },
+    { "id": "timeline", "name": "Timeline",     "regions": ["title", "body"],                   "accepts": ["Timeline"], "limits": { "steps": [3, 6] } },
+    { "id": "code",     "name": "Code",         "regions": ["title", "body", "aside"],          "accepts": ["Code"], "limits": { "lines": 14, "cols": 60 }, "renderer": "highlight.js, line-highlight via fragments" },
+    { "id": "image",    "name": "Image",        "regions": ["body", "caption"],                 "accepts": ["Image"], "limits": { "captionWords": 15 }, "note": "Image block carries a generation/search prompt; renderer uses placeholder art from the style family until an image provider is wired." },
+    { "id": "quiz",     "name": "Check",        "regions": ["title", "body"],                   "accepts": ["Quiz"], "limits": { "options": [3, 4] }, "onlyIn": ["assessment"] },
+    { "id": "summary",  "name": "Summary",      "regions": ["title", "body"],                   "accepts": ["Bullets"], "limits": { "items": [3, 5] }, "required": "penultimate-or-last" },
+    { "id": "qa",       "name": "Questions",    "regions": ["title", "subtitle"],               "accepts": [], "required": "last" }
+  ],
+  "blocks": {
+    "Bullets":   { "items": "string[]" },
+    "Paragraph": { "text": "string" },
+    "Stat":      { "value": "string", "label": "string", "trend?": "up|down|flat" },
+    "Quote":     { "text": "string", "attribution": "string" },
+    "Diagram":   { "mermaid": "string", "hotspots?": "[{nodeId,label,detail}]" },
+    "Chart":     { "kind": "bar|line|area|donut", "labels": "string[]", "series": "[{name, values:number[]}]", "unit?": "string" },
+    "Compare":   { "leftTitle": "string", "rightTitle": "string", "rows": "[{left,right}]" },
+    "Timeline":  { "steps": "[{label, detail, date?}]" },
+    "Code":      { "lang": "string", "code": "string", "highlightLines?": "number[]" },
+    "Image":     { "prompt": "string", "alt": "string" },
+    "Quiz":      { "question": "string", "options": "string[]", "answerIndex": "number", "explanation": "string" }
+  }
+}

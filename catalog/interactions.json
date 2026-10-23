@@ -1,0 +1,46 @@
+{
+  "version": "1.0.0",
+  "notes": "User chooses one MODE. The Design Agent places COMPONENTS from that mode's list onto slides. Every component is a dependency-free web component in packages/renderer/interactions/, ≤5KB gzipped, keyboard operable, works from file://. 'binds' says which DeckSpec block type a component consumes.",
+  "modes": [
+    {
+      "id": "linear", "name": "Linear",
+      "audienceExperience": "Presenter drives. Arrow keys, speaker notes, nothing to click.",
+      "components": ["df-fragment", "df-notes"],
+      "minComponentsPerSlides": 0
+    },
+    {
+      "id": "explorable", "name": "Explorable",
+      "audienceExperience": "Audience or presenter can click to reveal, hover for detail, scrub charts. Good for self-paced reading and demos.",
+      "components": ["df-fragment", "df-notes", "df-hotspot", "df-reveal", "df-chart", "df-compare", "df-tabs", "df-timeline", "df-zoom"],
+      "minComponentsPerSlides": 4
+    },
+    {
+      "id": "assessment", "name": "Assessment",
+      "audienceExperience": "Everything in Explorable plus check-questions and a final score. Training and classroom decks.",
+      "components": ["df-fragment", "df-notes", "df-hotspot", "df-reveal", "df-chart", "df-compare", "df-tabs", "df-timeline", "df-zoom", "df-quiz", "df-poll", "df-score"],
+      "minComponentsPerSlides": 3,
+      "options": { "questionCount": { "choices": [2, 4, 6], "default": 4 } }
+    }
+  ],
+  "components": [
+    { "id": "df-fragment", "name": "Step reveal", "binds": ["Bullets", "Paragraph"], "props": { "mode": ["one-by-one", "all"] }, "description": "Reveal.js fragments; each bullet appears on keypress.", "cost": "none" },
+    { "id": "df-notes", "name": "Speaker notes", "binds": ["*"], "props": {}, "description": "Reveal speaker view (press S).", "cost": "none" },
+    { "id": "df-hotspot", "name": "Hotspots", "binds": ["Diagram", "Image"], "props": { "points": "[{x,y,label,detail}]", "max": 6 }, "description": "Numbered markers on an image/diagram; click opens a detail card.", "cost": "low" },
+    { "id": "df-reveal", "name": "Click to reveal", "binds": ["Compare", "Quote", "Stat"], "props": { "label": "string" }, "description": "Covered card, click or Enter to uncover. Use for 'what do you think happens next' beats.", "cost": "none" },
+    { "id": "df-chart", "name": "Interactive chart", "binds": ["Chart"], "props": { "kind": ["bar", "line", "area", "donut"], "scrub": "boolean", "tooltip": "boolean" }, "description": "Chart.js chart with hover tooltips and optional time scrubber. Animates in with the motion template.", "cost": "medium (Chart.js ~60KB)" },
+    { "id": "df-compare", "name": "Before / after slider", "binds": ["Compare", "Image"], "props": { "orientation": ["horizontal", "vertical"] }, "description": "Drag handle to compare two states.", "cost": "low" },
+    { "id": "df-tabs", "name": "Tabs", "binds": ["Compare", "Bullets"], "props": { "max": 4 }, "description": "Switch between 2–4 panels on one slide instead of 4 slides.", "cost": "none" },
+    { "id": "df-timeline", "name": "Scrub timeline", "binds": ["Timeline"], "props": { "autoplay": "boolean" }, "description": "Horizontal timeline; click or drag a marker to show that step.", "cost": "low" },
+    { "id": "df-zoom", "name": "Zoom region", "binds": ["Diagram", "Image", "Code"], "props": { "regions": "[{x,y,w,h,label}]" }, "description": "Click a region to zoom in (Reveal zoom plugin). Good for architecture diagrams.", "cost": "none" },
+    { "id": "df-quiz", "name": "Multiple choice", "binds": ["Quiz"], "props": { "options": "3-4", "explanation": "string" }, "description": "Single-answer question with instant feedback and explanation.", "cost": "low" },
+    { "id": "df-poll", "name": "Show of hands", "binds": ["Quiz"], "props": { "options": "2-4" }, "description": "Local-only poll bar chart; presenter clicks to tally room answers.", "cost": "low" },
+    { "id": "df-score", "name": "Score card", "binds": ["Summary"], "props": {}, "description": "Final slide showing quiz results stored in sessionStorage.", "cost": "none" }
+  ],
+  "placementRules": [
+    "Never more than 2 interactive components on one slide.",
+    "df-quiz slides are inserted after every N/questionCount content slides, never two in a row.",
+    "df-chart requires a Chart block with ≥3 data points; otherwise render as a Stat.",
+    "df-hotspot requires a Diagram or Image block; Agent must supply label+detail for every point.",
+    "Linear mode may still use df-fragment on bullet slides with >3 items."
+  ]
+}

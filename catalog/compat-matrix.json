@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0",
+  "notes": "Hard rules the Design Agent and the wizard UI must enforce. 'allowedMotion' drives which motion cards are disabled in Step 3. Palette/type allowances live in design-styles.json; this file holds cross-cutting constraints. 'golden' are the 9 combos that must pass CI.",
+  "allowedMotion": {
+    "minimal":     ["none", "calm", "kinetic"],
+    "swiss":       ["none", "calm", "kinetic"],
+    "brutalist":   ["none", "kinetic", "glitch"],
+    "glass-soft":  ["none", "calm", "depth", "pop"],
+    "retro":       ["none", "calm", "kinetic"],
+    "neon":        ["none", "kinetic", "glitch", "depth"],
+    "maximal-pop": ["none", "calm", "pop", "kinetic"],
+    "atmospheric": ["none", "calm", "depth"]
+  },
+  "threeJs": {
+    "requiresMotion": ["depth"],
+    "note": "threeJs=true is only honoured when motionTemplateId is 'depth'; otherwise the toggle is hidden."
+  },
+  "paletteModeRules": {
+    "neon": "dark only",
+    "atmospheric": "dark only",
+    "brutalist": "light only",
+    "note": "Enforced via palettes[].mode."
+  },
+  "interactionRules": {
+    "assessment": { "minDepth": "standard", "reason": "overview decks have too few slides to interleave questions" },
+    "explorable": { "disallowedSlideTypesForHotspots": ["title", "section", "qa", "summary"] }
+  },
+  "densityCaps": {
+    "note": "wordsPerSlideMax = min(depth.wordsPerSlideMax, family.tokens.maxWordsPerSlide)"
+  },
+  "golden": [
+    { "family": "minimal",     "motion": "calm",    "interaction": "linear",     "palette": "warm-minimalist" },
+    { "family": "minimal",     "motion": "kinetic", "interaction": "explorable", "palette": "technical-slate" },
+    { "family": "swiss",       "motion": "kinetic", "interaction": "linear",     "palette": "bauhaus-primary" },
+    { "family": "brutalist",   "motion": "kinetic", "interaction": "explorable", "palette": "brutal-pop" },
+    { "family": "glass-soft",  "motion": "depth",   "interaction": "explorable", "palette": "nordic-mist", "threeJs": true },
+    { "family": "retro",       "motion": "calm",    "interaction": "assessment", "palette": "retro-sorbet" },
+    { "family": "neon",        "motion": "glitch",  "interaction": "linear",     "palette": "tokyo-grid" },
+    { "family": "maximal-pop", "motion": "pop",     "interaction": "assessment", "palette": "memphis-pastel" },
+    { "family": "atmospheric", "motion": "depth",   "interaction": "linear",     "palette": "midnight-gala", "threeJs": false }
+  ]
+}

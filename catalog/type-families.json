@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "notes": "All fonts are on Google Fonts and must be self-hosted into dist/assets/fonts at export (woff2, latin subset) so the output works offline. 'scale' is a modular ratio applied to a 1rem base at 1080p; renderer scales with viewport via clamp(). Letter-spacing in em.",
+  "families": [
+    {
+      "id": "geometric-modern", "name": "Geometric Modern",
+      "display": { "font": "Space Grotesk", "weights": [500, 700], "letterSpacing": -0.02 },
+      "body":    { "font": "Inter", "weights": [400, 600], "letterSpacing": 0 },
+      "mono":    { "font": "JetBrains Mono", "weights": [400] },
+      "scale": 1.25, "bodyLineHeight": 1.5, "displayLineHeight": 1.1,
+      "pairsWith": ["minimal", "swiss", "glass-soft", "maximal-pop"]
+    },
+    {
+      "id": "swiss-neutral", "name": "Swiss Neutral",
+      "display": { "font": "Inter Tight", "weights": [700, 900], "letterSpacing": -0.03 },
+      "body":    { "font": "IBM Plex Sans", "weights": [400, 500], "letterSpacing": 0 },
+      "mono":    { "font": "IBM Plex Mono", "weights": [400] },
+      "scale": 1.333, "bodyLineHeight": 1.45, "displayLineHeight": 1.0,
+      "pairsWith": ["swiss", "minimal"]
+    },
+    {
+      "id": "poster-grotesk", "name": "Poster Grotesk",
+      "display": { "font": "Archivo Black", "weights": [400], "letterSpacing": -0.01 },
+      "body":    { "font": "Archivo", "weights": [400, 600], "letterSpacing": 0 },
+      "mono":    { "font": "Space Mono", "weights": [400] },
+      "scale": 1.414, "bodyLineHeight": 1.4, "displayLineHeight": 0.95,
+      "pairsWith": ["swiss", "brutalist"]
+    },
+    {
+      "id": "brutalist-mono", "name": "Brutalist Mono",
+      "display": { "font": "Archivo Black", "weights": [400], "letterSpacing": 0 },
+      "body":    { "font": "Space Mono", "weights": [400, 700], "letterSpacing": 0 },
+      "mono":    { "font": "Space Mono", "weights": [400] },
+      "scale": 1.333, "bodyLineHeight": 1.5, "displayLineHeight": 1.0,
+      "pairsWith": ["brutalist", "neon"]
+    },
+    {
+      "id": "editorial-serif", "name": "Editorial Serif",
+      "display": { "font": "Playfair Display", "weights": [500, 700], "letterSpacing": -0.01 },
+      "body":    { "font": "Source Serif 4", "weights": [400, 600], "letterSpacing": 0 },
+      "mono":    { "font": "IBM Plex Mono", "weights": [400] },
+      "scale": 1.25, "bodyLineHeight": 1.6, "displayLineHeight": 1.1,
+      "pairsWith": ["retro", "atmospheric"]
+    },
+    {
+      "id": "deco-geometric", "name": "Deco Geometric",
+      "display": { "font": "Poiret One", "weights": [400], "letterSpacing": 0.08 },
+      "body":    { "font": "Josefin Sans", "weights": [300, 600], "letterSpacing": 0.02 },
+      "mono":    { "font": "Space Mono", "weights": [400] },
+      "scale": 1.333, "bodyLineHeight": 1.5, "displayLineHeight": 1.15,
+      "pairsWith": ["retro"]
+    },
+    {
+      "id": "retro-script", "name": "Retro Script",
+      "display": { "font": "Lobster", "weights": [400], "letterSpacing": 0 },
+      "body":    { "font": "Work Sans", "weights": [400, 600], "letterSpacing": 0 },
+      "mono":    { "font": "Courier Prime", "weights": [400] },
+      "scale": 1.25, "bodyLineHeight": 1.5, "displayLineHeight": 1.2,
+      "pairsWith": ["retro"]
+    },
+    {
+      "id": "cyber-display", "name": "Cyber Display",
+      "display": { "font": "Orbitron", "weights": [600, 800], "letterSpacing": 0.06 },
+      "body":    { "font": "Rajdhani", "weights": [400, 600], "letterSpacing": 0.01 },
+      "mono":    { "font": "Share Tech Mono", "weights": [400] },
+      "scale": 1.333, "bodyLineHeight": 1.4, "displayLineHeight": 1.1,
+      "pairsWith": ["neon"]
+    },
+    {
+      "id": "pop-rounded", "name": "Pop Rounded",
+      "display": { "font": "Fredoka", "weights": [600, 700], "letterSpacing": 0 },
+      "body":    { "font": "Rubik", "weights": [400, 500], "letterSpacing": 0 },
+      "mono":    { "font": "JetBrains Mono", "weights": [400] },
+      "scale": 1.333, "bodyLineHeight": 1.5, "displayLineHeight": 1.1,
+      "pairsWith": ["maximal-pop"]
+    },
+    {
+      "id": "humanist", "name": "Humanist",
+      "display": { "font": "Fraunces", "weights": [600], "letterSpacing": -0.01 },
+      "body":    { "font": "Nunito Sans", "weights": [400, 700], "letterSpacing": 0 },
+      "mono":    { "font": "Fira Code", "weights": [400] },
+      "scale": 1.25, "bodyLineHeight": 1.55, "displayLineHeight": 1.15,
+      "pairsWith": ["minimal", "glass-soft", "atmospheric"]
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "version": "1.0.0",
+  "notes": "Replaces the 15 'animation media' list (claymation, stop-motion, sand-on-glass etc. are not implementable on the web). These are web motion templates. The user picks ONE; per-slide behaviour is derived from bySlideType. Vocabulary (enter/emphasis/exit/transition) maps 1:1 to GSAP presets in packages/renderer/motion/presets.ts. The original media list is kept in 'inspiration' so the Design Agent can borrow vocabulary (e.g. 'pixel' → stepped easing).",
+  "vocabulary": {
+    "enter": ["none", "fade", "fadeUp", "fadeDown", "slideLeft", "slideRight", "scaleIn", "clipReveal", "typewriter", "splitWords", "splitChars", "glitchIn", "bounceIn", "blurIn", "stepIn"],
+    "emphasis": ["none", "pulse", "underlineSweep", "countUp", "highlightSweep", "glow", "wobble", "scaleBeat", "colorShift"],
+    "exit": ["none", "fade", "fadeDown", "slideLeft", "scaleOut", "glitchOut", "blurOut"],
+    "transition": ["none", "fade", "slide", "convex", "concave", "zoom", "cut", "wipe"],
+    "easing": ["linear", "power2.out", "power3.out", "power4.inOut", "back.out(1.7)", "elastic.out(1,0.5)", "steps(8)", "expo.out"]
+  },
+  "templates": [
+    {
+      "id": "none", "name": "None", "intensity": "off",
+      "description": "No motion. For print, screen-share over slow links, or accessibility-first decks.",
+      "library": [],
+      "timing": { "enter": 0, "stagger": 0, "transition": 0, "easing": "linear" },
+      "defaults": { "transition": "none", "enter": "none", "emphasis": "none", "exit": "none" },
+      "bySlideType": {},
+      "reducedMotion": "same"
+    },
+    {
+      "id": "calm", "name": "Calm", "intensity": "subtle",
+      "description": "Soft fades and small upward drifts. Never distracts from the speaker.",
+      "library": ["gsap"],
+      "timing": { "enter": 0.6, "stagger": 0.08, "transition": 0.5, "easing": "power2.out" },
+      "defaults": { "transition": "fade", "enter": "fadeUp", "emphasis": "none", "exit": "fade" },
+      "bySlideType": {
+        "title":   { "enter": "blurIn", "emphasis": "none" },
+        "stat":    { "enter": "fadeUp", "emphasis": "countUp" },
+        "quote":   { "enter": "fade", "emphasis": "underlineSweep" },
+        "summary": { "enter": "fadeUp", "emphasis": "none" }
+      },
+      "reducedMotion": "fadeOnly"
+    },
+    {
+      "id": "kinetic", "name": "Kinetic", "intensity": "medium",
+      "description": "Type-driven. Words and lines snap into place; headlines split and stagger. Swiss and Brutalist decks.",
+      "library": ["gsap", "gsap/SplitText"],
+      "timing": { "enter": 0.45, "stagger": 0.05, "transition": 0.35, "easing": "power3.out" },
+      "defaults": { "transition": "slide", "enter": "splitWords", "emphasis": "highlightSweep", "exit": "slideLeft" },
+      "bySlideType": {
+        "title":   { "enter": "splitChars", "emphasis": "none", "easing": "power4.inOut" },
+        "bullets": { "enter": "slideRight", "emphasis": "none" },
+        "stat":    { "enter": "scaleIn", "emphasis": "countUp", "easing": "expo.out" },
+        "quote":   { "enter": "typewriter", "emphasis": "none" },
+        "compare": { "enter": "clipReveal", "emphasis": "none" },
+        "summary": { "enter": "splitWords", "emphasis": "underlineSweep" }
+      },
+      "reducedMotion": "fadeOnly"
+    },
+    {
+      "id": "depth", "name": "Depth", "intensity": "medium",
+      "description": "Parallax layers, soft zoom, optional Three.js background. Glass and Atmospheric decks.",
+      "library": ["gsap", "three?"],
+      "timing": { "enter": 0.8, "stagger": 0.1, "transition": 0.7, "easing": "power3.out" },
+      "defaults": { "transition": "zoom", "enter": "blurIn", "emphasis": "none", "exit": "blurOut" },
+      "parallax": { "layers": 3, "maxOffsetPx": 40, "mouseFollow": true },
+      "threeBackground": { "scene": "particles-plane", "onSlideTypes": ["title", "section", "summary"], "intensity": 0.4 },
+      "bySlideType": {
+        "title":   { "enter": "scaleIn", "emphasis": "none" },
+        "section": { "enter": "blurIn", "emphasis": "none" },
+        "stat":    { "enter": "fadeUp", "emphasis": "countUp" },
+        "image":   { "enter": "clipReveal", "emphasis": "none" }
+      },
+      "reducedMotion": "fadeOnly; parallax off; three off"
+    },
+    {
+      "id": "glitch", "name": "Glitch", "intensity": "bold",
+      "description": "Scanline flicker, RGB split on entry, hard cuts. Neon decks only.",
+      "library": ["gsap"],
+      "timing": { "enter": 0.35, "stagger": 0.03, "transition": 0.2, "easing": "steps(8)" },
+      "defaults": { "transition": "cut", "enter": "glitchIn", "emphasis": "glow", "exit": "glitchOut" },
+      "bySlideType": {
+        "title":   { "enter": "glitchIn", "emphasis": "glow" },
+        "bullets": { "enter": "typewriter", "emphasis": "none", "easing": "linear" },
+        "stat":    { "enter": "glitchIn", "emphasis": "countUp" },
+        "code":    { "enter": "typewriter", "emphasis": "none" },
+        "summary": { "enter": "glitchIn", "emphasis": "none" }
+      },
+      "reducedMotion": "fadeOnly; no flicker; glow static"
+    },
+    {
+      "id": "pop", "name": "Pop", "intensity": "bold",
+      "description": "Bouncy, elastic, playful. Shapes wobble, numbers overshoot. Maximal / Pop decks.",
+      "library": ["gsap"],
+      "timing": { "enter": 0.6, "stagger": 0.07, "transition": 0.45, "easing": "back.out(1.7)" },
+      "defaults": { "transition": "convex", "enter": "bounceIn", "emphasis": "wobble", "exit": "scaleOut" },
+      "bySlideType": {
+        "title":   { "enter": "bounceIn", "emphasis": "scaleBeat", "easing": "elastic.out(1,0.5)" },
+        "stat":    { "enter": "scaleIn", "emphasis": "countUp", "easing": "back.out(2)" },
+        "bullets": { "enter": "fadeUp", "emphasis": "none" },
+        "summary": { "enter": "bounceIn", "emphasis": "colorShift" }
+      },
+      "decorations": { "animateBackgroundShapes": true, "loopDuration": 6 },
+      "reducedMotion": "fadeOnly; decorations static"
+    }
+  ],
+  "inspiration": {
+    "note": "Original media list, retained only as vocabulary hints for the Design Agent.",
+    "map": {
+      "Traditional (Cel / Hand-Drawn)": "clipReveal with slight overshoot; 12fps stepped easing on illustrations",
+      "Stop-Motion / Claymation / Cutout / Flipbook": "steps(8–12) easing; hold frames",
+      "2D Vector / Motion Graphics / Flat": "crisp power3 eases, geometric masks",
+      "3D CGI": "depth template with three background",
+      "Anime": "speed lines on transition, hard cut then settle",
+      "Pixel Art": "steps(6) easing, image-rendering: pixelated",
+      "Rotoscoping": "outline-draw via SVG stroke-dashoffset",
+      "Kinetic Type": "kinetic template",
+      "Line Art": "SVG stroke-draw enter for diagrams",
+      "Sand / Paint-on-Glass": "blurIn with turbulence filter (feTurbulence) — optional, expensive"
+    }
+  }
+}

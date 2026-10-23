@@ -28,6 +28,8 @@ export type BuildInput = {
   interaction: InteractionPlan;
   catalog: Catalog;
   outDir: string;
+  /** Checked before each step; once aborted, build rejects with its reason and writes nothing further. */
+  signal?: AbortSignal;
 };
 
 const THREE_JS_WARNING = "threeJs requested but not supported by this renderer yet";
@@ -42,16 +44,19 @@ function diagramSources(deck: DeckSpec): string[] {
 
 /** Writes a self-contained deck folder (index.html + assets/) and returns its manifest. */
 export async function build(input: BuildInput): Promise<RenderManifest> {
+  const { catalog, outDir, signal } = input;
+  signal?.throwIfAborted();
   const deck = DeckSpecSchema.parse(input.deck);
   const theme = ThemeSpecSchema.parse(input.theme);
   const motion = MotionPlanSchema.parse(input.motion);
   const interaction = InteractionPlanSchema.parse(input.interaction);
-  const { catalog, outDir } = input;
 
   const fonts = fontFaces(theme);
   const themeCss = fonts.css + (fonts.css ? "\n" : "") + compileThemeCss(theme);
-  const diagrams = await renderDiagrams(diagramSources(deck), theme);
+  const diagrams = await renderDiagrams(diagramSources(deck), theme, { signal });
+  signal?.throwIfAborted();
   const [deckCss, deckJs] = await Promise.all([compileDeckCss(), bundleRuntime()]);
+  signal?.throwIfAborted();
 
   const { html, warnings: htmlWarnings } = renderDeckHtml({
     deck,
@@ -64,22 +69,26 @@ export async function build(input: BuildInput): Promise<RenderManifest> {
     assets: { css: ["assets/deck.css", "assets/theme.css"], js: ["assets/deck.js"] },
   });
 
+  // index.html goes last, so a build cancelled part-way never leaves an entry point behind.
   const text: [string, string][] = [
-    ["index.html", html],
     ["assets/deck.css", deckCss],
     ["assets/theme.css", themeCss],
     ["assets/deck.js", deckJs],
   ];
   for (const [rel, content] of text) {
+    signal?.throwIfAborted();
     const path = join(outDir, rel);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content);
   }
   for (const f of fonts.files) {
+    signal?.throwIfAborted();
     const path = join(outDir, "assets", f.to);
     await mkdir(dirname(path), { recursive: true });
     await copyFile(f.from, path);
   }
+  signal?.throwIfAborted();
+  await writeFile(join(outDir, "index.html"), html);
 
   const paths = ["index.html", "assets/deck.css", "assets/theme.css", "assets/deck.js", ...fonts.files.map((f) => `assets/${f.to}`)];
   const assets = await Promise.all(paths.map(async (path) => ({ path, bytes: (await stat(join(outDir, path))).size })));

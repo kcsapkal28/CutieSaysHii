@@ -31,6 +31,31 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+// Index of the diagram-type line: past any front matter, blank lines, %% comments and %%{init}%% directives.
+function typeLine(lines: string[]): number {
+  let i = 0;
+  while (i < lines.length && !lines[i]!.trim()) i++;
+  if (lines[i]?.trim() === "---") {
+    const end = lines.findIndex((l, k) => k > i && l.trim() === "---");
+    if (end < 0) return -1;
+    i = end + 1;
+  }
+  for (; i < lines.length; i++) {
+    const t = lines[i]!.trim();
+    if (t && !t.startsWith("%%")) return i;
+  }
+  return -1;
+}
+
+// Gantt draws a "today" line from the wall clock; switch it off unless the author configured the marker.
+function withoutTodayMarker(source: string): string {
+  const lines = source.split("\n");
+  const at = typeLine(lines);
+  if (at < 0 || !/^gantt\b/.test(lines[at]!.trim()) || /^\s*todayMarker\b/m.test(source)) return source;
+  lines.splice(at + 1, 0, "todayMarker off");
+  return lines.join("\n");
+}
+
 async function renderJobs({ config, jobs, timeoutMs, reservedClasses }: RenderRequest): Promise<Outcome[]> {
   const { mermaid } = globalThis as unknown as { mermaid: MermaidApi };
   mermaid.initialize(config);
@@ -44,7 +69,7 @@ async function renderJobs({ config, jobs, timeoutMs, reservedClasses }: RenderRe
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error("timed out")), timeoutMs);
       });
-      const { svg } = await Promise.race([mermaid.render(job.id, job.source), timeout]);
+      const { svg } = await Promise.race([mermaid.render(job.id, withoutTodayMarker(job.source)), timeout]);
       out.push({ key: job.key, svg: sanitiseSvg(svg, { idPrefix: job.id, reservedClasses }) });
     } catch (e) {
       out.push({ key: job.key, error: e instanceof Error ? e.message : String(e) });

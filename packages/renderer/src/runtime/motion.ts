@@ -51,11 +51,14 @@ export function resolveSlideMotion(m: SlideMotion, reduced: ReducedFlags | null)
 }
 
 // Opacity dips used by glitch and glow: each dip is one flash, halfPeriod seconds down then halfPeriod up.
-export const FLICKER = { dips: 2, halfPeriod: 0.2 } as const;
+export const FLICKER = { dips: 2, halfPeriod: 0.25 } as const;
 
-/** The most flashes any closed 1 s window can contain when the dips run back to back (WCAG 2.3.1 allows 3). */
+/**
+ * The most flashes any 1 s window can contain (WCAG 2.3.1 allows 3). Presets chain (glitchIn on a heading, then
+ * glow on its emphasis), so this is the back-to-back rate and deliberately does not stop at one preset's dips.
+ */
 export function flashesPerSecond(f: { dips: number; halfPeriod: number }): number {
-  return Math.min(f.dips, Math.floor(1 / (2 * f.halfPeriod)) + 1);
+  return Math.ceil(1 / (2 * f.halfPeriod) - 1e-9);
 }
 
 export type CountUp = { prefix: string; value: number; decimals: number; suffix: string; grouping: boolean };

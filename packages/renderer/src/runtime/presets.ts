@@ -187,6 +187,7 @@ const glow: Preset = (els, o) => {
   const off = "0 0 0px currentColor";
   const on = "0 0 18px currentColor";
   const tl = gsap.timeline();
+  if (!els.length) return tl;
   if (o.glowStatic) return tl.set(els, { textShadow: on });
   if (o.flicker !== false) flicker(tl, els);
   return tl.fromTo(els, { textShadow: off }, { textShadow: on, duration: o.duration, stagger: o.stagger, ease: o.ease });

@@ -81,12 +81,13 @@ describe("flashesPerSecond", () => {
     expect(flashesPerSecond(FLICKER)).toBeLessThanOrEqual(3);
   });
 
-  it("counts every dip that can start inside one closed 1 s window", () => {
-    expect(flashesPerSecond({ dips: 10, halfPeriod: 0.2 })).toBe(3);
-    expect(flashesPerSecond({ dips: 10, halfPeriod: 0.125 })).toBe(5);
-    expect(flashesPerSecond({ dips: 10, halfPeriod: 0.04 })).toBe(10);
-    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.01 })).toBe(2);
-    expect(flashesPerSecond({ dips: 0, halfPeriod: 0.2 })).toBe(0);
+  // Presets chain (glitchIn then glow), so the bound is the back-to-back rate, not one preset's dip count.
+  it("counts the dips of a back-to-back chain in any 1 s window, whatever one preset's dip count", () => {
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.25 })).toBe(2);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.2 })).toBe(3);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 1 / 6 })).toBe(3);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.15 })).toBe(4);
+    expect(flashesPerSecond({ dips: 1, halfPeriod: 0.05 })).toBe(10);
   });
 });
 

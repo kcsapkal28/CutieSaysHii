@@ -118,6 +118,23 @@ describe("flicker (WCAG 2.3.1)", () => {
     expect(lowestAfter(samples, 0)).toBeCloseTo(0.55, 2);
   });
 
+  // As the engine chains them on a glitch title: glitchIn on the heading, then glow on its emphasised phrase.
+  it("glitchIn then glow on a nested mark stays within 3 flashes in any second", () => {
+    document.body.innerHTML = `<h1 data-motion-el>Grid <mark data-emphasis>online</mark></h1>`;
+    const h1 = document.querySelector("h1")!;
+    const mark = document.querySelector("mark")!;
+    const master = gsap.timeline();
+    master.add(ENTER_PRESETS.glitchIn!([h1], o), 0);
+    master.add(EMPHASIS_PRESETS.glow!([mark], o), ">");
+    const effective = sample(master, [h1, mark]).map(({ t, opacities: [a, b] }) => ({ t, opacities: [a! * b!] }));
+    expectFlickerSafe(effective, FLICKER.dips * 2);
+  });
+
+  it("glow with no targets is empty", () => {
+    expect(EMPHASIS_PRESETS.glow!([], o).duration()).toBe(0);
+    expect(EMPHASIS_PRESETS.glow!([], o).getChildren()).toHaveLength(0);
+  });
+
   it("glowStatic sets the glow without animating", () => {
     const tl = EMPHASIS_PRESETS.glow!(targets(), { ...o, glowStatic: true });
     expect(tl.getChildren()).toHaveLength(1);

@@ -48,15 +48,19 @@ The controller merges Task 1 to the proxy's `main` after review. The harness pre
 
 ## Global Constraints
 
-- **LLMs write JSON, never HTML** (§0.1). Every agent output arrives as a strict tool call (`emit_deck`, `emit_design`, `emit_patches`). It goes through `normalize` → Zod → `src/validate/*`. Invalid output is fed back as an `is_error` `tool_result`, with **at most 2 retries** (3 attempts).
+- **LLMs write JSON, never HTML** (§0.1). Every agent output arrives as a tool call (`emit_deck`, `emit_design`, `emit_patches`). Each tool declares `strict: boolean`, and the spike (Task 3, `docs/superpowers/spikes/2026-10-24-strict-tools-via-proxy.md`) fixed these values: **`emit_deck: false`** (the server rejects its grammar as too large), **`emit_design: true`**, **`emit_patches: false`** (the server counts more than 16 union params). Non-strict tools still send the full `compileWireSchema` JSON Schema as `input_schema`. Strict tools must pass `assertUnionBudget`. Re-probe `emit_design` strict-compilation if its final schema differs from the spike's approximation. It goes through `normalize` → Zod → `src/validate/*`. Invalid output is fed back as an `is_error` `tool_result`, with **at most 2 retries** (3 attempts).
 - **One SDK client** (§0.6):
   - Only `packages/harness/src/llm.ts` imports `@anthropic-ai/sdk`, and only `src/node.ts` calls `createLlmClient`.
   - `localhost:4001` appears in `src/` only in `src/env.ts`.
   - The spike's script is never committed.
   - The architecture test enforces this.
 - **Request rules**:
-  - Never send `temperature`/`top_p`/`top_k`, and never force `tool_choice`. Use `{type:"auto"}`, `strict: true`, a prompt naming the tool, and a check that a call was made.
-  - Leave thinking at its default and set `output_config.effort` per agent.
+  - Never send `temperature`/`top_p`/`top_k`, and never force `tool_choice`. Use `{type:"auto"}`, the tool's own `strict` flag, a prompt naming the tool, and a check that a call was made.
+  - Leave thinking at its default and set `output_config.effort` per agent. Spike defaults:
+    - `CONTENT_EFFORT=medium`. A standard deck took ~18–20 s and ~2.5k output tokens; `low` was not faster.
+    - `PROMPT_CACHE_EFFECTIVE=true`, with 3275 cached tokens read on a repeat.
+    - `REFUSAL_FALLBACK_DEFAULT=true`.
+  - Speaker notes often came back under the depth minimum (4/9 to 11/12 slides short). Agent A's prompt must state the per-depth notes word range explicitly, and the `notes-length` validator's feedback must name each short slide.
   - Use non-streaming requests with `max_tokens` ≤ 16000 and top-level `cache_control: {type:"ephemeral"}` (Anthropic prompt caching, unrelated to stage caching).
 - **Proxy controls**: `LLM_PROXY_CONTROLS` defaults on whenever `LLM_BASE_URL`'s origin isn't `https://api.anthropic.com`.
   - **When on**, every request sends `x-proxy-max-retries: 0`, and preflight **fails** if the response lacks `x-proxy-controls: 1`.

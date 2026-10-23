@@ -2,6 +2,8 @@ import { loadCatalog } from "@deckforge/catalog/node";
 import type { Catalog } from "@deckforge/catalog";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  FLICKER,
+  flashesPerSecond,
   formatCountUp,
   parseCountUp,
   parseReducedMotion,
@@ -58,6 +60,34 @@ describe("resolveSlideMotion", () => {
 
   it("same leaves motion unchanged", () => {
     expect(resolveSlideMotion(base, parseReducedMotion("same"))).toEqual(base);
+  });
+
+  it("fadeOnly with glow static keeps glow", () => {
+    const out = resolveSlideMotion({ ...base, emphasis: "glow" }, parseReducedMotion("fadeOnly; no flicker; glow static"));
+    expect(out).toMatchObject({ enter: "fade", emphasis: "glow", exit: "fade" });
+  });
+
+  it("fadeOnly without glow static still drops glow", () => {
+    expect(resolveSlideMotion({ ...base, emphasis: "glow" }, parseReducedMotion("fadeOnly; no flicker")).emphasis).toBe("none");
+  });
+
+  it("glow static keeps only glow, not other emphasis", () => {
+    expect(resolveSlideMotion(base, parseReducedMotion("fadeOnly; glow static")).emphasis).toBe("none");
+  });
+});
+
+describe("flashesPerSecond", () => {
+  it("flicker stays within WCAG 2.3.1", () => {
+    expect(flashesPerSecond(FLICKER)).toBeLessThanOrEqual(3);
+  });
+
+  // Presets chain (glitchIn then glow), so the bound is the back-to-back rate, not one preset's dip count.
+  it("counts the dips of a back-to-back chain in any 1 s window, whatever one preset's dip count", () => {
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.25 })).toBe(2);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.2 })).toBe(3);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 1 / 6 })).toBe(3);
+    expect(flashesPerSecond({ dips: 2, halfPeriod: 0.15 })).toBe(4);
+    expect(flashesPerSecond({ dips: 1, halfPeriod: 0.05 })).toBe(10);
   });
 });
 

@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import { gsap } from "gsap";
 import { SplitText } from "gsap/SplitText";
-import { formatCountUp, parseCountUp } from "./motion.ts";
+import { FLICKER, formatCountUp, parseCountUp } from "./motion.ts";
 
 gsap.registerPlugin(SplitText);
 
@@ -52,20 +52,28 @@ const typewriter: Preset = (els, o) => {
   return tl;
 };
 
+// WCAG 2.3.1: FLICKER's dips (opacity 1 → 0.55 → 1), once, on every target at the same moment so no stagger
+// multiplies the flashes on screen.
+const flicker = (tl: gsap.core.Timeline, els: Element[], position?: gsap.Position): gsap.core.Timeline =>
+  tl.to(
+    els,
+    { opacity: 0.55, duration: FLICKER.halfPeriod, repeat: FLICKER.dips * 2 - 1, yoyo: true, ease: "sine.inOut" },
+    position,
+  );
+
 const glitchIn: Preset = (els, o) => {
   const tl = gsap.timeline();
   tl.from(els, {
     opacity: 0, x: -14, skewX: -24, duration: o.duration * 0.6, stagger: o.stagger, ease: "steps(4)",
   });
-  if (o.flicker !== false)
-    tl.to(els, { opacity: 0.3, duration: 0.04, repeat: 3, yoyo: true, ease: "none", stagger: o.stagger / 2 }, ">");
+  if (o.flicker !== false) flicker(tl, els, ">");
   return tl;
 };
 
 const glitchOut: Preset = (els, o) => {
   const tl = gsap.timeline();
   if (o.flicker === false) return tl.to(els, { opacity: 0, duration: o.duration, stagger: o.stagger, ease: o.ease });
-  tl.to(els, { opacity: 0.3, duration: 0.04, repeat: 3, yoyo: true, ease: "none" });
+  flicker(tl, els);
   tl.to(els, { opacity: 0, x: 14, skewX: 24, duration: o.duration * 0.6, stagger: o.stagger, ease: "steps(3)" });
   return tl;
 };
@@ -179,8 +187,9 @@ const glow: Preset = (els, o) => {
   const off = "0 0 0px currentColor";
   const on = "0 0 18px currentColor";
   const tl = gsap.timeline();
+  if (!els.length) return tl;
   if (o.glowStatic) return tl.set(els, { textShadow: on });
-  if (o.flicker !== false) tl.fromTo(els, { opacity: 0.4 }, { opacity: 1, duration: 0.05, repeat: 3, ease: "steps(1)" });
+  if (o.flicker !== false) flicker(tl, els);
   return tl.fromTo(els, { textShadow: off }, { textShadow: on, duration: o.duration, stagger: o.stagger, ease: o.ease });
 };
 

@@ -72,7 +72,7 @@ function themeVariables(theme: ThemeSpec): Record<string, string> {
 }
 
 export function mermaidConfig(theme: ThemeSpec): Record<string, unknown> {
-  return { startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: themeVariables(theme), secure: SECURE_KEYS };
+  return { startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: themeVariables(theme), secure: SECURE_KEYS, handDrawnSeed: 1 };
 }
 
 

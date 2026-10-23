@@ -3,7 +3,7 @@ import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  { ignores: ["**/node_modules/**", "**/dist/**", "**/.turbo/**", "**/.cache/**", "**/test-results/**",".superpowers/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "**/.turbo/**", "**/.cache/**", "**/test-results/**", ".superpowers/**"] },
   js.configs.recommended,
   tseslint.configs.recommended,
 );

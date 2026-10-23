@@ -53,6 +53,14 @@ const BENIGN = {
   class: "classDiagram\n class Animal{\n +String name\n +eat()\n }\n class Dog\n Animal <|-- Dog",
 };
 
+// Kinds whose mermaid output depends on Math.random or the clock unless the diagram page pins them.
+const RANDOMISED = {
+  gantt: "gantt\n title Plan\n dateFormat YYYY-MM-DD\n section Build\n Design :a1, 2024-01-01, 30d\n Ship :after a1, 14d",
+  ganttFrontmatter: "---\ntitle: Plan\n---\n%% roadmap\ngantt\n dateFormat YYYY-MM-DD\n section A\n Build :a1, 2024-03-01, 10d",
+  gitGraph: "gitGraph\n commit\n branch dev\n checkout dev\n commit\n checkout main\n merge dev\n commit",
+  handDrawn: "---\nconfig:\n  look: handDrawn\n---\nflowchart LR\n A[Start] --> B{Check} --> C[End]",
+};
+
 const styleTexts = (svg: string) =>
   Array.from(new JSDOM(svg).window.document.querySelectorAll("style"), (el) => el.textContent ?? "");
 // Zero-request checks allow only an exact about:blank. Chromium serves data: URLs in the renderer, so Playwright
@@ -292,6 +300,27 @@ describe("renderDiagrams", () => {
   it("same source twice gives one key", async () => {
     const { svgs } = await renderDiagrams(["graph TD; A-->B", "graph TD; A-->B"], theme);
     expect(svgs.size).toBe(1);
+  }, 60_000);
+
+  // Mermaid draws some shapes with seeded randomness (roughjs); a different seed each run would change the svg.
+  it("rendering the same diagram twice gives byte-identical svg, whatever its siblings", async () => {
+    const sources = [...Object.values(BENIGN), ...Object.values(RANDOMISED)];
+    const first = await renderDiagrams(sources, theme);
+    const second = await renderDiagrams(sources, theme);
+    const alone = await renderDiagrams([BENIGN.class], theme);
+    expect(first.svgs.size).toBe(sources.length);
+    for (const source of sources) expect(second.svgs.get(diagramKey(source)), source).toBe(first.svgs.get(diagramKey(source)));
+    expect(alone.svgs.get(diagramKey(BENIGN.class))).toBe(first.svgs.get(diagramKey(BENIGN.class)));
+  }, 60_000);
+
+  // Mermaid draws gantt's today line from the wall clock, so the same source would change from day to day.
+  it("gantt charts carry no today marker unless the source sets one", async () => {
+    const own = "gantt\n dateFormat YYYY-MM-DD\n todayMarker stroke:#000\n section A\n Build :a1, 2024-01-01, 30d";
+    const { svgs, warnings } = await renderDiagrams([RANDOMISED.gantt, RANDOMISED.ganttFrontmatter, own], theme);
+    expect(warnings).toEqual([]);
+    expect(svgs.get(diagramKey(RANDOMISED.gantt))).not.toMatch(/class="today"/);
+    expect(svgs.get(diagramKey(RANDOMISED.ganttFrontmatter))).not.toMatch(/class="today"/);
+    expect(svgs.get(diagramKey(own))).toMatch(/class="today"/);
   }, 60_000);
 
   it("keeps good diagrams when a sibling fails", async () => {

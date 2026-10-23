@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ import {
 } from "@deckforge/schemas";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { build, type BuildInput } from "../src/build.ts";
+import { listSources } from "../src/bundle.ts";
 import { compileDeckCss } from "../src/css.ts";
 
 const read = async <T>(rel: string) =>
@@ -140,5 +141,19 @@ describe("build", () => {
     const bad = { ...deck, slides: [] } as DeckSpec;
     await expect(build(inputFor(join(root, "d"), { deck: bad }))).rejects.toThrow();
     expect(existsSync(join(root, "d"))).toBe(false);
+  });
+});
+
+describe("bundle sources", () => {
+  it("listSources includes nested files", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "deckforge-sources-"));
+    try {
+      await mkdir(join(dir, "sub"));
+      await writeFile(join(dir, "sub", "b.ts"), "export {};\n");
+      await writeFile(join(dir, "a.ts"), "export {};\n");
+      expect(listSources(dir)).toEqual(["a.ts", "sub/b.ts"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

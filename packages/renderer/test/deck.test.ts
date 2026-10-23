@@ -1,9 +1,9 @@
 import { readdirSync } from "node:fs";
-import type { Block, DeckSpec, InteractionPlan } from "@deckforge/schemas";
+import { DeckSpecSchema, InteractionPlanSchema, type Block, type DeckSpec, type InteractionPlan } from "@deckforge/schemas";
 import { describe, expect, it } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
 import { renderDeckHtml, RenderError } from "../src/html/deck.ts";
-import { catalog, deckOf, dom, fixture, inputFor, interaction, slideOf, templates, TEMPLATES_DIR } from "./deck-setup.ts";
+import { catalog, deckOf, dom, fixture, inputFor, interaction, read, slideOf, templates, TEMPLATES_DIR } from "./deck-setup.ts";
 
 describe("templates", () => {
   it("has a template for every catalog slide type, and partials are not slide types", () => {
@@ -272,5 +272,44 @@ describe("errors", () => {
       const input = inputFor(deckOf(slideOf("bullets")), { assets: { css: [bad], js: [] } });
       expect(() => renderDeckHtml(input), bad).toThrow(RenderError);
     }
+  });
+});
+
+describe("stress fixture", () => {
+  it("stress fixture parses as DeckSpec and covers every stress case", async () => {
+    const deck = DeckSpecSchema.parse(await read("../fixtures/stress.deck.json"));
+    const plan = InteractionPlanSchema.parse(await read("../fixtures/stress.interaction.json"));
+    const words = (s: string) => s.trim().split(/\s+/).length;
+    const blocks = <T extends Block["type"]>(type: T) =>
+      deck.slides.flatMap((s) => s.body.filter((b): b is Extract<Block, { type: T }> => b.type === type));
+    const firstOf = (type: string) => deck.slides.find((s) => s.type === type);
+    const diagram = (re: RegExp) => blocks("Diagram").some((d) => re.test(d.mermaid));
+    const items = (type: string) => firstOf(type)?.body.find((b) => b.type === "Bullets")?.items;
+
+    expect(deck.slides).toHaveLength(14);
+    const longTitle = (t = "") => words(t) === 8 && t.split(/\s+/).some((w) => /^\p{L}{14}$/u.test(w));
+    expect(deck.slides.some((s) => longTitle(s.title))).toBe(true);
+    const bullets = firstOf("bullets");
+    expect(words(bullets?.title ?? "")).toBe(8);
+    expect(items("bullets")).toHaveLength(5);
+    expect(items("bullets")?.every((i) => words(i) <= 12)).toBe(true);
+    expect(deck.slides.some((s) => s.type !== "image" && s.title === "")).toBe(true);
+    const stats = blocks("Stat");
+    expect(stats.map((s) => s.value)).toEqual(["1,000,000 W/m²", "$1.2 trillion", "−3.5 °C"]);
+    expect(stats.map((s) => s.trend)).toEqual(["up", "down", "flat"]);
+    const rows = blocks("Compare")[0]?.rows ?? [];
+    expect(rows).toHaveLength(5);
+    expect(rows.some((r) => [words(r.left), words(r.right)].sort((a, b) => a - b).join() === "1,18")).toBe(true);
+    expect(blocks("Chart").some((c) => c.kind === "donut" && c.labels.length === 10)).toBe(true);
+    expect(diagram(/^flowchart[\s\S]*\bsubgraph\b[\s\S]*-->\|[^|]+\|/)).toBe(true);
+    expect(diagram(/^sequenceDiagram[\s\S]*\bNote (over|left of|right of)\b/)).toBe(true);
+    expect(diagram(/^pie\b/)).toBe(true);
+    expect(blocks("Timeline")[0]?.steps).toHaveLength(6);
+    expect(items("agenda")).toHaveLength(5);
+    expect(items("summary")).toHaveLength(5);
+    const caption = firstOf("image")?.body.find((b) => b.type === "Paragraph");
+    expect(caption && words(caption.text)).toBe(15);
+    expect(words(blocks("Quote")[0]?.text ?? "")).toBe(35);
+    expect(plan.slides.every((p) => deck.slides.some((s) => s.id === p.slideId))).toBe(true);
   });
 });

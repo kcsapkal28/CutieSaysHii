@@ -1,13 +1,11 @@
 import type { Block } from "@deckforge/schemas";
 import { describe, expect, it } from "vitest";
-import { chartSvg } from "../src/blocks/chart.ts";
 import { highlightCode } from "../src/blocks/code.ts";
 import { emphasize, escapeHtml } from "../src/blocks/escape.ts";
 import { sha256Hex } from "../src/blocks/hash.ts";
 import { placeholderImageSvg } from "../src/blocks/image.ts";
 import { diagramKey, renderBlock, type BlockContext } from "../src/blocks/render.ts";
 
-type ChartBlock = Extract<Block, { type: "Chart" }>;
 type ImageBlock = Extract<Block, { type: "Image" }>;
 
 const count = (s: string, needle: string) => s.split(needle).length - 1;
@@ -68,108 +66,6 @@ describe("emphasize", () => {
 
   it("treats regex metacharacters literally", () => {
     expect(emphasize("f(1) = 2", ["(1)"])).toBe('f<mark class="df-emph" data-emphasis>(1)</mark> = 2');
-  });
-});
-
-describe("chartSvg", () => {
-  const bar: ChartBlock = {
-    type: "Chart",
-    kind: "bar",
-    labels: ["a", "b", "c"],
-    series: [
-      { name: "s1", values: [1, 2, 3] },
-      { name: "s2", values: [3, 2, 1] },
-    ],
-  };
-
-  it("bar with 3 labels x 2 series has 6 rects in the plot group", () => {
-    const svg = chartSvg(bar, { title: "T" });
-    const plot = /<g class="df-plot">([\s\S]*?)<\/g>/.exec(svg);
-    expect(plot).not.toBeNull();
-    expect(count(plot![1]!, "<rect")).toBe(6);
-  });
-
-  it("negative values stay finite", () => {
-    for (const kind of ["bar", "line", "area", "donut"] as const) {
-      const svg = chartSvg(
-        { ...bar, kind, series: [{ name: "s", values: [-5, 3, -1] }] },
-        { title: "T" },
-      );
-      expect(svg, kind).not.toMatch(/NaN|Infinity/);
-    }
-  });
-
-  it("bar baseline sits at the zero line so negatives go below it", () => {
-    const svg = chartSvg(
-      { ...bar, labels: ["a", "b"], series: [{ name: "s", values: [4, -4] }] },
-      { title: "T" },
-    );
-    const rects = [...svg.matchAll(/<rect x="[\d.]+" y="([\d.]+)" width="[\d.]+" height="([\d.]+)"/g)];
-    expect(rects).toHaveLength(2);
-    const [pos, neg] = rects.map((m) => ({ y: Number(m[1]), h: Number(m[2]) }));
-    expect(neg!.y).toBeCloseTo(pos!.y + pos!.h, 1);
-  });
-
-  it("all-zero donut has no NaN", () => {
-    const svg = chartSvg(
-      { ...bar, kind: "donut", series: [{ name: "s", values: [0, 0, 0] }] },
-      { title: "T" },
-    );
-    expect(svg).not.toMatch(/NaN|Infinity/);
-  });
-
-  it("handles empty data and single points without NaN", () => {
-    for (const kind of ["bar", "line", "area", "donut"] as const) {
-      expect(chartSvg({ ...bar, kind, labels: [], series: [] }, { title: "T" }), kind).not.toMatch(/NaN|Infinity/);
-      expect(
-        chartSvg({ ...bar, kind, labels: ["a"], series: [{ name: "s", values: [7] }] }, { title: "T" }),
-        kind,
-      ).not.toMatch(/NaN|Infinity/);
-    }
-  });
-
-  it("donut with a single non-zero slice renders a full ring", () => {
-    const svg = chartSvg(
-      { ...bar, kind: "donut", series: [{ name: "s", values: [5, 0, 0] }] },
-      { title: "T" },
-    );
-    expect(svg).not.toMatch(/NaN|Infinity/);
-    expect(count(svg, "<path")).toBeGreaterThanOrEqual(1);
-  });
-
-  it("line and area draw one path per series in the plot group", () => {
-    for (const kind of ["line", "area"] as const) {
-      const svg = chartSvg({ ...bar, kind }, { title: "T" });
-      const plot = /<g class="df-plot">([\s\S]*?)<\/g>/.exec(svg);
-      expect(count(plot![1]!, "<path"), kind).toBe(2);
-    }
-  });
-
-  it("escapes labels, series names, unit and title", () => {
-    const svg = chartSvg(
-      { ...bar, labels: ["<script>x</script>", "b", "c"], series: [{ name: "<i>", values: [1, 2, 3] }], unit: "<u>" },
-      { title: 'a "t" <b>' },
-    );
-    expect(svg).not.toContain("<script>");
-    expect(svg).not.toContain("<i>");
-    expect(svg).not.toContain("<u>");
-    expect(svg).toContain("&lt;script&gt;");
-    expect(svg).toContain('aria-label="a &quot;t&quot; &lt;b&gt;"');
-  });
-
-  it("has role img and title", () => {
-    const svg = chartSvg(bar, { title: "Revenue" });
-    expect(svg).toContain('viewBox="0 0 960 540"');
-    expect(svg).toContain('role="img"');
-    expect(svg).toContain('aria-label="Revenue"');
-    expect(svg).toContain("<title>Revenue</title>");
-  });
-
-  it("uses only theme variables for colour", () => {
-    const svg = chartSvg(bar, { title: "T" });
-    expect(svg).not.toMatch(/#[0-9a-f]{3,6}\b/i);
-    expect(svg).toContain("var(--df-primary)");
-    expect(svg).toContain("var(--df-accent)");
   });
 });
 

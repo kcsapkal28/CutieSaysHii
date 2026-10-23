@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LlmQuotaError } from "../../src/kernel/errors.ts";
-import { requestFingerprint, type LlmRequest, type LlmRetryInfo, type ToolName } from "../../src/kernel/llm-port.ts";
+import { requestFingerprint, type LlmPort, type LlmRequest, type LlmRetryInfo, type ToolName } from "../../src/kernel/llm-port.ts";
 import { CassetteSchema, FakeLlm } from "../../src/fakes/llm.ts";
 import { RecordingLlm } from "../../src/fakes/recording.ts";
 
@@ -17,6 +17,7 @@ function request(tool: ToolName, firstUser: string): LlmRequest {
 
 const signal = new AbortController().signal;
 const usage = { inputTokens: 11, outputTokens: 22, cacheReadTokens: 33, cacheWriteTokens: 44 };
+const DEFAULT = { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0 };
 
 describe("RecordingLlm", () => {
   it("recording round-trip incl. expect", async () => {
@@ -47,11 +48,11 @@ describe("RecordingLlm", () => {
       version: 1,
       replies: {
         emit_deck: [
-          { kind: "text", text: "Let me think.", stopReason: "end_turn", expect: requestFingerprint(deckReq) },
+          { kind: "text", text: "Let me think.", stopReason: "end_turn", usage: DEFAULT, expect: requestFingerprint(deckReq) },
           { kind: "tool", input: { title: "Solar" }, usage, expect: requestFingerprint(deckReq) },
         ],
         emit_design: [
-          { kind: "refusal", category: "cyber", expect: requestFingerprint(designReq) },
+          { kind: "refusal", category: "cyber", usage: DEFAULT, expect: requestFingerprint(designReq) },
           { kind: "error", error: { kind: "llm_quota", message: "credit balance is too low" }, expect: requestFingerprint(designReq) },
         ],
       },
@@ -67,6 +68,72 @@ describe("RecordingLlm", () => {
     expect(replay.remaining()).toBe(0);
   });
 
+  it("records a truncated tool call with max_tokens and replays it", async () => {
+    const truncated: LlmPort = {
+      preflight: () => Promise.resolve(),
+      complete: () =>
+        Promise.resolve({
+          toolCall: { id: "toolu_1", name: "emit_deck", input: { title: "So" } },
+          text: "",
+          stopReason: "max_tokens",
+          refusalCategory: null,
+          usage,
+          turn: { role: "assistant", content: [{ type: "tool_use", id: "toolu_1", name: "emit_deck", input: { title: "So" } }] },
+        }),
+    };
+    const recorder = new RecordingLlm(truncated);
+    const req = request("emit_deck", "x");
+    await recorder.complete(req, { signal });
+    const cassette = recorder.toCassette();
+    expect(cassette.replies.emit_deck).toEqual([
+      { kind: "tool", input: { title: "So" }, stopReason: "max_tokens", usage, expect: requestFingerprint(req) },
+    ]);
+    const replayed = await FakeLlm.fromCassette(cassette, "t").complete(req, { signal });
+    expect(replayed).toMatchObject({ stopReason: "max_tokens", toolCall: { name: "emit_deck", input: { title: "So" } } });
+    expect(replayed.turn.content).toEqual([{ type: "tool_use", ...replayed.toolCall }]);
+  });
+
+  it("records a refusal that carries a tool call as a refusal, with its usage", async () => {
+    const refusing: LlmPort = {
+      preflight: () => Promise.resolve(),
+      complete: () =>
+        Promise.resolve({
+          toolCall: { id: "toolu_2", name: "emit_deck", input: {} },
+          text: "",
+          stopReason: "refusal",
+          refusalCategory: "cyber",
+          usage,
+          turn: { role: "assistant", content: [] },
+        }),
+    };
+    const recorder = new RecordingLlm(refusing);
+    const req = request("emit_deck", "x");
+    await recorder.complete(req, { signal });
+    expect(recorder.toCassette().replies.emit_deck).toEqual([
+      { kind: "refusal", category: "cyber", usage, expect: requestFingerprint(req) },
+    ]);
+  });
+
+  it("records a copy of the tool input", async () => {
+    const input = { tags: ["a"] };
+    const inner: LlmPort = {
+      preflight: () => Promise.resolve(),
+      complete: () =>
+        Promise.resolve({
+          toolCall: { id: "toolu_3", name: "emit_deck", input },
+          text: "",
+          stopReason: "tool_use",
+          refusalCategory: null,
+          usage,
+          turn: { role: "assistant", content: [] },
+        }),
+    };
+    const recorder = new RecordingLlm(inner);
+    await recorder.complete(request("emit_deck", "x"), { signal });
+    input.tags.push("later");
+    expect(recorder.toCassette().replies.emit_deck?.[0]).toMatchObject({ input: { tags: ["a"] } });
+  });
+
   it("passes call options through and delegates preflight errors", async () => {
     const retries: LlmRetryInfo[] = [];
     const inner = new FakeLlm({
@@ -78,7 +145,7 @@ describe("RecordingLlm", () => {
     await recorder.complete(request("emit_deck", "x"), { signal, onRetry: (i) => retries.push(i) });
     expect(retries).toHaveLength(1);
     expect(recorder.toCassette().replies.emit_deck).toEqual([
-      { kind: "tool", input: {}, usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0 }, expect: requestFingerprint(request("emit_deck", "x")) },
+      { kind: "tool", input: {}, usage: DEFAULT, expect: requestFingerprint(request("emit_deck", "x")) },
     ]);
   });
 

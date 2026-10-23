@@ -10,12 +10,21 @@ import {
 } from "../kernel/llm-port.ts";
 import type { Cassette, CassetteReply } from "./llm.ts";
 
+/** Checks refusal before the tool call, in invokeTool's order. */
 function toReply(c: LlmCompletion, expect: RequestFingerprint): CassetteReply {
-  if (c.toolCall) return { kind: "tool", input: c.toolCall.input, usage: { ...c.usage }, expect };
+  const usage = { ...c.usage };
   if (c.stopReason === "refusal") {
-    return c.refusalCategory === null ? { kind: "refusal", expect } : { kind: "refusal", category: c.refusalCategory, expect };
+    return c.refusalCategory === null
+      ? { kind: "refusal", usage, expect }
+      : { kind: "refusal", category: c.refusalCategory, usage, expect };
   }
-  return { kind: "text", text: c.text, stopReason: c.stopReason, expect };
+  if (c.toolCall) {
+    const input = structuredClone(c.toolCall.input);
+    return c.stopReason === "tool_use"
+      ? { kind: "tool", input, usage, expect }
+      : { kind: "tool", input, stopReason: c.stopReason, usage, expect };
+  }
+  return { kind: "text", text: c.text, stopReason: c.stopReason, usage, expect };
 }
 
 /** Wraps a live LlmPort and records every reply, fingerprinted, for replay by FakeLlm.fromCassette. */

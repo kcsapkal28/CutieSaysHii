@@ -39,13 +39,25 @@ function replySchema<E extends z.ZodTypeAny>(expect: E) {
       .object({
         kind: z.literal("tool"),
         input: z.unknown(),
+        /** "max_tokens" replays a truncated tool call; the default is "tool_use". */
+        stopReason: StopReasonSchema.optional(),
         usage: TokenUsageSchema.optional(),
         rateLimitFirst: z.object({ waitMs: z.number().int().min(0) }).strict().optional(),
         expect,
       })
       .strict(),
-    z.object({ kind: z.literal("text"), text: z.string(), stopReason: StopReasonSchema.optional(), expect }).strict(),
-    z.object({ kind: z.literal("refusal"), category: z.string().optional(), expect }).strict(),
+    z
+      .object({
+        kind: z.literal("text"),
+        text: z.string(),
+        stopReason: StopReasonSchema.optional(),
+        usage: TokenUsageSchema.optional(),
+        expect,
+      })
+      .strict(),
+    z
+      .object({ kind: z.literal("refusal"), category: z.string().optional(), usage: TokenUsageSchema.optional(), expect })
+      .strict(),
     z.object({ kind: z.literal("error"), error: ErrorInfoSchema, expect }).strict(),
     z.object({ kind: z.literal("hang"), expect }).strict(),
   ]);
@@ -149,11 +161,11 @@ export class FakeLlm implements LlmPort {
           onRetry?.({ reason: "rate-limit", status: 429, attempt: 1, maxAttempts: FAKE_MAX_RETRIES, waitMs, detail: "429 rate limited (scripted)" });
           if (signal.aborted) throw cancelled(signal);
         }
-        const toolCall = { id: `toolu_fake_${this.#nextId++}`, name: tool, input: reply.input };
+        const toolCall = { id: `toolu_fake_${this.#nextId++}`, name: tool, input: structuredClone(reply.input) };
         return {
           toolCall,
           text: "",
-          stopReason: "tool_use",
+          stopReason: reply.stopReason ?? "tool_use",
           refusalCategory: null,
           usage: { ...(reply.usage ?? FAKE_DEFAULT_USAGE) },
           turn: { role: "assistant", content: [{ type: "tool_use", ...toolCall }] },
@@ -165,7 +177,7 @@ export class FakeLlm implements LlmPort {
           text: reply.text,
           stopReason: reply.stopReason ?? "end_turn",
           refusalCategory: null,
-          usage: { ...FAKE_DEFAULT_USAGE },
+          usage: { ...(reply.usage ?? FAKE_DEFAULT_USAGE) },
           turn: { role: "assistant", content: [{ type: "text", text: reply.text }] },
         };
       case "refusal":
@@ -174,7 +186,7 @@ export class FakeLlm implements LlmPort {
           text: "",
           stopReason: "refusal",
           refusalCategory: reply.category ?? null,
-          usage: { ...FAKE_DEFAULT_USAGE },
+          usage: { ...(reply.usage ?? FAKE_DEFAULT_USAGE) },
           turn: { role: "assistant", content: [] },
         };
       case "error":
@@ -187,9 +199,9 @@ export class FakeLlm implements LlmPort {
   #checkFingerprint(expected: RequestFingerprint, req: LlmRequest, tool: ToolName, n: number): void {
     const actual = requestFingerprint(req);
     const field = FINGERPRINT_FIELDS.find((f) => actual[f] !== expected[f]);
-    if (field) {
-      throw new InternalError(`cassette ${this.#source} is stale at ${tool} #${n}: ${field} differs — ${RERECORD_HINT}`);
-    }
+    if (!field) return;
+    const values = field.endsWith("Hash") ? "" : ` (cassette ${expected[field]}, request ${actual[field]})`;
+    throw new InternalError(`cassette ${this.#source} is stale at ${tool} #${n}: ${field} differs${values} — ${RERECORD_HINT}`);
   }
 
   #describe(problem: string): string {

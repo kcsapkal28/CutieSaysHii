@@ -111,6 +111,21 @@ describe("FakeLlm", () => {
     );
   });
 
+  it("stale message shows cassette vs request values for model, effort and maxTokens", async () => {
+    const recorded = request("emit_deck");
+    const cassette = () =>
+      FakeLlm.fromCassette({ version: 1, replies: { emit_deck: [{ kind: "hang", expect: requestFingerprint(recorded) }] } }, "c.json");
+    await expect(cassette().complete({ ...recorded, model: "claude-haiku-5-5" }, opts())).rejects.toThrow(
+      `cassette c.json is stale at emit_deck #1: model differs (cassette claude-sonnet-5-5, request claude-haiku-5-5) — ${RERECORD}`,
+    );
+    await expect(cassette().complete({ ...recorded, effort: "low" }, opts())).rejects.toThrow(
+      "effort differs (cassette medium, request low)",
+    );
+    await expect(cassette().complete({ ...recorded, maxTokens: 8_000 }, opts())).rejects.toThrow(
+      "maxTokens differs (cassette 16000, request 8000)",
+    );
+  });
+
   it("matching expect replays, also on later feedback turns", async () => {
     const req = request("emit_deck");
     const fake = new FakeLlm({
@@ -163,12 +178,44 @@ describe("FakeLlm", () => {
     expect((await fake.complete(request("emit_deck"), opts())).refusalCategory).toBeNull();
   });
 
+  it("a truncated tool reply keeps max_tokens and its partial tool_use block", async () => {
+    const fake = new FakeLlm({ replies: { emit_deck: [{ kind: "tool", input: { title: "Sol" }, stopReason: "max_tokens" }] } });
+    const cut = await fake.complete(request("emit_deck"), opts());
+    expect(cut.stopReason).toBe("max_tokens");
+    expect(cut.toolCall).toMatchObject({ name: "emit_deck", input: { title: "Sol" } });
+    expect(cut.turn.content).toEqual([{ type: "tool_use", ...cut.toolCall }]);
+  });
+
   it("text reply keeps its stop reason", async () => {
     const fake = new FakeLlm({ replies: { emit_deck: [{ kind: "text", text: "cut", stopReason: "max_tokens" }, { kind: "text", text: "hi" }] } });
     const cut = await fake.complete(request("emit_deck"), opts());
     expect(cut).toMatchObject({ toolCall: null, text: "cut", stopReason: "max_tokens" });
     expect(cut.turn.content).toEqual([{ type: "text", text: "cut" }]);
     expect((await fake.complete(request("emit_deck"), opts())).stopReason).toBe("end_turn");
+  });
+
+  it("text and refusal replies serve their usage, defaulting otherwise", async () => {
+    const usage = { inputTokens: 9, outputTokens: 8, cacheReadTokens: 7, cacheWriteTokens: 6 };
+    const fake = new FakeLlm({
+      replies: { emit_deck: [{ kind: "text", text: "t", usage }, { kind: "refusal", usage }, { kind: "refusal" }] },
+    });
+    expect((await fake.complete(request("emit_deck"), opts())).usage).toEqual(usage);
+    expect((await fake.complete(request("emit_deck"), opts())).usage).toEqual(usage);
+    expect((await fake.complete(request("emit_deck"), opts())).usage).toEqual({
+      inputTokens: 1000,
+      outputTokens: 500,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    });
+  });
+
+  it("serves a copy of the scripted input", async () => {
+    const input = { title: "one", tags: ["a"] };
+    const fake = new FakeLlm({ replies: { emit_deck: [{ kind: "tool", input }] } });
+    const c = await fake.complete(request("emit_deck"), opts());
+    (c.toolCall!.input as { tags: string[] }).tags.push("mutated");
+    expect(input.tags).toEqual(["a"]);
+    expect(c.toolCall!.input).not.toBe(input);
   });
 
   it("hang + abort → CancelledError", async () => {
@@ -206,7 +253,7 @@ describe("FakeLlm", () => {
     await expect(new FakeLlm().preflight(aborted.signal)).rejects.toBeInstanceOf(CancelledError);
   });
 
-  it("refusal and error replies rebuild typed errors via errorFromInfo", async () => {
+  it("an llm_refusal error reply rebuilds a typed LlmRefusalError via errorFromInfo", async () => {
     const fake = new FakeLlm({ replies: { emit_deck: [{ kind: "error", error: { kind: "llm_refusal", message: "the model refused the request (bio)" } }] } });
     const err = await fake.complete(request("emit_deck"), opts()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(LlmRefusalError);

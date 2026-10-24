@@ -124,13 +124,13 @@ export const arcOut = (explainers: [string, string] = ["animated-diagram", "simu
     {
       name: "Hook",
       slides: [
-        { point: "An earbud can erase sound.", role: "opener", budgetSec: 60, explainer: explainers[0], technique: "particle-flow", composition: "hero right, title left", interaction: "none", handoff: "the noise wave" },
+        { point: "An earbud can erase sound.", role: "opener", budgetSec: 60, explainer: explainers[0], technique: "particle-flow", composition: "hero right, title left", interaction: "none", handoff: "the noise wave", facts: ["R2", "R8"] },
       ],
     },
     {
       name: "How",
       slides: [
-        { point: "Inverted waves cancel.", role: "mechanism", budgetSec: 90, explainer: explainers[1], technique: "parametric-sim", composition: "full-width wave, slider below", interaction: "slider", handoff: "cut" },
+        { point: "Inverted waves cancel.", role: "mechanism", budgetSec: 90, explainer: explainers[1], technique: "parametric-sim", composition: "full-width wave, slider below", interaction: "slider", handoff: "cut", facts: ["R9", "R10"] },
       ],
     },
   ],

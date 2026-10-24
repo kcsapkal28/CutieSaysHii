@@ -1,13 +1,15 @@
 // Pipeline defaults in one place. Every value can be overridden per call through PipelineContext.
 import { MODELS } from "../llm.ts";
 
-export type AgentName = "stylist" | "researcher" | "outline" | "builder" | "builderEscalation" | "critic";
+export type AgentName = "stylist" | "researcher" | "outline" | "outlineCard" | "builder" | "builderEscalation" | "critic";
 
 export const DEFAULT_MODELS: Record<AgentName, string> = {
   stylist: MODELS.sonnet,
   researcher: MODELS.sonnet,
-  /** Both outline passes (the arc and the per-slide cards): the strongest creative model. */
+  /** The outline's arc (story, variety, technique choice): the strongest creative model. */
   outline: MODELS.opus,
+  /** The outline's per-slide cards: each expands one fixed arc entry into words and visual direction (checked and retried). */
+  outlineCard: MODELS.sonnet,
   /** Drafts and fix rounds. */
   builder: MODELS.sonnet,
   /** One extra fix attempt when the final critique still says "fix" with a high-severity issue. */
@@ -37,4 +39,15 @@ export const BUILD_DEFAULTS = {
 export const OUTLINE_DEFAULTS = {
   /** Slide cards written at once in the outline's second pass. */
   concurrency: 6,
+  /**
+   * What each card call sees. "slim": its own technique entries and the research items the arc pointed it at (about
+   * 7k tokens). "full": the whole technique catalogue and research notes (about 15k tokens, the earlier behaviour).
+   */
+  cardContext: "slim" as "slim" | "full",
+  /** Output cap per card; a compact card is about 1.5k tokens. */
+  cardMaxTokens: 6000,
+  /** Card thinking: "off" answers directly, since the arc already made the creative choices. */
+  cardThinking: "off" as "off" | "model",
+  /** Corrective retries for a card that fails its checks (style limits, missing specs, overlong fields). */
+  cardRetries: 2,
 };

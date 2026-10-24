@@ -1,7 +1,7 @@
 // Probe: where do a builder call's output tokens go (thinking, text, tool input)? Uses a real project's slide.
 //   tsx test/live/probe-thinking.ts <slug> <slideId> [default|between_tools]
 import { builderSchema, builderSystem, builderUser } from "../../src/agents/builder.ts";
-import { exemplarSection, loadExemplars, pickExemplars } from "../../src/agents/exemplars.ts";
+import { loadExemplars, pickExemplars } from "../../src/agents/exemplars.ts";
 import { toJsonSchema } from "../../src/agents/json-schema.ts";
 import { loadLlmEnv, MODELS, sdkTransport } from "../../src/llm.ts";
 import { loadOutline, loadProject, loadScript, loadStoryboard, loadStyle } from "../../src/pipeline/index.ts";
@@ -13,14 +13,13 @@ const sb = loadStoryboard(p);
 const slide = script.slides.find((s) => s.id === id)!;
 const board = sb.slides.find((s) => s.id === id)!;
 const exemplars = pickExemplars(loadExemplars(), board);
-void exemplarSection;
 const user = builderUser({ deckTitle: loadOutline(p).title, style: loadStyle(p), slide, board, deck: sb, index: 1, total: script.slides.length });
 const started = Date.now();
 const res = await sdkTransport(loadLlmEnv())(
   {
     model: MODELS.sonnet,
     max_tokens: 64000,
-    system: `${builderSystem(exemplars)}\n\nRespond only by calling the \`write_slide\` tool, exactly once, with no other text.`,
+    system: `${builderSystem(exemplars, board)}\n\nRespond only by calling the \`write_slide\` tool, exactly once, with no other text.`,
     messages: [{ role: "user", content: user.map((u) => (u.type === "text" ? u : { type: "text", text: "" })) }],
     tools: [{ name: "write_slide", description: "Write the slide fragment.", input_schema: toJsonSchema(builderSchema(id!)) }],
     tool_choice: { type: "auto" },

@@ -47,11 +47,14 @@ export function createProject(input: NewProject): Project {
   return { dir, slug };
 }
 
-export function openProject(dir: string): Project {
-  const abs = resolve(dir);
-  if (!existsSync(join(abs, "brief.json"))) throw new Error(`not a DeckForge project (no brief.json): ${abs}`);
+/** Opens an existing project by directory, or by slug under `<root>/projects/`. */
+export function loadProject(dirOrSlug: string, root?: string): Project {
+  const candidates = [resolve(dirOrSlug), join(root ?? repoRoot(), "projects", dirOrSlug)];
+  const abs = candidates.find((d) => existsSync(join(d, "brief.json")));
+  if (!abs) throw new Error(`not a DeckForge project (no brief.json): ${dirOrSlug}`);
   return { dir: abs, slug: abs.split(/[\\/]/).pop()! };
 }
+export const openProject = loadProject;
 
 export function isStageDone(p: Project, stage: Stage): boolean {
   return existsSync(join(p.dir, STAGE_OUTPUTS[stage][0]!));

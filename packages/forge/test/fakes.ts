@@ -36,7 +36,9 @@ export const PNG = Buffer.from(
 
 export type FakeEngine = Engine & { bundles: { outFile: string; ids: string[] }[]; shoots: string[] };
 
-export function fakeEngine(opts: { steps?: number; errors?: (deckFile: string) => string[] } = {}): FakeEngine {
+export function fakeEngine(
+  opts: { steps?: number; errors?: (deckFile: string) => string[]; bundleError?: (outFile: string) => Error | undefined } = {},
+): FakeEngine {
   const bundles: FakeEngine["bundles"] = [];
   const shoots: string[] = [];
   return {
@@ -44,6 +46,8 @@ export function fakeEngine(opts: { steps?: number; errors?: (deckFile: string) =
     shoots,
     async bundle({ config, slides, outFile }) {
       bundles.push({ outFile, ids: config.slides.map((s) => s.id) });
+      const err = opts.bundleError?.(outFile);
+      if (err) throw err;
       writeFileSync(outFile, `<!doctype html><title>${config.title}</title>\n${Object.values(slides).join("\n")}`);
     },
     async shoot({ deckFile, slideIds }): Promise<ShootResult> {

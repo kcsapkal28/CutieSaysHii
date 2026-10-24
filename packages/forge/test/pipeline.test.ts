@@ -2,17 +2,23 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ContractError } from "../src/check.ts";
+import { MODELS, type WireRequest } from "../src/llm.ts";
 import {
   createProject,
+  listVersions,
+  loadProject,
+  loadScript,
   projectStatus,
+  reviseSlide,
   runAll,
   runStage,
+  saveStageFile,
   StageError,
   type ForgeEvent,
-  type PipelineContext,
+  type PipelineOptions,
   type Project,
 } from "../src/pipeline/index.ts";
-import type { WireRequest } from "../src/llm.ts";
 import {
   fakeEngine,
   fakeLlm,
@@ -30,6 +36,7 @@ import {
 
 const IDS = ["s01", "s02"];
 const slideOf = (req: WireRequest) => /Slide id: (s\d\d)|Slide (s\d\d)\./.exec(JSON.stringify(req.messages[0]))!.slice(1).find(Boolean)!;
+const toolOf = (req: WireRequest) => req.tools?.[0]?.name;
 
 function handlers(over: Record<string, Handler> = {}): Record<string, Handler> {
   return {
@@ -49,7 +56,11 @@ let project: Project;
 let events: ForgeEvent[];
 let llm: FakeLlm;
 let engine: FakeEngine;
-const ctx = (): PipelineContext => ({ llm, engine, onEvent: (e) => events.push(e), exemplars: [] });
+const opts = (): PipelineOptions => ({ llm, engine, onEvent: (e) => events.push(e), exemplars: [] });
+/** Runs the word stages with the default handlers, then swaps in `next` for the build. */
+async function upToStoryboard() {
+  await runAll(project, { auto: true, to: "storyboard", ...opts() });
+}
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "forge-"));
@@ -61,23 +72,25 @@ beforeEach(() => {
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 describe("projects", () => {
-  it("creates projects/<slug>/brief.json and de-duplicates slugs", () => {
+  it("creates projects/<slug>/brief.json, de-duplicates slugs and loads by slug or dir", () => {
     expect(project.slug).toBe("how-active-noise-cancellation-works");
     expect(JSON.parse(readFileSync(join(project.dir, "brief.json"), "utf8"))).toMatchObject({ minutes: 8, prefs: {} });
     expect(createProject({ topic: "How active noise cancellation works", audience: "x", minutes: 5, root }).slug).toBe(
       "how-active-noise-cancellation-works-2",
     );
+    expect(loadProject(project.slug, root)).toEqual(project);
+    expect(loadProject(project.dir)).toEqual(project);
   });
 });
 
 describe("stage ordering and invalidation", () => {
   it("refuses to run a stage before its predecessors", async () => {
-    await expect(runStage(project, "outline", ctx())).rejects.toThrow(StageError);
-    await expect(runStage(project, "outline", ctx())).rejects.toThrow("run style, research first");
+    await expect(runStage(project, "outline", opts())).rejects.toThrow(StageError);
+    await expect(runStage(project, "outline", opts())).rejects.toThrow("run style, research first");
   });
 
   it("runAll runs every stage in order and writes each stage's file", async () => {
-    const { ran, build } = await runAll(project, { auto: true }, ctx());
+    const { ran, build } = await runAll(project, { auto: true, ...opts() });
     expect(ran).toEqual(["style", "research", "outline", "script", "storyboard", "build"]);
     expect(events.filter((e) => e.type === "stage:start").map((e) => (e as { stage: string }).stage)).toEqual(ran);
     expect(Object.values(projectStatus(project)).every(Boolean)).toBe(true);
@@ -92,114 +105,174 @@ describe("stage ordering and invalidation", () => {
   });
 
   it("re-running a stage deletes every later stage's outputs but keeps earlier ones and versions", async () => {
-    await runAll(project, { auto: true }, ctx());
-    await runStage(project, "research", ctx());
+    await runAll(project, { auto: true, ...opts() });
+    await runStage(project, "research", opts());
     expect(projectStatus(project)).toEqual({ style: true, research: true, outline: false, script: false, storyboard: false, build: false });
     expect(existsSync(join(project.dir, "slides"))).toBe(false);
     expect(existsSync(join(project.dir, "versions/1/deck.html"))).toBe(true);
-    const start = events.filter((e) => e.type === "stage:start").at(-1);
-    expect(start).toEqual({ type: "stage:start", stage: "research", invalidated: ["outline", "script", "storyboard", "build"] });
+    expect(events.filter((e) => e.type === "stage:start").at(-1)).toEqual({
+      type: "stage:start",
+      stage: "research",
+      invalidated: ["outline", "script", "storyboard", "build"],
+    });
 
     // runAll resumes from the first stage that isn't done; the next build is version 2.
-    const { ran, build } = await runAll(project, { auto: true }, ctx());
+    const { ran, build } = await runAll(project, { auto: true, ...opts() });
     expect(ran).toEqual(["outline", "script", "storyboard", "build"]);
     expect(build?.version).toBe(2);
   });
 
   it("stops after a stage the approver rejects", async () => {
-    const { ran } = await runAll(project, { auto: false, approve: async (s) => s !== "research" }, ctx());
+    const { ran } = await runAll(project, { auto: false, approve: async (s) => s !== "research", ...opts() });
     expect(ran).toEqual(["style", "research"]);
+  });
+
+  it("saveStageFile validates a user edit and invalidates later stages", async () => {
+    await upToStoryboard();
+    const script = loadScript(project);
+    script.slides[0]!.title = "Edited claim";
+    expect(saveStageFile(project, "script", script)).toEqual({ invalidated: ["storyboard"] });
+    expect(loadScript(project).slides[0]!.title).toBe("Edited claim");
+    expect(projectStatus(project).storyboard).toBe(false);
+    expect(() => saveStageFile(project, "outline", { title: 1 })).toThrow();
   });
 });
 
 describe("build fix loop", () => {
   it("feeds the critic's issues back to the builder and stops on pass", async () => {
+    await upToStoryboard();
+    let s01Reviews = 0;
     llm = fakeLlm(
       handlers({
         write_slide: (req) => ({ html: slideHtml(slideOf(req), `v${llm.calls.write_slide}`), steps: 2, summary: "Built." }),
-        review_slide: (req) => (slideOf(req) === "s01" && llm.requests.filter((r) => r.tools?.[0]?.name === "review_slide" && slideOf(r) === "s01").length === 1 ? review("fix") : review("pass")),
+        review_slide: (req) => (slideOf(req) === "s01" && ++s01Reviews === 1 ? review("fix") : review("pass")),
       }),
     );
-    await runAll(project, { auto: true, to: "storyboard" }, ctx());
-    const summary = await runStage(project, "build", { ...ctx(), concurrency: 1 });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
 
     const s01 = summary!.slides[0]!;
     expect(s01).toMatchObject({ id: "s01", verdict: "pass", bestRound: 2 });
     expect(s01.rounds).toHaveLength(2);
     expect(summary!.slides[1]!.rounds).toHaveLength(1);
 
-    const builderCalls = llm.requests.filter((r) => r.tools?.[0]?.name === "write_slide" && slideOf(r) === "s01");
+    const builderCalls = llm.requests.filter((r) => toolOf(r) === "write_slide" && slideOf(r) === "s01");
     expect(builderCalls).toHaveLength(2);
+    expect(builderCalls.map((r) => r.model)).toEqual([MODELS.sonnet, MODELS.sonnet]);
     const revision = JSON.stringify(builderCalls[1]!.messages[0]);
     expect(revision).toMatch(/This is a revision/);
     expect(revision).toMatch(/\[high\] Title clipped \(where: step 1, top\)\. Fix: Reduce to 64px/);
     expect(builderCalls[1]!.messages[0]!.content.some((c) => c.type === "image")).toBe(true);
+    expect(llm.requests.filter((r) => toolOf(r) === "review_slide").every((r) => r.model === MODELS.opus)).toBe(true);
 
     expect(existsSync(join(project.dir, "shots/s01/r1/step-0.png"))).toBe(true);
     expect(existsSync(join(project.dir, "shots/s01/r2/step-1.png"))).toBe(true);
-    expect(events.filter((e) => e.type === "slide:verdict").map((e) => `${(e as { id: string }).id}:${(e as { verdict: string }).verdict}`)).toEqual(
-      expect.arrayContaining(["s01:fix", "s01:pass", "s02:pass"]),
-    );
+    const verdicts = events.filter((e) => e.type === "slide:verdict").map((e) => `${(e as { id: string }).id}:${(e as { verdict: string }).verdict}`);
+    expect(verdicts).toEqual(expect.arrayContaining(["s01:fix", "s01:pass", "s02:pass"]));
   });
 
-  it("stops after 3 rounds and keeps the best-scoring attempt", async () => {
+  it("after 2 rounds escalates one last fix to Opus on a high-severity issue, stops there, and keeps the best attempt", async () => {
+    await upToStoryboard();
     const scores = [4, 6, 5];
+    let n = 0;
     llm = fakeLlm(
       handlers({
-        write_slide: (req) => ({ html: slideHtml(slideOf(req), `round${llm.calls.write_slide}`), steps: 2, summary: "Built." }),
-        review_slide: (_req, n) => review("fix", scores[n - 1]),
+        write_slide: (req) => ({ html: slideHtml(slideOf(req), `round${++n}`), steps: 2, summary: "Built." }),
+        review_slide: (_req, k) => review("fix", scores[k - 1]),
       }),
     );
-    await runAll(project, { auto: true, to: "storyboard" }, ctx());
-    events = [];
-    const summary = await runStage(project, "build", { ...ctx(), concurrency: 1, llm: llmForOneSlide(llm) });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
 
     const s01 = summary!.slides[0]!;
-    expect(s01.rounds).toHaveLength(3);
+    expect(s01.rounds.map((r) => [r.round, r.model, r.escalated ?? false])).toEqual([
+      [1, MODELS.sonnet, false],
+      [2, MODELS.sonnet, false],
+      [3, MODELS.opus, true],
+    ]);
     expect(s01).toMatchObject({ verdict: "fix", bestRound: 2, score: 6 });
     expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain("round2");
-    expect(llm.calls.review_slide).toBeGreaterThanOrEqual(3);
     expect(readFileSync(join(project.dir, "versions/1/deck.html"), "utf8")).toContain("round2");
+    expect(events).toContainEqual({ type: "slide:escalate", id: "s01", round: 3, model: MODELS.opus });
+  });
+
+  it("does not escalate when the final critique has no high-severity issue", async () => {
+    await upToStoryboard();
+    llm = fakeLlm(
+      handlers({ review_slide: () => ({ ...review("fix", 6), issues: [{ severity: "medium", what: "Legend tight", where: "step 2", fix: "Add gap" }] }) }),
+    );
+    const summary = await runStage(project, "build", { ...opts(), maxRounds: 2 });
+    expect(summary!.slides.map((s) => s.rounds.length)).toEqual([2, 2]);
+    expect(events.some((e) => e.type === "slide:escalate")).toBe(false);
+  });
+
+  it("sends bundle-time contract errors straight back to the builder", async () => {
+    await upToStoryboard();
+    let failed = false;
+    engine = fakeEngine({
+      bundleError: (f) => (f.includes("/s01/r1/") && !failed ? ((failed = true), new ContractError(["s01: selector \".x\" must start with \"#s01\""])) : undefined),
+    });
+    const summary = await runStage(project, "build", opts());
+    expect(summary!.slides[0]!.rounds[0]!.error).toMatch(/slide contract violations/);
+    expect(summary!.slides[0]).toMatchObject({ verdict: "pass", bestRound: 2 });
+    const second = llm.requests.filter((r) => toolOf(r) === "write_slide" && slideOf(r) === "s01")[1]!;
+    const texts = second.messages[0]!.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
+    expect(texts).toContain('- [high] s01: selector ".x" must start with "#s01" (where: slide source)');
   });
 
   it("turns console errors into a fix even when the critic says pass", async () => {
     engine = fakeEngine({ errors: (f) => (f.includes("/r1/") ? ["TypeError: x is undefined"] : []) });
-    await runAll(project, { auto: true }, ctx());
+    await runAll(project, { auto: true, ...opts() });
     const build = JSON.parse(readFileSync(join(project.dir, "build.json"), "utf8"));
     expect(build.slides[0].rounds.map((r: { verdict: string }) => r.verdict)).toEqual(["fix", "pass"]);
   });
 
   it("uses a placeholder when every round fails to build", async () => {
     llm = fakeLlm(handlers({ write_slide: () => ({ html: "<div>nope</div>".repeat(30), steps: 1, summary: "x" }) }));
-    const summary = (await runAll(project, { auto: true }, ctx())).build!;
+    const summary = (await runAll(project, { auto: true, ...opts() })).build!;
     expect(summary.slides[0]).toMatchObject({ verdict: "failed", score: 0 });
+    expect(summary.slides[0]!.rounds).toHaveLength(2);
     expect(summary.slides[0]!.rounds.every((r) => r.error)).toBe(true);
     expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain('class="df-slide" id="s01"');
   });
 });
 
+describe("reviseSlide and versions", () => {
+  it("rebuilds one slide from an instruction, re-runs the critique and saves a new version", async () => {
+    await runAll(project, { auto: true, ...opts() });
+    llm = fakeLlm(handlers({ write_slide: (req) => ({ html: slideHtml(slideOf(req), "bigger"), steps: 2, summary: "Revised." }) }));
+    const result = await reviseSlide(project, "s02", "Make the earbud twice as big", opts());
+
+    expect(result).toMatchObject({ version: 2, build: { verdict: "pass" } });
+    const req = llm.requests.find((r) => toolOf(r) === "write_slide")!;
+    expect(slideOf(req)).toBe("s02");
+    expect(JSON.stringify(req.messages[0])).toMatch(/presenter asked for this change.*Make the earbud twice as big/);
+    expect(JSON.stringify(req.messages[0])).toMatch(/Current version:/);
+    expect(JSON.stringify(llm.requests.find((r) => toolOf(r) === "review_slide")!.messages[0])).toMatch(/Make the earbud twice as big/);
+    expect(readFileSync(join(project.dir, "slides/s02.html"), "utf8")).toContain("bigger");
+    expect(existsSync(join(project.dir, "shots/s02/rev1/r1/step-0.png"))).toBe(true);
+
+    const versions = listVersions(project);
+    expect(versions.map((v) => [v.version, v.kind, v.slideId])).toEqual([
+      [1, "build", undefined],
+      [2, "revise", "s02"],
+    ]);
+    expect(readFileSync(versions[1]!.file, "utf8")).toContain("bigger");
+    expect(JSON.parse(readFileSync(join(project.dir, "build.json"), "utf8")).version).toBe(2);
+  });
+
+  it("refuses to revise before a build", async () => {
+    await expect(reviseSlide(project, "s01", "x", opts())).rejects.toThrow(/run the build stage first/);
+  });
+});
+
 describe("storyboard respects the style", () => {
   it("sends a 3D slide back when 3D is off", async () => {
-    // The retry switches to simulations (which need a simulation spec).
     const sb = storyboardOut(IDS, "simulation");
     for (const s of sb.slides) Object.assign(s, { simulation: { model: "phase sum", controls: ["phase"], readouts: ["residual dB"] } });
     llm = fakeLlm(
       handlers({ recommend_style: () => ({ ...styleOut(), use3d: false }), write_storyboard: (_req, n) => (n === 1 ? storyboardOut(IDS, "3d-object") : sb) }),
     );
-    await runAll(project, { auto: true, to: "storyboard" }, ctx());
+    await upToStoryboard();
     expect(llm.calls.write_storyboard).toBe(2);
     expect(JSON.stringify(llm.requests.at(-1)!.messages.at(-1))).toMatch(/s01: 3D is off for this deck/);
   });
 });
-
-/** Only s01 goes through the scripted critic sequence; s02 always passes, so call counts stay predictable. */
-function llmForOneSlide(inner: FakeLlm): FakeLlm {
-  const passer = fakeLlm(handlers());
-  return Object.assign(
-    {
-      callTool: ((opts) => (opts.label.endsWith("s02") ? passer.callTool(opts) : inner.callTool(opts))) as FakeLlm["callTool"],
-      callText: inner.callText,
-    },
-    { requests: inner.requests, calls: inner.calls },
-  );
-}

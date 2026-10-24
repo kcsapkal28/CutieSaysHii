@@ -11,6 +11,8 @@ export type CriticInput = {
   /** Steps the slide reported (from the shooter). */
   steps: number;
   errors: string[];
+  /** A presenter's change request this version was built for; it outranks the storyboard. */
+  instruction?: string;
 };
 
 export async function runCritic(llm: Llm, input: CriticInput, opts: { model?: string } = {}): Promise<CriticReport> {
@@ -21,6 +23,7 @@ export async function runCritic(llm: Llm, input: CriticInput, opts: { model?: st
       text: [
         `Slide ${slide.id}. Title: "${slide.title}".`,
         `Storyboard intent:\n${JSON.stringify(board, null, 2)}`,
+        ...(input.instruction ? [`The presenter then asked for this change, which outranks the storyboard: ${input.instruction}`] : []),
         `On-slide copy:\n${JSON.stringify({ kicker: slide.kicker, subtitle: slide.subtitle, callouts: slide.callouts }, null, 2)}`,
         `The slide reports ${input.steps} step(s); the storyboard planned ${board.steps.length}.`,
         `Console and page errors:\n${errors.length ? errors.map((e) => `- ${e}`).join("\n") : "- (none)"}`,

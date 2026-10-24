@@ -1,5 +1,6 @@
 // Look presets and palette rows for the Style Studio. Client-safe.
 import type { Style, Theme } from "@deckforge/forge";
+import { resolveSurface, SURFACE_DEFAULT } from "@deckforge/forge/design-styles";
 
 export type Colors = Theme["colors"];
 export const COLOR_KEYS = ["bg", "surface", "text", "muted", "line", "accent", "accent2", "accent3"] as const;
@@ -75,10 +76,21 @@ export interface Look {
   style: Style;
 }
 
-function look(id: string, name: string, blurb: string, paletteId: string, rest: Omit<Style, "look" | "theme"> & { fonts: Theme["fonts"] }): Look {
+function look(
+  id: string,
+  name: string,
+  blurb: string,
+  paletteId: string,
+  rest: Omit<Style, "look" | "theme" | "designStyle" | "surface"> & { fonts: Theme["fonts"] },
+): Look {
   const p = palette(paletteId);
   const { fonts, ...style } = rest;
-  return { id, name, blurb, style: { look: id, theme: { colors: { ...p.colors }, fonts, backdrop: p.backdrop }, ...style } };
+  return {
+    id,
+    name,
+    blurb,
+    style: { look: id, designStyle: "", theme: { colors: { ...p.colors }, fonts, backdrop: p.backdrop }, ...style, surface: { ...SURFACE_DEFAULT } },
+  };
 }
 
 const NO_FEATURES = { timer: false, notes: false, stepNav: false, print: false };
@@ -120,8 +132,10 @@ export const LOOKS: Look[] = [
 
 export const DEFAULT_STYLE: Style = LOOKS[0]!.style;
 
+/** A deep copy, with the fields older style.json files lack filled in. */
 export function cloneStyle(s: Style): Style {
-  return JSON.parse(JSON.stringify(s)) as Style;
+  const c = JSON.parse(JSON.stringify(s)) as Style;
+  return { ...c, designStyle: c.designStyle ?? "", surface: resolveSurface(c.surface) };
 }
 
 /** Which palette row matches the current colours, if any. */

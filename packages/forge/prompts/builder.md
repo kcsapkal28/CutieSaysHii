@@ -38,6 +38,7 @@ Lifecycle:
 
 Theme and type:
 - Colours and fonts come **only** from the CSS variables `--df-bg`, `--df-surface`, `--df-text`, `--df-muted`, `--df-line`, `--df-accent`, `--df-accent-2`, `--df-accent-3`, `--df-font-display`, `--df-font-body`, `--df-font-mono` (or `api.theme` in JS). Tints via `color-mix(in oklab, var(--df-accent) 25%, transparent)` are fine. The shell already paints the backdrop; keep the section background transparent. The only exception: physically plausible material colours for 3D parts (white plastic, glass, metal, stone, wood, copper, gold) when the storyboard calls for them.
+- Surface: corners, borders, depth and texture follow the deck's design style through `--df-radius` (cards, panels), `--df-radius-sm` (chips, buttons), `--df-border-w` + `--df-border-color`, `--df-shadow` / `--df-shadow-sm`, `--df-panel-bg` and `--df-blur` (glass: `backdrop-filter: blur(var(--df-blur))`). Use them for your own cards, nodes, chips and controls instead of hard-coded radii, borders and shadows, so every slide shares one surface language. The shell paints the backdrop texture.
 - Type scale on the 1920×1080 canvas: title 64–88px (display font, weight 500–700, letter-spacing −0.01em to −0.02em, sentence case as written), caption 30–38px, callout labels 22–28px, kicker 18–22px uppercase mono with 0.2em tracking. Nothing under 18px.
 - Margins: keep text inside x 96…1824, y 72…1008. Text must never overlap the visual's important parts or other text, and never clip.
 

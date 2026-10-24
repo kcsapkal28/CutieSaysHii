@@ -119,7 +119,7 @@ export async function bundleHtml(input: { config: DeckConfig; slides: Record<str
 <meta name="generator" content="DeckForge">
 <title>${escHtml(config.title)}</title>
 <style id="df-fonts">${fonts}</style>
-<style id="df-theme">${themeCss(theme)}</style>
+<style id="df-theme">${themeCss(theme, config.style.surface)}</style>
 <style id="df-shell">${css}</style>
 ${ordered.map((p) => (p.styles.length ? `<style data-df-slide="${p.id}">\n${p.styles.join("\n")}\n</style>` : "")).filter(Boolean).join("\n")}
 </head>

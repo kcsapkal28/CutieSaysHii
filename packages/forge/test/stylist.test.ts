@@ -59,4 +59,19 @@ describe("stylist", () => {
     expect(llm.calls.recommend_style).toBe(2);
     expect(JSON.stringify(llm.requests[1]!.messages.at(-1))).toMatch(/fonts\.display/);
   });
+
+  it("picks a design style from the catalogue and its surface", async () => {
+    const llm = fakeLlm({ recommend_style: () => styleOut() });
+    const { style } = await runStylist(llm, brief());
+    expect(style.designStyle).toBe("dark-cinematic");
+    expect(style.surface).toEqual({ radius: "soft", border: "hairline", depth: "soft", texture: "grain" });
+    expect(JSON.stringify(llm.requests[0]!.system)).toMatch(/`neo-brutalism`: Neo-brutalism/);
+  });
+
+  it("maps designStyle none to no design style, and rejects ids outside the catalogue", async () => {
+    const llm = fakeLlm({ recommend_style: (_req, n) => ({ ...styleOut(), designStyle: n === 1 ? "made-up" : "none" }) });
+    const { style } = await runStylist(llm, brief());
+    expect(llm.calls.recommend_style).toBe(2);
+    expect(style.designStyle).toBe("");
+  });
 });

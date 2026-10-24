@@ -50,6 +50,7 @@ The deck can be about anything: a technology, a scientific process, a historical
   - `interactivity: 0` → interaction kind `none` on every slide (steps only); `1` → click, hover or toggle at most; `2` → sliders, drags and full simulations are welcome, and at least a third of the slides should let the viewer change something.
   - `motion: "none"` → every step is a still state with no continuous animation; `"subtle"` → gentle easing and slow ambient motion; `"rich"` → particles, flows and choreographed camera moves.
   - `density`: airy means fewer labels and more space.
+  - The **design style** (when one is given) is the deck's visual language: let its shapes, borders, depth, type character and motion character shape your layouts, motifs and beats. The subject still decides *what* each slide shows; the design style decides how it is drawn.
 - Every slide needs a `reducedMotion` plan: the still frame that tells the same story.
 
 Write `why` honestly: if you can't say why this visual beats the alternatives, pick a better visual.

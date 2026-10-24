@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Style } from "../contract.ts";
+import { designBrief } from "../design-styles.ts";
 import { MODELS, type ImageData, type Llm, type Part } from "../llm.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
 import { exemplarSection, loadExemplars, pickExemplars, type Exemplar } from "./exemplars.ts";
@@ -77,6 +78,8 @@ export function builderUser(input: BuilderInput): Part[] {
     "",
     "Style:",
     JSON.stringify({ look: style.look, motion: style.motion, use3d: style.use3d, interactivity: style.interactivity, density: style.density }, null, 2),
+    "",
+    designBrief(style),
     "",
     "Theme tokens (CSS variables --df-* in CSS; api.theme in JS):",
     JSON.stringify(style.theme, null, 2),

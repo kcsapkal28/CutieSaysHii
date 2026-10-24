@@ -1,11 +1,13 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { applyDesignStyle, designStyle, isCustomised } from "@deckforge/forge/design-styles";
 import { api } from "@/lib/client/api";
 import { contrast, grade, isHex } from "@/lib/color";
 import { cloneStyle, COLOR_KEYS, COLOR_LABEL, DEFAULT_STYLE, LOOKS, matchPalette, PALETTES, type Colors } from "@/lib/looks";
 import { themeVarsCss, type FontOption } from "@/lib/theme-vars";
 import type { Style } from "@/lib/types";
+import { DesignStylePicker } from "./design-styles";
 import { FontPicker } from "./font-picker";
 import { IconChevron, IconSpark, IconX } from "./icons";
 import { useProject } from "./project-shell";
@@ -17,6 +19,47 @@ const FEATURES: { key: keyof Style["features"]; label: string; body: string }[] 
   { key: "notes", label: "Speaker notes", body: "Press N for notes; opens a presenter window." },
   { key: "stepNav", label: "Step navigation", body: "Section tabs and segmented progress in a dock." },
   { key: "print", label: "Print / PDF", body: "One page per slide when printed." },
+];
+
+const SURFACE_ROWS: { key: keyof Style["surface"]; label: string; options: { value: string; label: string; hint?: string }[] }[] = [
+  {
+    key: "radius",
+    label: "Corners",
+    options: [
+      { value: "sharp", label: "Sharp" },
+      { value: "soft", label: "Soft" },
+      { value: "round", label: "Round", hint: "Pill chips and buttons" },
+    ],
+  },
+  {
+    key: "border",
+    label: "Borders",
+    options: [
+      { value: "none", label: "None" },
+      { value: "hairline", label: "Hairline" },
+      { value: "bold", label: "Bold", hint: "3px, in the text colour" },
+    ],
+  },
+  {
+    key: "depth",
+    label: "Depth",
+    options: [
+      { value: "flat", label: "Flat" },
+      { value: "soft", label: "Soft", hint: "Blurred shadows" },
+      { value: "hard", label: "Hard", hint: "Offset shadows, no blur" },
+      { value: "glass", label: "Glass", hint: "Frosted, translucent panels" },
+    ],
+  },
+  {
+    key: "texture",
+    label: "Texture",
+    options: [
+      { value: "none", label: "None" },
+      { value: "grain", label: "Grain" },
+      { value: "grid", label: "Grid" },
+      { value: "halftone", label: "Halftone" },
+    ],
+  },
 ];
 
 function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
@@ -78,7 +121,7 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
   const { project, refresh } = useProject();
   const router = useRouter();
   const [style, setStyle] = useState<Style>(() => cloneStyle(initial ?? DEFAULT_STYLE));
-  const [savedJson, setSavedJson] = useState(() => (initial ? JSON.stringify(initial) : ""));
+  const [savedJson, setSavedJson] = useState(() => (initial ? JSON.stringify(cloneStyle(initial)) : ""));
   const [slide, setSlide] = useState<0 | 1>(0);
   const [ready, setReady] = useState(false);
   const [recommending, setRecommending] = useState(false);
@@ -90,6 +133,7 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
 
   const dirty = JSON.stringify(style) !== savedJson;
   const paletteId = matchPalette(style.theme.colors);
+  const design = designStyle(style.designStyle);
   const sansSerif = useMemo(() => fonts.filter((f) => f.category !== "monospace"), [fonts]);
   const mono = useMemo(() => fonts.filter((f) => f.category === "monospace"), [fonts]);
   const featureKey = FEATURES.filter((f) => style.features[f.key])
@@ -105,7 +149,7 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
   const push = useCallback(() => {
     const w = frame.current?.contentWindow;
     if (!w) return;
-    w.postMessage({ type: "df-preview", css: themeVarsCss(style.theme, fonts), style }, "*");
+    w.postMessage({ type: "df-preview", css: themeVarsCss(style.theme, fonts, style.surface), style }, "*");
     w.postMessage({ type: "df-goto", index: slide }, "*");
   }, [style, fonts, slide]);
 
@@ -134,6 +178,11 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
     const l = LOOKS.find((x) => x.id === id);
     if (!l) return;
     setStyle((s) => ({ ...cloneStyle(l.style), features: { ...s.features } }));
+  };
+
+  const applyDesign = (id: string) => {
+    const d = designStyle(id);
+    if (d) setStyle((s) => applyDesignStyle(cloneStyle(s), d));
   };
 
   async function recommend() {
@@ -256,6 +305,15 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
             </div>
           </Section>
 
+          <Section title="Design styles">
+            <DesignStylePicker
+              value={style.designStyle}
+              customised={isCustomised(style)}
+              onPick={applyDesign}
+              onClear={() => update((s) => void (s.designStyle = ""))}
+            />
+          </Section>
+
           <Section
             title="Palette"
             aside={
@@ -321,9 +379,25 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
 
           <Section title="Type">
             <div className="grid gap-3">
-              <FontPicker label="Display" sample="Ag" value={style.theme.fonts.display} options={sansSerif} onChange={(id) => update((s) => void (s.theme.fonts.display = id))} />
+              <FontPicker label="Display" sample="Ag" value={style.theme.fonts.display} options={fonts} onChange={(id) => update((s) => void (s.theme.fonts.display = id))} />
               <FontPicker label="Body" sample="Ag" value={style.theme.fonts.body} options={sansSerif} onChange={(id) => update((s) => void (s.theme.fonts.body = id))} />
               <FontPicker label="Mono" sample="0x" value={style.theme.fonts.mono} options={mono} onChange={(id) => update((s) => void (s.theme.fonts.mono = id))} />
+            </div>
+          </Section>
+
+          <Section title="Surface">
+            <div className="grid gap-4">
+              {SURFACE_ROWS.map((r) => (
+                <div key={r.key}>
+                  <span className="label mb-1.5">{r.label}</span>
+                  <Segmented
+                    label={r.label}
+                    value={style.surface[r.key]}
+                    onChange={(v) => update((s) => void ((s.surface as Record<string, string>)[r.key] = v))}
+                    options={r.options}
+                  />
+                </div>
+              ))}
             </div>
           </Section>
 
@@ -437,7 +511,7 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
           </div>
           <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center">
             <span className="flex items-center gap-2 rounded-full border border-line bg-panel/90 px-3 py-1 text-[11.5px] text-dim backdrop-blur">
-              {LOOKS.find((l) => l.id === style.look)?.name ?? "Custom"} · {fonts.find((f) => f.id === style.theme.fonts.display)?.family} ·{" "}
+              {design?.name ?? LOOKS.find((l) => l.id === style.look)?.name ?? "Custom"} · {fonts.find((f) => f.id === style.theme.fonts.display)?.family} ·{" "}
               {style.motion} motion{style.use3d ? " · 3D" : ""}
             </span>
           </div>

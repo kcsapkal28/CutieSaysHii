@@ -1,7 +1,8 @@
 // Client-side mirror of the engine's themeCss(): lets the Style Studio restyle the preview iframe instantly
 // without a round trip. The font list (ids, families, categories) comes from the server, which reads it from
 // the engine's FONT_IDS / fontMeta.
-import type { Theme } from "@deckforge/forge";
+import type { Surface, Theme } from "@deckforge/forge";
+import { surfaceDecls } from "@deckforge/forge/design-styles";
 
 export interface FontOption {
   id: string;
@@ -34,8 +35,8 @@ const VAR: Record<keyof Theme["colors"], string> = {
 
 const UNSAFE = /[<>{};]|\/\*|url\s*\(|@import|expression\s*\(|\\/i;
 
-/** The `:root{--df-*}` block for a theme, same output shape as the engine's themeCss. */
-export function themeVarsCss(theme: Theme, fonts: FontOption[]): string {
+/** The `:root{--df-*}` block for a theme and surface, same output shape as the engine's themeCss. */
+export function themeVarsCss(theme: Theme, fonts: FontOption[], surface?: Partial<Surface>): string {
   const decls: string[] = [];
   for (const [k, name] of Object.entries(VAR)) {
     const v = theme.colors[k as keyof Theme["colors"]];
@@ -46,5 +47,6 @@ export function themeVarsCss(theme: Theme, fonts: FontOption[]): string {
   decls.push(`--df-font-mono:${fontStackOf(fonts, theme.fonts.mono)}`);
   const backdrop = theme.backdrop && !UNSAFE.test(theme.backdrop) ? theme.backdrop : "var(--df-bg)";
   decls.push(`--df-backdrop:${backdrop}`);
+  decls.push(...surfaceDecls(surface));
   return `:root{${decls.join(";")}}`;
 }

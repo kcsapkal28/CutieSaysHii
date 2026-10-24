@@ -4,13 +4,27 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
 import { CANVAS, type Finding, type ShootResult, type Shot } from "./contract.ts";
-import { measureStep, slideFindings, type StepMeasure } from "./measure.ts";
+import { canvasMemo, measureStep, slideFindings, type StepMeasure } from "./measure.ts";
 
-const READY_TIMEOUT_MS = 30_000;
+/** Loading the page, running the slide factory and settling step 1 (first-render shader compiles included). */
+const READY_TIMEOUT_MS = 20_000;
+/** Moving to one step and screenshotting it. The shell settles a step in about a second, however heavy its frames. */
+const STEP_TIMEOUT_MS = 8_000;
+/** All of one slide's steps; the steps left when it runs out are reported, the shots taken are kept. */
+const SLIDE_BUDGET_MS = 60_000;
 const MAX_STEPS = 24;
 const LOCAL = /^(file|data|about|blob):/i;
 
-export const CHROMIUM_ARGS = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist", "--enable-webgl"];
+// WebGL runs on SwiftShader; page raster and 2D canvases stay on the CPU, where pages raster in parallel instead of
+// queueing behind each other's 3D on the one software GPU thread (shots of concurrent decks were several times slower).
+export const CHROMIUM_ARGS = [
+  "--use-angle=swiftshader",
+  "--enable-unsafe-swiftshader",
+  "--ignore-gpu-blocklist",
+  "--enable-webgl",
+  "--disable-gpu-rasterization",
+  "--disable-accelerated-2d-canvas",
+];
 
 /** Slide ids in deck order, read from the deck's embedded `df-config`. */
 export function deckSlideIds(deckFile: string): string[] {
@@ -40,7 +54,8 @@ async function shootSlide(
 ): Promise<{ shots: Shot[]; steps: number; findings: Finding[] }> {
   const shots: Shot[] = [];
   const measured: StepMeasure[] = [];
-  const alive = new Set<string>();
+  const memo = canvasMemo();
+  const start = Date.now();
   await page.goto(`${url}?df-shot=${encodeURIComponent(id)}&step=0`, { waitUntil: "load" });
   const ok = await withTimeout(
     page.evaluate(() => (window.__dfReady ? window.__dfReady.then(() => true) : false)),
@@ -53,17 +68,23 @@ async function shootSlide(
   }
   const steps = Math.min(MAX_STEPS, (await page.evaluate(() => window.__dfSteps ?? 1)) || 1);
   for (let step = 0; step < steps; step++) {
-    if (step > 0) {
-      await withTimeout(
-        page.evaluate((n) => window.__dfGoto!(n), step),
-        READY_TIMEOUT_MS,
-        `${id} step ${step}`,
-      );
+    const kept = step ? ` (the shots of steps 1–${step} are kept)` : "";
+    if (Date.now() - start > SLIDE_BUDGET_MS) {
+      push(id, `shoot stopped: ${id} used up its ${SLIDE_BUDGET_MS / 1000} s budget before step ${step + 1} of ${steps}${kept}`);
+      break;
     }
-    const png = await page.screenshot({ type: "png" });
+    let png: Buffer;
+    try {
+      if (step > 0) await withTimeout(page.evaluate((n) => window.__dfGoto!(n), step), STEP_TIMEOUT_MS, `${id} step ${step + 1} of ${steps} to settle`);
+      png = await page.screenshot({ type: "png", timeout: STEP_TIMEOUT_MS });
+    } catch (e) {
+      // A step that can't settle leaves the page mid-step: later steps would be shot from the wrong state, so stop.
+      push(id, `shoot failed at step ${step + 1} of ${steps}: ${(e as Error).message}${kept}`);
+      break;
+    }
     shots.push({ slideId: id, step, png });
     // The pre-check is advisory plumbing: if measuring itself fails, the slide is judged without it.
-    if (measure) measured.push(await measureStep(page, id, step, png, alive).catch(() => ({ step, findings: [], canvases: [] })));
+    if (measure) measured.push(await measureStep(page, id, step, png, memo, step === steps - 1).catch(() => ({ step, findings: [], canvases: [] })));
   }
   return { shots, steps, findings: measure ? slideFindings(id, measured, shots.map((s) => s.png)) : [] };
 }

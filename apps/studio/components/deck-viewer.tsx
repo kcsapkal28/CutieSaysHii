@@ -228,7 +228,7 @@ export function DeckViewer() {
                       aria-label={side === 0 ? "Left version" : "Right version"}
                       value={v}
                       onChange={(e) => setCompare((c) => (c ? (side === 0 ? [Number(e.target.value), c[1]] : [c[0], Number(e.target.value)]) : c))}
-                      className="field h-7 w-[68px] px-2 font-mono text-[12px]"
+                      className="field h-7 w-[72px] px-2 py-0 font-mono text-[12px]"
                     >
                       {versions.map((x) => (
                         <option key={x.version} value={x.version}>
@@ -335,7 +335,7 @@ export function DeckViewer() {
               <label htmlFor="slide-pick" className="label">
                 Editing slide
               </label>
-              <select id="slide-pick" value={slide} onChange={(e) => goto(e.target.value)} className="field mt-1.5 h-8 px-2 text-[13px]">
+              <select id="slide-pick" value={slide} onChange={(e) => goto(e.target.value)} className="field mt-1.5 h-8 px-2 py-0 text-[13px]">
                 {slideIds.map((id) => (
                   <option key={id} value={id}>
                     {id} · {titleOf(id)}

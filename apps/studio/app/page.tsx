@@ -15,8 +15,10 @@ function stepLabel(p: ProjectSummary): { text: string; tone: string } {
   if (review) return { text: `${review[0]!.toUpperCase()}${review.slice(1)} needs review`, tone: "text-review" };
   const running = STAGES.find((s) => p.stages[s] === "running");
   if (running) return { text: `${running[0]!.toUpperCase()}${running.slice(1)} running`, tone: "text-ember" };
+  if (p.stages.research === "error" || STAGES.some((s) => p.stages[s] === "error")) return { text: "A stage failed", tone: "text-bad" };
   if (!p.hasStyle) return { text: "Pick a style", tone: "text-sub" };
-  return { text: "Ready for research", tone: "text-sub" };
+  const next = STAGES.find((s) => p.stages[s] !== "approved");
+  return { text: next === "build" ? "Ready to build" : `Ready for ${next ?? "refining"}`, tone: "text-sub" };
 }
 
 function ago(iso: string): string {

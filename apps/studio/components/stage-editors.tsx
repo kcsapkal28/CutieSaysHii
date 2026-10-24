@@ -124,7 +124,7 @@ export function ScriptEditor({ value, editing, onChange, targetMinutes }: { valu
               <Field editing={editing} label={`${s.id} title`} value={s.title} onChange={(v) => set(i, (x) => void (x.title = v))} className="flex-1 text-[14.5px] font-medium text-fg" />
               {editing ? (
                 <label className="flex items-center gap-1.5 text-[12px] text-dim">
-                  <input aria-label={`${s.id} seconds`} type="number" min={10} step={10} value={s.budgetSec} onChange={(e) => set(i, (x) => void (x.budgetSec = Math.max(10, Number(e.target.value) || 10)))} className="field h-7 w-[72px] px-2 font-mono text-[12px]" />
+                  <input aria-label={`${s.id} seconds`} type="number" min={10} step={10} value={s.budgetSec} onChange={(e) => set(i, (x) => void (x.budgetSec = Math.max(10, Number(e.target.value) || 10)))} className="field h-7 w-[72px] px-2 py-0 font-mono text-[12px]" />
                   sec
                 </label>
               ) : (
@@ -168,7 +168,7 @@ export function StoryboardEditor({ value, editing, onChange, titles }: { value: 
             <SlideId id={s.id} />
             <span className="flex-1 truncate text-[14px] font-medium text-fg">{titles[s.id] ?? s.id}</span>
             {editing ? (
-              <select aria-label={`${s.id} visual type`} value={s.visual} onChange={(e) => set(i, (x) => void (x.visual = e.target.value as typeof x.visual))} className="field h-7 w-auto px-2 text-[12px]">
+              <select aria-label={`${s.id} visual type`} value={s.visual} onChange={(e) => set(i, (x) => void (x.visual = e.target.value as typeof x.visual))} className="field h-7 w-auto px-2 py-0 text-[12px]">
                 {VISUAL_TYPES.map((v) => (
                   <option key={v} value={v}>
                     {VISUAL_LABEL[v]}

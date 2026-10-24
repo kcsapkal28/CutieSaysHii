@@ -135,12 +135,12 @@ export function StageView({ stage }: { stage: DocStage }) {
       </div>
     ) : (
       <EmptyState
-        title={`${STAGE_LABEL[stage]} hasn’t run yet`}
-        body={STAGE_BLURB[stage]}
-        icon={<IconPlay />}
+        title={st.status === "error" ? `${STAGE_LABEL[stage]} didn’t finish` : `${STAGE_LABEL[stage]} hasn’t run yet`}
+        body={st.status === "error" ? "Nothing was saved from the failed run. Fix the cause above, then run it again." : STAGE_BLURB[stage]}
+        icon={st.status === "error" ? <IconRefresh /> : <IconPlay />}
         action={
           <Button variant="primary" size="lg" onClick={() => void run.start()}>
-            <IconPlay size={14} /> Run {STAGE_LABEL[stage].toLowerCase()}
+            {st.status === "error" ? <IconRefresh size={14} /> : <IconPlay size={14} />} {st.status === "error" ? "Run again" : `Run ${STAGE_LABEL[stage].toLowerCase()}`}
           </Button>
         }
       />
@@ -217,7 +217,7 @@ export function StageView({ stage }: { stage: DocStage }) {
                 <ErrorNote
                   message={actionError ?? run.error!}
                   action={
-                    run.error && !run.running ? (
+                    run.error && !run.running && saved ? (
                       <Button size="sm" variant="secondary" onClick={() => void run.start()}>
                         <IconRefresh size={13} /> Re-run
                       </Button>

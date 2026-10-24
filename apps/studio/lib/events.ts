@@ -1,8 +1,8 @@
 // The event stream a pipeline run emits, as the Studio consumes it (over SSE, one JSON object per `data:` line).
 //
-// `packages/forge/src/pipeline/events.ts` did not exist when this was written, so this union is the Studio's
-// proposal. It is deliberately flat and serialisable. At merge time, map the pipeline's real union onto this one
-// in the backend adapter (or replace this file with a re-export if the shapes match).
+// The pipeline's own union (`ForgeEvent`, packages/forge/src/pipeline/events.ts on feat/v2-agents) is lower-level:
+// per-call usage, round phases incl. bundle, critic scores without issue text. lib/pipeline-adapter.ts maps it onto
+// this union, which is what the UI renders. Keep this one flat and serialisable.
 import type { StageName, Usage, Verdict } from "./types";
 
 export type PipelineEvent =

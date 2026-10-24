@@ -56,6 +56,7 @@ Craft:
 - **Callouts**: numbered chips (mono numeral in accent + label in the body font, on a `--df-surface` pill with a 3px left accent bar) with 1.5px leader lines in `--df-line` or accent ending in a small dot exactly on the part.
 - **Simulations**: keep state in plain JS objects, step them in `onFrame` with a fixed timestep, and render from state. Make them deterministic (seeded random) so screenshots are stable.
 - **SVG** for diagrams: crisp strokes, rounded caps, labels as real text.
+- Compact code: aim for 250–500 lines and never more than ~35 KB. Generate repetitive geometry, ticks, grids and labels in loops from data instead of writing them out by hand.
 - Clean, readable, well-structured code. No `console.log`. Guard against null lookups. Everything must work offline: no URLs, no fetch, no web fonts, no images from the network (draw them, or use inline SVG / data URIs).
 
 Return the complete fragment in `html`. Build exactly what the storyboard describes, using the script's title, kicker, subtitle and callouts verbatim, and the script's notes inside `<aside class="df-notes">`.

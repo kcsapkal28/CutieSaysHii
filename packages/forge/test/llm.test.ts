@@ -100,6 +100,17 @@ describe("transport errors", () => {
   });
 });
 
+describe("hung calls", () => {
+  it("retries a timed-out call only once, then fails fast", async () => {
+    const transport = vi.fn((_req: WireRequest, { signal }: { signal: AbortSignal }) =>
+      new Promise<WireResponse>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason))),
+    );
+    const llm = createLlm({ transport, sleep: async () => {} });
+    await expect(llm.callText({ label: "t", model: "m", system: "s", user: "u", timeoutMs: 10 })).rejects.toThrow(/timed out after 10ms after 2 attempts/);
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("toJsonSchema", () => {
   it("converts optional fields, enums, literal unions, arrays and refinements", () => {
     const s = z.object({

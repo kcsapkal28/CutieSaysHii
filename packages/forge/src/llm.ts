@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import Anthropic, { APIConnectionError, APIError, APIUserAbortError } from "@anthropic-ai/sdk";
+import Anthropic, { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from "@anthropic-ai/sdk";
 import type { z } from "zod";
 import { toJsonSchema } from "./agents/json-schema.ts";
 
@@ -120,7 +120,8 @@ export function loadLlmEnv(env: NodeJS.ProcessEnv = process.env, start = dirname
 
 export function sdkTransport({ baseUrl, apiKey }: LlmEnv): Transport {
   // SDK 1.x sends the key as `Authorization: Bearer`, which the proxy expects; retries are ours, so the SDK's are off.
-  const client = new Anthropic({ baseURL: baseUrl, apiKey, maxRetries: 0, timeout: DEFAULT_TIMEOUT_MS });
+  // The SDK's own timeout is a backstop; each call's timeoutMs (an abort signal) is what governs.
+  const client = new Anthropic({ baseURL: baseUrl, apiKey, maxRetries: 0, timeout: 30 * 60_000 });
   return async (req, { signal }) => {
     // Streaming avoids the SDK's non-streaming guard on large max_tokens (builder output).
     const stream = client.messages.stream(req as Anthropic.MessageStreamParams, { signal });
@@ -146,6 +147,7 @@ export function createLlm(o: LlmOptions): Llm {
 
   /** One request with transport-level retries (429/529/overloaded/5xx) and a per-attempt timeout. */
   async function send(req: WireRequest, c: CallBase): Promise<{ res: WireResponse; attempts: number }> {
+    let timeouts = 0;
     for (let attempt = 1; ; attempt++) {
       const timeout = AbortSignal.timeout(c.timeoutMs ?? DEFAULT_TIMEOUT_MS);
       const signal = c.signal ? AbortSignal.any([c.signal, timeout]) : timeout;
@@ -154,8 +156,10 @@ export function createLlm(o: LlmOptions): Llm {
       } catch (e) {
         if (c.signal?.aborted) throw new LlmError(`${c.label}: cancelled`, { cause: e });
         if (isConnectionRefused(e)) throw new LlmError(`proxy not running on ${baseUrl}`, { cause: e });
-        const timedOut = timeout.aborted;
-        const retryable = timedOut || isRetryable(e);
+        const timedOut = timeout.aborted || e instanceof APIConnectionTimeoutError;
+        if (timedOut) timeouts++;
+        // A hung call is retried once: a second timeout means the proxy or upstream is stuck, so fail fast.
+        const retryable = timedOut ? timeouts < 2 : isRetryable(e);
         if (!retryable || attempt > maxRetries) {
           const why = timedOut ? `timed out after ${c.timeoutMs ?? DEFAULT_TIMEOUT_MS}ms` : describe(e);
           throw new LlmError(`${c.label} (${c.model}): ${why}${attempt > 1 ? ` after ${attempt} attempts` : ""}`, { cause: e });

@@ -1,0 +1,162 @@
+<section class="df-slide" id="s01">
+  <div class="rings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="stage3d"></div>
+  <div class="copy">
+    <p class="df-eyebrow kicker">Active noise cancellation</p>
+    <h1 class="title"><span class="l1">Engineering</span><span class="l2 df-grad">Silence</span></h1>
+    <p class="df-lede sub">How a five-gram earbud listens to the world, and plays it back upside down.</p>
+    <ol class="beats">
+      <li><b>01</b><span>Listen</span></li>
+      <li><b>02</b><span>Invert</span></li>
+      <li><b>03</b><span>Cancel</span></li>
+    </ol>
+  </div>
+  <p class="foot">A wireless noise-cancelling earbud. Let&rsquo;s open it up and follow the signal.</p>
+  <aside class="df-notes">
+    <p>Open with the object itself. Everything in this talk happens inside something that weighs about five grams.</p>
+    <p>The three beats &mdash; listen, invert, cancel &mdash; are the whole story; the rest of the deck unpacks each one.</p>
+  </aside>
+</section>
+
+<style>
+  #s01 .stage3d { position: absolute; left: 820px; top: 0; width: 1100px; height: 1080px; }
+  #s01 .rings { position: absolute; left: 1395px; top: 430px; width: 0; height: 0; pointer-events: none; }
+  #s01 .rings i {
+    position: absolute; left: -330px; top: -330px; width: 660px; height: 660px; border-radius: 50%;
+    border: 1.5px solid color-mix(in oklab, var(--df-accent-2) 40%, transparent); opacity: 0;
+  }
+  #s01 .copy { position: absolute; left: 150px; top: 250px; width: 820px; }
+  #s01 .kicker { margin: 0 0 34px; }
+  #s01 .title { margin: 0; font-family: var(--df-font-display); line-height: .94; letter-spacing: -.035em; }
+  #s01 .title span { display: block; }
+  #s01 .title .l1 { font-weight: 200; font-size: 150px; color: var(--df-text); }
+  #s01 .title .l2 { font-weight: 600; font-size: 176px; padding-bottom: 14px; }
+  #s01 .sub { margin-top: 30px; max-width: 640px; }
+  #s01 .beats { list-style: none; margin: 70px 0 0; padding: 0; display: flex; gap: 0; }
+  #s01 .beats li {
+    display: flex; align-items: baseline; gap: 14px; padding: 18px 40px 18px 0; margin-right: 40px;
+    border-top: 1px solid var(--df-line); min-width: 190px;
+  }
+  #s01 .beats b { font: 500 18px/1 var(--df-font-mono); color: var(--df-accent); letter-spacing: .08em; }
+  #s01 .beats span { font: 400 28px/1 var(--df-font-body); color: var(--df-text); }
+  #s01 .foot {
+    position: absolute; left: 150px; bottom: 74px; margin: 0; font: 400 24px/1.4 var(--df-font-body);
+    color: var(--df-muted); letter-spacing: .01em;
+  }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { THREE, gsap, el } = api;
+  const C = api.theme.colors;
+  const kit = api.three(el.querySelector(".stage3d"), { fov: 28, environmentIntensity: 0.55, exposure: 0.92 });
+  const { scene, camera } = kit;
+  camera.position.set(0, 0.35, 7.6);
+  camera.lookAt(0, -0.35, 0);
+
+  // ---- materials
+  const plastic = new THREE.MeshPhysicalMaterial({ color: 0xf5f6f9, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.18 });
+  const silicone = new THREE.MeshPhysicalMaterial({ color: 0xdfe2ea, roughness: 0.55, sheen: 0.6, sheenColor: 0xffffff, transparent: true, opacity: 0.94 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x9aa1ad, metalness: 0.85, roughness: 0.28 });
+  const grille = new THREE.MeshStandardMaterial({ color: 0x15151b, roughness: 0.7, metalness: 0.2 });
+
+  // ---- procedural earbud: ear tip -> nozzle -> head, stem hanging below
+  const bud = new THREE.Group();
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 72, 56), plastic);
+  head.scale.set(1.14, 0.94, 0.88);
+  bud.add(head);
+
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.34, 48), metal);
+  nozzle.rotation.z = Math.PI / 2;
+  nozzle.position.x = -0.7;
+  bud.add(nozzle);
+
+  const tipProfile = [
+    [0.13, 0.0], [0.24, 0.0], [0.36, 0.05], [0.44, 0.15], [0.46, 0.25],
+    [0.42, 0.35], [0.33, 0.42], [0.2, 0.46], [0.0, 0.47],
+  ].map(([r, y]) => new THREE.Vector2(r, y));
+  const tip = new THREE.Mesh(new THREE.LatheGeometry(tipProfile, 72), silicone);
+  tip.rotation.z = Math.PI / 2;
+  tip.position.x = -0.82;
+  bud.add(tip);
+
+  const stem = new THREE.Mesh(new THREE.CapsuleGeometry(0.175, 1.25, 16, 48), plastic);
+  stem.position.set(0.16, -1.02, 0);
+  stem.rotation.z = -0.06;
+  bud.add(stem);
+
+  const mic = new THREE.Mesh(new THREE.CircleGeometry(0.06, 40), grille);
+  mic.scale.set(1.7, 0.75, 1);
+  mic.position.set(0.42, 0.2, 0.47);
+  mic.rotation.set(-0.3, 0.62, 0);
+  bud.add(mic);
+
+  const stemMic = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.12, 6, 16), grille);
+  stemMic.position.set(0.214, -1.62, 0.15);
+  stemMic.rotation.z = -0.06;
+  bud.add(stemMic);
+
+  bud.rotation.set(0.08, -0.55, 0.06);
+  const rig = new THREE.Group();
+  rig.add(bud);
+  rig.position.y = 0.25;
+  rig.scale.setScalar(0.84);
+  scene.add(rig);
+
+  // ---- lights: soft key, cool rim from behind, violet fill matching the backdrop
+  const key = new THREE.DirectionalLight(0xffffff, 1.1);
+  key.position.set(-4, 5, 3);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(new THREE.Color(C.accent), 2.2);
+  rim.position.set(4, 2, -4);
+  scene.add(rim);
+  const fill = new THREE.DirectionalLight(new THREE.Color(C.accent2), 0.9);
+  fill.position.set(-4, -2, -2);
+  scene.add(fill);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+
+  // ---- floating contact shadow: a radial-gradient sprite on the floor
+  const sc = document.createElement("canvas");
+  sc.width = sc.height = 256;
+  const g = sc.getContext("2d");
+  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, "rgba(0,0,0,0.75)");
+  grad.addColorStop(0.45, "rgba(0,0,0,0.32)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  const shadowTex = new THREE.CanvasTexture(sc);
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.2, 1.1),
+    new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }),
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = -1.72;
+  scene.add(shadow);
+
+  // ---- motion
+  const intro = { lift: 0, spin: 0 };
+  api.onFrame((t) => {
+    const float = api.reducedMotion ? 0 : Math.sin(t * 1.1) * 0.07;
+    rig.position.y = 0.2 + float + (1 - intro.lift) * -0.5;
+    bud.rotation.y = -0.55 + (api.reducedMotion ? 0 : Math.sin(t * 0.45) * 0.22) + (1 - intro.spin) * 1.4;
+    shadow.scale.setScalar(1 - float * 0.9);
+    shadow.material.opacity = (0.85 - float * 2) * intro.lift;
+    kit.render();
+  });
+
+  const rings = el.querySelectorAll(".rings i");
+  return {
+    enter() {
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      tl.from(el.querySelectorAll(".kicker, .title span, .sub, .beats li, .foot"), { y: 34, opacity: 0, duration: 1.1, stagger: 0.09 }, 0)
+        .fromTo(intro, { lift: 0, spin: 0 }, { lift: 1, spin: 1, duration: 2.2, ease: "expo.out" }, 0.1);
+      if (!api.reducedMotion) {
+        rings.forEach((r, i) => {
+          gsap.fromTo(r, { scale: 0.35, opacity: 0.55 }, { scale: 1.25, opacity: 0, duration: 6, ease: "sine.out", repeat: -1, delay: i * 1.5 });
+        });
+      }
+    },
+  };
+});
+</script>

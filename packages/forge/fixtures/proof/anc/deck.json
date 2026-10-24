@@ -1,0 +1,32 @@
+{
+  "title": "Engineering Silence: how noise-cancelling earbuds work",
+  "style": {
+    "look": "dark cinematic",
+    "theme": {
+      "colors": {
+        "bg": "#0c0b13",
+        "surface": "#171522",
+        "text": "#f3f2f8",
+        "muted": "#a3a0b7",
+        "line": "#2e2b40",
+        "accent": "#45c8ff",
+        "accent2": "#9d8bff",
+        "accent3": "#ffb35c"
+      },
+      "fonts": { "display": "ibm-plex-sans", "body": "ibm-plex-sans", "mono": "ibm-plex-mono" },
+      "backdrop": "radial-gradient(1500px 950px at 80% -12%, #2d2452 0%, rgba(45,36,82,0) 62%), radial-gradient(1100px 700px at 4% 112%, #1b1633 0%, rgba(27,22,51,0) 62%), linear-gradient(180deg, #15131f 0%, #0b0a11 100%)"
+    },
+    "motion": "rich",
+    "use3d": true,
+    "interactivity": 2,
+    "density": "balanced",
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "Engineering Silence", "section": "Intro", "budgetSec": 45 },
+    { "id": "s02", "title": "Eight parts, one job", "section": "Hardware", "budgetSec": 120 },
+    { "id": "s03", "title": "Following the signal", "section": "Signal", "budgetSec": 150 },
+    { "id": "s04", "title": "Timing is everything", "section": "Signal", "budgetSec": 150 },
+    { "id": "s05", "title": "Key takeaways", "section": "Wrap-up", "budgetSec": 60 }
+  ]
+}

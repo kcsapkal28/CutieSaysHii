@@ -32,7 +32,7 @@ html.df-has-dock #df-progress { display: none; }
 /* dock (only when timer / notes / stepNav are on) */
 #df-dock {
   position: absolute; left: 0; top: 1080px; width: 1920px; height: 72px; display: flex; align-items: center; gap: 20px;
-  padding: 0 28px; background: color-mix(in oklab, var(--df-bg) 88%, var(--df-text) 12%);
+  padding: 0 28px; background: color-mix(in oklab, var(--df-bg) 95%, var(--df-text) 5%);
   border-top: 1px solid color-mix(in oklab, var(--df-line) 70%, transparent);
   font: 500 17px/1 var(--df-font-body); color: var(--df-muted); user-select: none;
 }
@@ -64,10 +64,10 @@ html.df-has-dock #df-progress { display: none; }
 
 #df-timer { display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 16px 0 12px !important; border-radius: 12px;
   border: 1px solid color-mix(in oklab, var(--df-line) 80%, transparent) !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
-#df-timer svg { transform: rotate(-90deg); flex: none; }
-#df-timer .df-ring-bg { fill: none; stroke: color-mix(in oklab, var(--df-line) 90%, transparent); stroke-width: 2.6; }
-#df-timer .df-ring { fill: none; stroke: var(--df-accent); stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .4s linear; }
-#df-timer[data-state="behind"] .df-ring { stroke: var(--df-accent-3); }
+#df-timer-ring { --c: var(--df-accent); flex: none; width: 20px; height: 20px; border-radius: 50%;
+  background: conic-gradient(var(--c) calc(var(--p, 0) * 360deg), color-mix(in oklab, var(--df-line) 100%, var(--df-muted) 25%) 0);
+  -webkit-mask: radial-gradient(circle, transparent 6px, #000 6.5px); mask: radial-gradient(circle, transparent 6px, #000 6.5px); }
+#df-timer[data-state="behind"] #df-timer-ring { --c: var(--df-accent-3); }
 .df-timer-budget { color: var(--df-muted); }
 #df-timer-delta { font-weight: 600; min-width: 96px; color: var(--df-muted); }
 #df-timer[data-state="ahead"] #df-timer-delta { color: var(--df-accent); }

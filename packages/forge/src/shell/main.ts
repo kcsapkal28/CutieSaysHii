@@ -438,7 +438,7 @@ function tickTimer(): void {
   box.dataset.running = String(running);
   $("#df-timer-delta")!.textContent = !timerStarted ? "ready" : `${fmt(Math.abs(delta))} ${state}`;
   $("#df-timer-clock")!.innerHTML = `${fmt(el)}<span> / ${fmt(total)}</span>`;
-  ($("#df-timer-ring") as unknown as SVGCircleElement).style.strokeDashoffset = String(1 - frac);
+  $("#df-timer-ring")!.style.setProperty("--p", String(frac));
 }
 
 function buildChrome(): void {
@@ -475,7 +475,7 @@ function buildChrome(): void {
     mid = `<div id="df-dock-title"></div>`;
   }
   const timer = f.timer
-    ? `<button id="df-timer" data-df="timer" title="Pacing timer (click to pause)"><svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" pathLength="1" class="df-ring-bg"/><circle id="df-timer-ring" cx="10" cy="10" r="8" pathLength="1" class="df-ring"/></svg><span class="df-timer-budget"></span><span id="df-timer-delta"></span><span id="df-timer-clock"></span></button>`
+    ? `<button id="df-timer" data-df="timer" title="Pacing timer (click to pause)"><i id="df-timer-ring"></i><span class="df-timer-budget"></span><span id="df-timer-delta"></span><span id="df-timer-clock"></span></button>`
     : "";
   const notes = f.notes ? `<button class="df-dock-pill" data-df="notes">Notes <kbd>N</kbd></button>` : "";
   dock.innerHTML = `${arrow("prev")}<div id="df-count"></div>${mid}${timer}${notes}${arrow("next")}`;

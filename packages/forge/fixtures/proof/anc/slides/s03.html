@@ -1,0 +1,158 @@
+<section class="df-slide" id="s03">
+  <canvas class="flow" width="1920" height="1080"></canvas>
+  <svg class="nodes" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="tags"></div>
+  <div class="cap">
+    <p class="df-eyebrow kicker"></p>
+    <p class="text"></p>
+    <div class="df-legend legend">
+      <span class="df-key" data-flow="noise"><i></i>Noise</span>
+      <span class="df-key" data-flow="anti"><i></i>Anti-noise (feedforward)</span>
+      <span class="df-key" data-flow="fix"><i></i>Correction (feedback)</span>
+      <span class="df-key" data-flow="music"><i></i>Music</span>
+    </div>
+  </div>
+  <aside class="df-notes">
+    <p>Four passes, one path at a time. Pause on pass 2: the outer mic hears noise before your ear does, which is the whole trick.</p>
+    <p>Pass 3 closes the loop; pass 4 shows music sharing the same speaker without being cancelled.</p>
+  </aside>
+</section>
+
+<style>
+  #s03 .flow { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #s03 .nodes { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: visible; }
+  #s03 .nodes .ring { fill: color-mix(in oklab, var(--df-surface) 88%, transparent); stroke: color-mix(in oklab, var(--df-line) 100%, var(--df-text) 18%); stroke-width: 1.5; }
+  #s03 .nodes .glyph { fill: none; stroke: var(--df-text); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  #s03 .tags { position: absolute; inset: 0; pointer-events: none; }
+  #s03 .tags .df-tag { position: absolute; transform: translateX(-50%); font-size: 22px; padding: 8px 16px 9px 14px; }
+  #s03 .tags .df-tag b { font-size: 17px; }
+  #s03 .cap { position: absolute; left: 0; right: 0; bottom: 56px; text-align: center; }
+  #s03 .kicker { margin: 0 0 16px; }
+  #s03 .text { margin: 0 auto 28px; max-width: 1240px; min-height: 2.6em; font: 400 40px/1.3 var(--df-font-body); text-wrap: balance; }
+  #s03 .legend { justify-content: center; }
+  #s03 .legend .df-key { transition: opacity .5s; }
+  #s03 .legend .df-key.off { opacity: .22; }
+</style>
+
+<script>
+DF.slide("s03", (api) => {
+  const { gsap, el } = api;
+  const C = api.theme.colors;
+
+  // ---------- nodes (slide coordinates) and their glyphs (drawn around 0,0)
+  const NODES = [
+    { id: "ear", num: "", name: "Ear canal", x: 230, y: 470, g: "M-6,-22 C14,-26 22,-6 12,6 C4,14 6,22 -4,24 M-12,-8 C-8,-14 2,-14 4,-6" },
+    { id: "spk", num: "04", name: "Speaker driver", x: 650, y: 470, g: "M0,-22 A22,22 0 1 1 -0.1,-22 M0,-9 A9,9 0 1 1 -0.1,-9" },
+    { id: "fb", num: "03", name: "Feedback mic", x: 650, y: 250, g: "M-7,-18 h14 v20 a7,7 0 0 1 -14,0 z M-14,2 a14,14 0 0 0 28,0 M0,16 v8" },
+    { id: "dsp", num: "05", name: "ANC processor", x: 1070, y: 340, g: "M-15,-15 h30 v30 h-30 z M-8,-22 v7 M0,-22 v7 M8,-22 v7 M-8,15 v7 M0,15 v7 M8,15 v7 M-22,-8 h7 M-22,0 h7 M-22,8 h7 M15,-8 h7 M15,0 h7 M15,8 h7" },
+    { id: "amp", num: "", name: "Amplifier", x: 1070, y: 620, g: "M-14,-18 L18,0 L-14,18 Z M-24,0 h10 M18,0 h8" },
+    { id: "ff", num: "06", name: "Feedforward mic", x: 1450, y: 470, g: "M-7,-18 h14 v20 a7,7 0 0 1 -14,0 z M-14,2 a14,14 0 0 0 28,0 M0,16 v8" },
+    { id: "out", num: "", name: "Outside noise", x: 1730, y: 470, g: "M-14,-16 a22,22 0 0 0 0,32 M-4,-24 a32,32 0 0 0 0,48 M6,-30 a42,42 0 0 0 0,60" },
+    { id: "bt", num: "", name: "Bluetooth music", x: 640, y: 690, g: "M-8,-12 L9,5 L0,14 V-14 L9,-5 L-8,12" },
+  ];
+  const N = Object.fromEntries(NODES.map((n) => [n.id, n]));
+
+  // ---------- flows: one continuous path each; `at` = first step it appears
+  const FLOWS = [
+    { id: "noise", color: C.muted, at: 0, d: `M1730,470 C1560,40 420,40 230,470 M1730,470 L1450,470` },
+    { id: "anti", color: C.accent, at: 1, d: `M1450,470 C1330,470 1200,340 1070,340 C1130,420 1130,540 1070,620 C920,660 780,560 650,470 L230,470` },
+    { id: "fix", color: C.accent2, at: 2, d: `M230,470 C280,300 470,250 650,250 C820,250 960,300 1070,340` },
+    { id: "music", color: C.accent3, at: 3, d: `M640,690 C820,700 980,700 1070,620 C930,690 780,600 650,484 L230,484` },
+  ];
+
+  // Sample each path (split on M so jumps don't create points) into a lookup table.
+  const NS = "http://www.w3.org/2000/svg";
+  const probe = document.createElementNS(NS, "path");
+  const svg = el.querySelector(".nodes");
+  svg.append(probe);
+  for (const f of FLOWS) {
+    f.segs = f.d.split(/(?=M)/).map((d) => {
+      probe.setAttribute("d", d);
+      const len = probe.getTotalLength();
+      const n = Math.ceil(len / 3);
+      const pts = [];
+      for (let i = 0; i <= n; i++) {
+        const p = probe.getPointAtLength((i / n) * len);
+        pts.push([p.x, p.y]);
+      }
+      return { len, pts };
+    });
+    f.on = 0;
+  }
+  probe.remove();
+
+  // Node markup.
+  const tags = el.querySelector(".tags");
+  for (const n of NODES) {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("transform", `translate(${n.x},${n.y})`);
+    g.innerHTML = `<circle class="ring" r="44"/><path class="glyph" d="${n.g}"/>`;
+    svg.append(g);
+    const t = document.createElement("div");
+    t.className = "df-tag";
+    t.innerHTML = n.num ? `<b>${n.num}</b>${n.name}` : n.name;
+    t.style.left = `${n.x}px`;
+    t.style.top = `${n.y + 62}px`;
+    tags.append(t);
+  }
+  for (const k of el.querySelectorAll(".legend .df-key")) {
+    k.style.setProperty("--c", FLOWS.find((f) => f.id === k.dataset.flow).color);
+  }
+
+  // ---------- particles
+  const cv = el.querySelector(".flow");
+  const ctx = cv.getContext("2d");
+  const SPACING = 30, SPEED = api.reducedMotion ? 0 : 150;
+  function draw(t) {
+    ctx.clearRect(0, 0, 1920, 1080);
+    ctx.lineCap = "round";
+    for (const f of FLOWS) {
+      if (f.on <= 0.01) continue;
+      for (const s of f.segs) {
+        // faint track
+        ctx.globalAlpha = 0.22 * f.on;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        s.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.stroke();
+        // moving dots: dark core ring + coloured glow, like beads on a wire
+        const offset = (t * SPEED) % SPACING;
+        for (let d = offset; d < s.len * f.on; d += SPACING) {
+          const p = s.pts[Math.min(s.pts.length - 1, Math.round((d / s.len) * (s.pts.length - 1)))];
+          ctx.globalAlpha = 0.25 * f.on;
+          ctx.fillStyle = f.color;
+          ctx.beginPath(); ctx.arc(p[0], p[1], 11, 0, 7); ctx.fill();
+          ctx.globalAlpha = f.on;
+          ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, 7); ctx.fill();
+          ctx.fillStyle = "#0b0a12";
+          ctx.beginPath(); ctx.arc(p[0], p[1], 2.4, 0, 7); ctx.fill();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  api.onFrame((t) => draw(t));
+
+  const CAPS = [
+    ["Pass 1 · Passive", "Without ANC, outside noise leaks past the ear tip and straight into your ear."],
+    ["Pass 2 · Feedforward", "The outer mic hears noise first. The chip inverts it and the speaker plays the anti-noise."],
+    ["Pass 3 · Hybrid ANC", "An inner mic measures what is left and feeds the error back, correcting in real time."],
+    ["Pass 4 · Music", "Music shares the same speaker; the chip subtracts it so it is never cancelled."],
+  ];
+  const kicker = el.querySelector(".kicker");
+  const text = el.querySelector(".text");
+  return {
+    steps: 4,
+    step(i) {
+      kicker.textContent = CAPS[i][0];
+      text.textContent = CAPS[i][1];
+      gsap.fromTo([kicker, text], { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.06, ease: "power2.out" });
+      for (const f of FLOWS) gsap.to(f, { on: i >= f.at ? 1 : 0, duration: 1.4, ease: "power2.inOut", overwrite: true });
+      for (const k of el.querySelectorAll(".legend .df-key")) {
+        k.classList.toggle("off", i < FLOWS.find((f) => f.id === k.dataset.flow).at);
+      }
+    },
+  };
+});
+</script>

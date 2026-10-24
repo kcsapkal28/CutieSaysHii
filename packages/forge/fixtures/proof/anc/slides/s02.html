@@ -1,0 +1,275 @@
+<section class="df-slide" id="s02">
+  <div class="stage3d"></div>
+  <svg class="leaders" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="labels"></div>
+  <div class="cap">
+    <p class="df-eyebrow cap-kicker"></p>
+    <p class="cap-text"></p>
+  </div>
+  <aside class="df-notes">
+    <p>Start assembled, then explode. Name the parts in the order sound travels: ear side first, electronics, then power and shell.</p>
+    <p>The two microphones are the stars of the next slide: one faces the world, one faces your ear.</p>
+  </aside>
+</section>
+
+<style>
+  #s02 .stage3d { position: absolute; inset: 0; }
+  #s02 .leaders { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; overflow: visible; }
+  #s02 .leaders line { stroke: var(--df-accent); stroke-width: 1.5; }
+  #s02 .leaders circle { fill: var(--df-accent); stroke: var(--df-bg); stroke-width: 2.5; }
+  #s02 .labels { position: absolute; inset: 0; pointer-events: none; }
+  #s02 .labels .df-tag { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+  #s02 .cap { position: absolute; left: 0; right: 0; bottom: 64px; text-align: center; }
+  #s02 .cap-kicker { margin: 0 0 18px; }
+  #s02 .cap-text {
+    margin: 0 auto; max-width: 1180px; min-height: 2.6em; font: 400 42px/1.3 var(--df-font-body);
+    color: var(--df-text); text-wrap: balance; letter-spacing: -.005em;
+  }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { THREE, gsap, el } = api;
+  const C = api.theme.colors;
+  const kit = api.three(el.querySelector(".stage3d"), { fov: 26, environmentIntensity: 0.45, exposure: 0.9 });
+  const { scene, camera } = kit;
+
+  // ---------- materials
+  const M = {
+    plastic: new THREE.MeshPhysicalMaterial({ color: 0xf3f4f7, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2 }),
+    silicone: new THREE.MeshPhysicalMaterial({ color: 0xc9cdd8, roughness: 0.55, sheen: 0.6, sheenColor: 0xffffff }),
+    metal: new THREE.MeshStandardMaterial({ color: 0xa3a9b4, metalness: 0.9, roughness: 0.26 }),
+    dark: new THREE.MeshStandardMaterial({ color: 0x1a1a22, metalness: 0.3, roughness: 0.55 }),
+    cone: new THREE.MeshStandardMaterial({ color: 0xe9dfc8, roughness: 0.7 }),
+    battery: new THREE.MeshStandardMaterial({ color: 0x3a63d8, metalness: 0.35, roughness: 0.35 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xd9a54a, metalness: 0.9, roughness: 0.3 }),
+  };
+
+  // PCB texture: green board with traces and pads, drawn procedurally.
+  function pcbTexture() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 512;
+    const g = c.getContext("2d");
+    g.fillStyle = "#14713f";
+    g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = "rgba(160,230,150,.55)";
+    g.lineWidth = 4;
+    for (let i = 0; i < 26; i++) {
+      const x = 40 + ((i * 97) % 430), y = 40 + ((i * 61) % 430);
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + (i % 2 ? 80 : 0), y + (i % 2 ? 0 : 80));
+      g.lineTo(x + 110, y + 110);
+      g.stroke();
+    }
+    g.fillStyle = "#d8b45a";
+    for (let i = 0; i < 40; i++) g.fillRect(30 + ((i * 53) % 450), 30 + ((i * 89) % 450), 14, 9);
+    g.fillStyle = "#11161c";
+    g.fillRect(196, 196, 120, 120);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+
+  // ---------- parts (local geometry around the origin; the rig places them)
+  const along = (mesh) => { mesh.rotation.z = Math.PI / 2; return mesh; }; // lathe/cylinder axis -> x
+  function tip() {
+    const pts = [[0.13, 0], [0.25, 0], [0.37, 0.05], [0.45, 0.15], [0.47, 0.26], [0.42, 0.36], [0.32, 0.43], [0.18, 0.47], [0, 0.48]]
+      .map(([r, y]) => new THREE.Vector2(r, y));
+    const g = new THREE.Group();
+    g.add(along(new THREE.Mesh(new THREE.LatheGeometry(pts, 64), M.silicone)));
+    return g;
+  }
+  function nozzle() {
+    const g = new THREE.Group();
+    g.add(along(new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.42, 40), M.metal)));
+    const mesh = along(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 40), M.dark));
+    mesh.position.x = -0.22;
+    g.add(mesh);
+    const flange = along(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.05, 40), M.metal));
+    flange.position.x = 0.2;
+    g.add(flange);
+    return g;
+  }
+  function micro() {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.RoundedBoxGeometry(0.2, 0.2, 0.14, 3, 0.03), M.metal));
+    const port = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.02, 24), M.dark);
+    port.rotation.x = Math.PI / 2;
+    port.position.z = 0.075;
+    g.add(port);
+    return g;
+  }
+  function driver() {
+    const g = new THREE.Group();
+    g.add(along(new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.12, 64, 1, true), M.metal)));
+    const back = along(new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.01, 64), M.metal));
+    back.position.x = 0.06;
+    g.add(back);
+    const cone = along(new THREE.Mesh(new THREE.LatheGeometry([[0.06, -0.02], [0.2, -0.04], [0.4, -0.06], [0.41, -0.05]].map(([r, y]) => new THREE.Vector2(r, y)), 64), M.cone));
+    g.add(cone);
+    const cap = along(new THREE.Mesh(new THREE.SphereGeometry(0.08, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), M.dark));
+    cap.rotation.z = Math.PI / 2;
+    cap.position.x = -0.02;
+    g.add(cap);
+    return g;
+  }
+  function board() {
+    const g = new THREE.Group();
+    const tex = pcbTexture();
+    const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.1 });
+    const edge = new THREE.MeshStandardMaterial({ color: 0x0e4f2c, roughness: 0.7 });
+    g.add(along(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 64), [edge, face, face])));
+    const chip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.22, 0.22), M.dark);
+    chip.position.x = -0.05;
+    g.add(chip);
+    return g;
+  }
+  function battery() {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.5, 40), M.battery));
+    for (const y of [-0.27, 0.27]) {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.05, 40), M.metal);
+      cap.position.y = y;
+      g.add(cap);
+    }
+    return g;
+  }
+  function housing() {
+    const g = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 64, 48), M.plastic);
+    head.scale.set(1.14, 0.94, 0.88);
+    g.add(head);
+    const stem = new THREE.Mesh(new THREE.CapsuleGeometry(0.175, 1.25, 12, 40), M.plastic);
+    stem.position.set(0.16, -1.02, 0);
+    stem.rotation.z = -0.06;
+    g.add(stem);
+    const port = new THREE.Mesh(new THREE.CircleGeometry(0.13, 40), M.metal);
+    port.rotation.y = -Math.PI / 2;
+    port.position.x = -0.705;
+    g.add(port);
+    return g;
+  }
+
+  // a = assembled position, e = exploded position, anchor = leader dot offset, (dx, dy) = label offset in px, step = when it is named
+  const P = [
+    { num: "01", name: "Ear tip", make: tip, a: [-0.84, 0, 0], e: [-3.3, 0.05, 0], anchor: [-0.25, 0.42, 0], dx: 0, dy: -170, step: 1 },
+    { num: "02", name: "Nozzle + mesh", make: nozzle, a: [-0.62, 0, 0], e: [-2.4, 0, 0], anchor: [0, -0.2, 0], dx: 0, dy: 130, step: 1 },
+    { num: "03", name: "Feedback mic", make: micro, a: [-0.38, 0.22, 0], e: [-1.7, 1.15, 0], anchor: [0, 0.1, 0], dx: 0, dy: -90, step: 1 },
+    { num: "04", name: "Speaker driver", make: driver, a: [-0.36, 0, 0], e: [-1.2, -0.05, 0], anchor: [0, -0.44, 0], dx: 0, dy: 170, step: 2 },
+    { num: "05", name: "ANC processor", make: board, a: [0.02, 0, 0], e: [-0.05, 0.05, 0], anchor: [-0.04, 0.0, 0], dx: 0, dy: -270, step: 2 },
+    { num: "06", name: "Feedforward mic", make: micro, a: [0.32, 0.28, 0], e: [0.95, 1.2, 0], anchor: [0, 0.1, 0], dx: 0, dy: -90, step: 2 },
+    { num: "07", name: "Battery", make: battery, a: [0.18, -1.05, 0], e: [0.95, -1.15, 0], anchor: [0, 0.28, 0], dx: 0, dy: -110, step: 3 },
+    { num: "08", name: "Outer housing", make: housing, a: [0, 0, 0], e: [2.45, -0.05, 0], anchor: [0.35, 0.5, 0], dx: 30, dy: -150, step: 3 },
+  ];
+
+  const rig = new THREE.Group();
+  rig.rotation.set(0.12, 0.6, 0);
+  scene.add(rig);
+  for (const p of P) {
+    p.obj = p.make();
+    p.obj.position.set(...p.a);
+    p.vis = 0;
+    rig.add(p.obj);
+  }
+  const explode = { k: 0 };
+
+  // lights
+  const key = new THREE.DirectionalLight(0xffffff, 1.2);
+  key.position.set(-3, 5, 4);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(new THREE.Color(C.accent), 1.6);
+  rim.position.set(5, 2, -4);
+  scene.add(rim);
+  const fill = new THREE.DirectionalLight(new THREE.Color(C.accent2), 0.8);
+  fill.position.set(-5, -2, -1);
+  scene.add(fill);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+
+  // camera dolly: close on the assembled bud, wide for the exploded view
+  const cam = { z: 9.6, y: -0.45 };
+
+  // ---------- labels + leader lines
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".leaders");
+  const layer = el.querySelector(".labels");
+  for (const p of P) {
+    p.line = document.createElementNS(NS, "line");
+    p.dot = document.createElementNS(NS, "circle");
+    p.dot.setAttribute("r", "6");
+    svg.append(p.line, p.dot);
+    p.tag = document.createElement("div");
+    p.tag.className = "df-tag";
+    p.tag.innerHTML = `<b>${p.num}</b>${p.name}`;
+    layer.append(p.tag);
+  }
+  const v = new THREE.Vector3();
+
+  api.onFrame((t) => {
+    const sway = api.reducedMotion ? 0 : Math.sin(t * 0.35) * 0.05;
+    rig.rotation.y = 0.6 + sway;
+    for (const p of P) {
+      p.obj.position.set(
+        p.a[0] + (p.e[0] - p.a[0]) * explode.k,
+        p.a[1] + (p.e[1] - p.a[1]) * explode.k + (api.reducedMotion ? 0 : Math.sin(t * 0.9 + p.e[0]) * 0.03 * explode.k),
+        p.a[2] + (p.e[2] - p.a[2]) * explode.k,
+      );
+    }
+    camera.position.set(0, cam.y + 0.6, cam.z);
+    camera.lookAt(0, cam.y, 0);
+    rig.updateMatrixWorld(true);
+    kit.render();
+
+    for (const p of P) {
+      v.set(p.obj.position.x + p.anchor[0], p.obj.position.y + p.anchor[1], p.obj.position.z + p.anchor[2]);
+      rig.localToWorld(v);
+      const s = kit.toSlide(v);
+      const lx = s.x + p.dx, ly = s.y + p.dy;
+      const w = p.tag.offsetWidth, h = p.tag.offsetHeight;
+      const above = p.dy < 0;
+      p.tag.style.transform = `translate(${lx - w / 2}px, ${above ? ly - h : ly}px)`;
+      p.tag.style.opacity = p.vis;
+      p.line.setAttribute("x1", s.x); p.line.setAttribute("y1", s.y);
+      p.line.setAttribute("x2", lx); p.line.setAttribute("y2", s.y + (ly - s.y) * p.vis);
+      p.line.style.opacity = p.vis;
+      p.dot.setAttribute("cx", s.x); p.dot.setAttribute("cy", s.y);
+      p.dot.style.opacity = p.vis;
+    }
+  });
+
+  const CAPS = [
+    ["Assembled", "One earbud, eight parts, a single job: make the world quieter than it is."],
+    ["At the ear", "The seal blocks high frequencies; a mic inside listens to what your ear actually hears."],
+    ["The engine", "A speaker plays the anti-noise that a dedicated chip computes from the outer mic."],
+    ["Power and shell", "Eight parts, layered from ear tip to outer shell. Each one plays a role in reducing noise."],
+  ];
+  const kicker = el.querySelector(".cap-kicker");
+  const text = el.querySelector(".cap-text");
+  let shown = -1;
+  function caption(i) {
+    if (i === shown) return;
+    shown = i;
+    gsap.to([kicker, text], {
+      opacity: 0, y: 8, duration: 0.18, onComplete: () => {
+        kicker.textContent = `Exploded view · ${CAPS[i][0]}`;
+        text.textContent = CAPS[i][1];
+        gsap.to([kicker, text], { opacity: 1, y: 0, duration: 0.45, stagger: 0.06, ease: "power2.out" });
+      },
+    });
+  }
+
+  return {
+    steps: 4,
+    step(i) {
+      caption(i);
+      gsap.to(explode, { k: i > 0 ? 1 : 0, duration: 1.6, ease: "expo.inOut", overwrite: true });
+      gsap.to(cam, { z: i > 0 ? 12.5 : 9.6, y: i > 0 ? -0.55 : -0.45, duration: 1.6, ease: "expo.inOut", overwrite: true });
+      P.forEach((p, k) => {
+        const on = i >= p.step ? 1 : 0;
+        if (p.vis === on) return;
+        gsap.to(p, { vis: on, duration: 0.6, delay: on ? 0.5 + (k % 3) * 0.12 : 0, ease: "power2.out", overwrite: true });
+      });
+    },
+  };
+});
+</script>

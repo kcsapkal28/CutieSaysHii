@@ -14,7 +14,7 @@ Branch: `feat/v3-build-loop` (from main @ d3ae31c). Evidence: every journal writ
 | Research and style run in series though neither needs the other | style 9 s, research 41–87 s, always sequential before outline. | ~10 s per deck, free. |
 | Outline cards never read each other's cache | outline: 854k cache-write vs 400k cache-read tokens. | ~$0.2 per deck at Sonnet prices; a warm call fixes it. |
 
-## Changes (in order; each a commit with tests)
+## Changes (in order; each a commit with tests) — 1–6 done on feat/v3-build-loop, 7 running
 
 1. **Transport hardening (llm.ts).** Streaming idle timeout: abort a call when no stream event arrives for `idleMs` (default 45 s); per-attempt caps lowered to what the medians justify (builder 6 min, critic 4 min, outline 5 min, research 3 min; default 4 min); a timed-out call retries once, then fails fast. Journal `attempts` and the timeout reason.
 2. **Build loop budget and stop rules (build.ts, config.ts).** `precheckRetries` 2→1; a patch that measures worse keeps the best version and ends the slide instead of rewriting (`patchWorse: "stop"`, "rewrite" stays available); a per-slide wall budget (`slideBudgetMs`, 8 min) after which no new attempt starts; `concurrency` 6→8 (the passthrough proxy has no limiter).

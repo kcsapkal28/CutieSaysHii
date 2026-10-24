@@ -43,7 +43,7 @@ A deck is built in stages. You approve each one, and any stage can be re-run.
 
 The outline runs in two passes: one call plans the arc (sections, each slide's point and time, and an explainer technique and composition per slide, chosen across the deck so they vary), then one call per slide, up to 6 at once, writes that slide's card from a compact view of the arc, the slide's own technique entries, the research items the arc pointed it at, and the style; cards that break the style, miss a spec or run far past their length guidance are sent back (up to 2 retries). Projects made before the outline, script and storyboard became one stage are upgraded when opened: the three old files are merged into one `outline.json` and the originals moved to `legacy/`; a project with only the old outline keeps it in `legacy/` and runs the Outline stage again.
 
-The build stage writes up to 6 slides concurrently. Each slide goes through draft → screenshot every step in Chromium → pre-check → critique → fix, for up to 2 rounds. The pre-check measures the rendered page without a model: clipped, off-canvas or overlapping text, blank renders, canvases that draw nothing and console errors go straight back to the builder as measured facts and skip the critic (up to 2 such extra attempts per slide don't use up a round); tiny text, low contrast and steps that change nothing are passed to the critic as measurements. The last fix escalates to Opus if the critic still reports a high-severity issue. Models and limits live in [`packages/forge/src/pipeline/config.ts`](packages/forge/src/pipeline/config.ts).
+The build stage writes up to 8 slides concurrently. Each slide goes through draft → screenshot every step in Chromium → pre-check → critique → fix, for up to 2 rounds (the journals show rounds beyond the second almost never pass). The pre-check measures the rendered page without a model: clipped, off-canvas or overlapping text, blank renders, canvases that draw nothing and console errors go straight back to the builder as measured facts and skip the critic (one such extra attempt per slide doesn't use up a round); tiny text, low contrast and steps that change nothing are passed to the critic as measurements. Fix rounds are search/replace edits on the previous version; a patch that measures worse keeps the reviewed version and ends the slide, and no slide starts a new attempt after 8 minutes. Model calls abort after 45 s of stream silence and retry once. Models and limits live in [`packages/forge/src/pipeline/config.ts`](packages/forge/src/pipeline/config.ts).
 
 Presenter features (pacing timer, speaker notes, step navigation, PDF/print) are an opt-in checklist in the Studio.
 
@@ -97,7 +97,7 @@ Run just the Studio on the fake backend: `STUDIO_BACKEND=mock pnpm --filter stud
 
 ## Known limits
 
-- **Cost:** a real build is expensive (about $14 for a 4-slide deck at the defaults). Cost reduction is planned.
+- **Cost:** about $1 per slide at the defaults (Sonnet builder and critic, Opus for the outline arc); the Studio runs every agent on Opus by default (`STUDIO_MODELS=default` for the cheaper set, `STUDIO_THINKING` for effort).
 - **Stop** in the Studio does not cancel a running build on the server.
 - Runs are held in memory; restarting the Studio loses a run in progress. Finished decks stay on disk in `projects/`.
 - Research uses model knowledge. Web search is a hook, not wired up yet.

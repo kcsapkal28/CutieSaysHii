@@ -106,21 +106,73 @@ export const researchOut = {
   sources: [{ title: "Adaptive filtering theory", kind: "model-knowledge" }],
 };
 
-export const outlineOut = {
+/** The outline's first pass (plan_arc): two sections of one slide each. */
+export const arcOut = (explainers: [string, string] = ["animated-diagram", "simulation"]) => ({
   title: "Inside ANC",
   subtitle: "The engineering behind silence",
   throughline: "Noise is cancelled by its own inverse.",
+  visualThroughline: "One earbud, four signal colours.",
+  motifs: ["cyan anti-noise particles"],
   sections: [
-    { name: "Hook", slides: [{ keyMessage: "An earbud can erase sound.", role: "opener", budgetSec: 60 }] },
-    { name: "How", slides: [{ keyMessage: "Inverted waves cancel.", role: "mechanism", budgetSec: 90 }] },
+    {
+      name: "Hook",
+      slides: [
+        { point: "An earbud can erase sound.", role: "opener", budgetSec: 60, explainer: explainers[0], technique: "particle-flow", composition: "hero right, title left", interaction: "none", handoff: "the noise wave" },
+      ],
+    },
+    {
+      name: "How",
+      slides: [
+        { point: "Inverted waves cancel.", role: "mechanism", budgetSec: 90, explainer: explainers[1], technique: "parametric-sim", composition: "full-width wave, slider below", interaction: "slider", handoff: "cut" },
+      ],
+    },
+  ],
+});
+
+/** The outline's second pass (write_card): one slide's words and visual. */
+export const cardOut = (id = "s01", visual: Record<string, unknown> = {}) => ({
+  title: `Claim for ${id}`,
+  callouts: ["Outer mic"],
+  notes: "Say this.",
+  visual: {
+    concept: "Two waves sum to flat.",
+    why: "Shows cancellation directly.",
+    layout: "Wave centre, title top-left.",
+    interaction: { kind: "slider", description: "Drag phase." },
+    steps: [
+      { beat: "Noise wave", motion: "draw" },
+      { beat: "Anti-noise added", motion: "fade" },
+    ],
+    simulation: { model: "sum of two sines", controls: ["phase"], readouts: ["residual dB"] },
+    reducedMotion: "Both waves and the flat sum.",
+    entry: "The noise wave alone.",
+    exit: "A flat line.",
+    ...visual,
+  },
+});
+
+// ---- the old three-file shapes (before outline, script and storyboard were one stage), for migration tests ----
+
+export const legacyOutline = {
+  title: "Inside ANC",
+  subtitle: "The engineering behind silence",
+  throughline: "Noise is cancelled by its own inverse.",
+  totalSec: 480,
+  sections: [
+    { name: "Hook", slides: [{ id: "s01", keyMessage: "An earbud can erase sound.", role: "opener", budgetSec: 190 }] },
+    { name: "How", slides: [{ id: "s02", keyMessage: "Inverted waves cancel.", role: "mechanism", budgetSec: 290 }] },
   ],
 };
 
-export const scriptOut = (ids: string[]) => ({
-  slides: ids.map((id) => ({ id, title: `Claim for ${id}`, callouts: ["Outer mic"], notes: "Say this.", budgetSec: 60 })),
-});
+export const legacyScript = {
+  title: "Inside ANC",
+  slides: [
+    { id: "s01", title: "Claim for s01", callouts: ["Outer mic"], notes: "Say this.", budgetSec: 190, section: "Hook" },
+    { id: "s02", title: "Claim for s02", subtitle: "Edited caption", callouts: [], notes: "Then this.", budgetSec: 290, section: "How" },
+  ],
+};
 
-export const storyboardOut = (ids: string[], explainer = "animated-diagram") => ({
+export const legacyStoryboard = (ids = ["s01", "s02"], explainer = "animated-diagram") => ({
   visualThroughline: "One earbud, four signal colours.",
   motifs: ["cyan anti-noise particles"],
   slides: ids.map((id) => ({

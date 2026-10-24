@@ -7,8 +7,10 @@ import { MODELS, type WireRequest } from "../src/llm.ts";
 import {
   createProject,
   listVersions,
+  loadOutline,
   loadProject,
   loadScript,
+  loadStoryboard,
   projectStatus,
   reviseSlide,
   runAll,
@@ -19,32 +21,18 @@ import {
   type PipelineOptions,
   type Project,
 } from "../src/pipeline/index.ts";
-import {
-  fakeEngine,
-  fakeLlm,
-  outlineOut,
-  researchOut,
-  review,
-  scriptOut,
-  slideHtml,
-  storyboardOut,
-  styleOut,
-  type FakeEngine,
-  type FakeLlm,
-  type Handler,
-} from "./fakes.ts";
+import { arcOut, cardOut, fakeEngine, fakeLlm, researchOut, review, slideHtml, styleOut, type FakeEngine, type FakeLlm, type Handler } from "./fakes.ts";
 
-const IDS = ["s01", "s02"];
 const slideOf = (req: WireRequest) => /Slide id: (s\d\d)|Slide (s\d\d)\./.exec(JSON.stringify(req.messages[0]))!.slice(1).find(Boolean)!;
+const cardOf = (req: WireRequest) => /Write the card for (s\d\d)/.exec(JSON.stringify(req.messages[0]))![1]!;
 const toolOf = (req: WireRequest) => req.tools?.[0]?.name;
 
 function handlers(over: Record<string, Handler> = {}): Record<string, Handler> {
   return {
     recommend_style: () => styleOut(),
     record_research: () => researchOut,
-    plan_outline: () => outlineOut,
-    write_script: () => scriptOut(IDS),
-    write_storyboard: () => storyboardOut(IDS),
+    plan_arc: () => arcOut(),
+    write_card: (req) => cardOut(cardOf(req)),
     write_slide: (req) => ({ html: slideHtml(slideOf(req)), steps: 2, summary: "Built." }),
     review_slide: () => review("pass"),
     ...over,
@@ -57,9 +45,9 @@ let events: ForgeEvent[];
 let llm: FakeLlm;
 let engine: FakeEngine;
 const opts = (): PipelineOptions => ({ llm, engine, onEvent: (e) => events.push(e), exemplars: [] });
-/** Runs the word stages with the default handlers, then swaps in `next` for the build. */
-async function upToStoryboard() {
-  await runAll(project, { auto: true, to: "storyboard", ...opts() });
+/** Runs every stage before the build with the default handlers. */
+async function upToOutline() {
+  await runAll(project, { auto: true, to: "outline", ...opts() });
 }
 
 beforeEach(() => {
@@ -91,12 +79,13 @@ describe("stage ordering and invalidation", () => {
 
   it("runAll runs every stage in order and writes each stage's file", async () => {
     const { ran, build } = await runAll(project, { auto: true, ...opts() });
-    expect(ran).toEqual(["style", "research", "outline", "script", "storyboard", "build"]);
+    expect(ran).toEqual(["style", "research", "outline", "build"]);
     expect(events.filter((e) => e.type === "stage:start").map((e) => (e as { stage: string }).stage)).toEqual(ran);
     expect(Object.values(projectStatus(project)).every(Boolean)).toBe(true);
-    for (const f of ["style.json", "research.md", "outline.json", "script.json", "storyboard.json", "slides/s01.html", "slides/s02.html", "versions/1/deck.html"]) {
+    for (const f of ["style.json", "research.md", "outline.json", "slides/s01.html", "slides/s02.html", "versions/1/deck.html"]) {
       expect(existsSync(join(project.dir, f)), f).toBe(true);
     }
+    for (const f of ["script.json", "storyboard.json"]) expect(existsSync(join(project.dir, f)), f).toBe(false);
     expect(build?.version).toBe(1);
     expect(JSON.parse(readFileSync(join(project.dir, "outline.json"), "utf8")).sections[1].slides[0]).toMatchObject({ id: "s02", budgetSec: 290 });
     const done = events.find((e) => e.type === "stage:done" && e.stage === "build") as Extract<ForgeEvent, { type: "stage:done" }>;
@@ -107,18 +96,18 @@ describe("stage ordering and invalidation", () => {
   it("re-running a stage deletes every later stage's outputs but keeps earlier ones and versions", async () => {
     await runAll(project, { auto: true, ...opts() });
     await runStage(project, "research", opts());
-    expect(projectStatus(project)).toEqual({ style: true, research: true, outline: false, script: false, storyboard: false, build: false });
+    expect(projectStatus(project)).toEqual({ style: true, research: true, outline: false, build: false });
     expect(existsSync(join(project.dir, "slides"))).toBe(false);
     expect(existsSync(join(project.dir, "versions/1/deck.html"))).toBe(true);
     expect(events.filter((e) => e.type === "stage:start").at(-1)).toEqual({
       type: "stage:start",
       stage: "research",
-      invalidated: ["outline", "script", "storyboard", "build"],
+      invalidated: ["outline", "build"],
     });
 
     // runAll resumes from the first stage that isn't done; the next build is version 2.
     const { ran, build } = await runAll(project, { auto: true, ...opts() });
-    expect(ran).toEqual(["outline", "script", "storyboard", "build"]);
+    expect(ran).toEqual(["outline", "build"]);
     expect(build?.version).toBe(2);
   });
 
@@ -128,19 +117,68 @@ describe("stage ordering and invalidation", () => {
   });
 
   it("saveStageFile validates a user edit and invalidates later stages", async () => {
-    await upToStoryboard();
-    const script = loadScript(project);
-    script.slides[0]!.title = "Edited claim";
-    expect(saveStageFile(project, "script", script)).toEqual({ invalidated: ["storyboard"] });
+    await runAll(project, { auto: true, ...opts() });
+    const outline = loadOutline(project);
+    outline.sections[0]!.slides[0]!.title = "Edited claim";
+    expect(saveStageFile(project, "outline", outline)).toEqual({ invalidated: ["build"] });
     expect(loadScript(project).slides[0]!.title).toBe("Edited claim");
-    expect(projectStatus(project).storyboard).toBe(false);
+    expect(projectStatus(project).build).toBe(false);
     expect(() => saveStageFile(project, "outline", { title: 1 })).toThrow();
+  });
+});
+
+describe("outline: an arc, then one card per slide", () => {
+  it("plans the arc once, writes every card concurrently, and assembles one outline.json", async () => {
+    await upToOutline();
+    expect(llm.calls.plan_arc).toBe(1);
+    expect(llm.calls.write_card).toBe(2);
+    const outlineCalls = llm.requests.filter((r) => toolOf(r) === "plan_arc" || toolOf(r) === "write_card");
+    expect(outlineCalls.every((r) => r.model === MODELS.opus)).toBe(true);
+
+    // Each card sees the whole arc, its neighbours' handoff and the research; the cards share one system prompt.
+    const cards = llm.requests.filter((r) => toolOf(r) === "write_card");
+    const second = JSON.stringify(cards[1]!.messages[0]);
+    expect(second).toMatch(/The deck's arc \(fixed\)/);
+    expect(second).toMatch(/Previous slide s01 .* hands off: the noise wave/);
+    expect(second).toContain("ANC adds an inverted copy of noise.");
+    expect(cards[0]!.system).toEqual(cards[1]!.system);
+
+    const outline = loadOutline(project);
+    expect(outline).toMatchObject({ title: "Inside ANC", totalSec: 480, visualThroughline: "One earbud, four signal colours." });
+    expect(outline.sections.map((s) => s.slides.map((x) => x.id))).toEqual([["s01"], ["s02"]]);
+    expect(outline.sections[1]!.slides[0]).toMatchObject({
+      title: "Claim for s02",
+      point: "Inverted waves cancel.",
+      role: "mechanism",
+      budgetSec: 290,
+      visual: { explainer: "simulation", technique: "parametric-sim", entry: "The noise wave alone.", exit: "A flat line." },
+    });
+
+    // The builder still gets a script and a storyboard, derived from the outline.
+    expect(loadScript(project).slides.map((s) => [s.id, s.section, s.title])).toEqual([
+      ["s01", "Hook", "Claim for s01"],
+      ["s02", "How", "Claim for s02"],
+    ]);
+    expect(loadStoryboard(project).slides[1]).toMatchObject({ id: "s02", explainer: "simulation", exit: "A flat line." });
+
+    const progress = events.filter((e) => e.type === "outline:arc" || e.type === "outline:card");
+    expect(progress[0]).toEqual({ type: "outline:arc", title: "Inside ANC", sections: 2, slides: [{ id: "s01", point: "An earbud can erase sound." }, { id: "s02", point: "Inverted waves cancel." }] });
+    expect(progress.slice(1).map((e) => (e as { id: string }).id).sort()).toEqual(["s01", "s02"]);
+    expect(progress.at(-1)).toMatchObject({ type: "outline:card", done: 2, total: 2 });
+  });
+
+  it("the builder sees the slide's words and visual direction, entry and exit included", async () => {
+    await runAll(project, { auto: true, ...opts() });
+    const req = llm.requests.find((r) => toolOf(r) === "write_slide" && slideOf(r) === "s02")!;
+    const text = JSON.stringify(req.messages[0]);
+    expect(text).toContain("Claim for s02");
+    expect(text).toContain("The noise wave alone.");
   });
 });
 
 describe("build fix loop", () => {
   it("feeds the critic's issues back to the builder and stops on pass", async () => {
-    await upToStoryboard();
+    await upToOutline();
     let s01Reviews = 0;
     llm = fakeLlm(
       handlers({
@@ -171,7 +209,7 @@ describe("build fix loop", () => {
   });
 
   it("after 2 rounds escalates one last fix to Opus on a high-severity issue, stops there, and keeps the best attempt", async () => {
-    await upToStoryboard();
+    await upToOutline();
     const scores = [4, 6, 5];
     let n = 0;
     llm = fakeLlm(
@@ -195,7 +233,7 @@ describe("build fix loop", () => {
   });
 
   it("does not escalate when the final critique has no high-severity issue", async () => {
-    await upToStoryboard();
+    await upToOutline();
     llm = fakeLlm(
       handlers({ review_slide: () => ({ ...review("fix", 6), issues: [{ severity: "medium", what: "Legend tight", where: "step 2", fix: "Add gap" }] }) }),
     );
@@ -205,7 +243,7 @@ describe("build fix loop", () => {
   });
 
   it("sends bundle-time contract errors straight back to the builder", async () => {
-    await upToStoryboard();
+    await upToOutline();
     let failed = false;
     engine = fakeEngine({
       bundleError: (f) => (f.includes("/s01/r1/") && !failed ? ((failed = true), new ContractError(["s01: selector \".x\" must start with \"#s01\""])) : undefined),
@@ -274,15 +312,22 @@ describe("reviseSlide and versions", () => {
   });
 });
 
-describe("storyboard respects the style", () => {
-  it("sends a 3D slide back when 3D is off", async () => {
-    const sb = storyboardOut(IDS, "simulation");
-    for (const s of sb.slides) Object.assign(s, { simulation: { model: "phase sum", controls: ["phase"], readouts: ["residual dB"] } });
+describe("the outline respects the style", () => {
+  it("sends an arc with a 3D slide back when 3D is off", async () => {
     llm = fakeLlm(
-      handlers({ recommend_style: () => ({ ...styleOut(), use3d: false }), write_storyboard: (_req, n) => (n === 1 ? storyboardOut(IDS, "3d-object") : sb) }),
+      handlers({ recommend_style: () => ({ ...styleOut(), use3d: false }), plan_arc: (_req, n) => (n === 1 ? arcOut(["3d-object", "simulation"]) : arcOut()) }),
     );
-    await upToStoryboard();
-    expect(llm.calls.write_storyboard).toBe(2);
-    expect(JSON.stringify(llm.requests.at(-1)!.messages.at(-1))).toMatch(/s01: 3D is off for this deck/);
+    await upToOutline();
+    expect(llm.calls.plan_arc).toBe(2);
+    const retry = llm.requests.filter((r) => toolOf(r) === "plan_arc")[1]!;
+    expect(JSON.stringify(retry.messages.at(-1))).toMatch(/s01: 3D is off for this deck/);
+  });
+
+  it("sends a card back when its simulation slide has no simulation spec", async () => {
+    let s02 = 0;
+    llm = fakeLlm(handlers({ write_card: (req) => (cardOf(req) === "s02" && ++s02 === 1 ? cardOut("s02", { simulation: undefined }) : cardOut(cardOf(req))) }));
+    await upToOutline();
+    expect(llm.calls.write_card).toBe(3);
+    expect(loadOutline(project).sections[1]!.slides[0]!.visual.simulation).toBeDefined();
   });
 });

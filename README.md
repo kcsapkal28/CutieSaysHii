@@ -37,11 +37,11 @@ A deck is built in stages. You approve each one, and any stage can be re-run.
 |---|---|---|---|
 | 1 | Brief and style | Stylist (Sonnet) | `style.json`: palette, fonts, motion, 3D, interactivity, density, presenter features |
 | 2 | Research | Researcher (Sonnet) | `research.md` |
-| 3 | Outline | Script writer (Sonnet) | `outline.json` |
-| 4 | Script | Script writer (Sonnet) | `script.json`: key message, narration, time budget per slide |
-| 5 | Storyboard | Storyboarder (Opus) | `storyboard.json`: the explainer idea, interaction, motion beats and 3D parts per slide |
-| 6 | Build | Builder (Sonnet) and Critic (Opus, vision) | `slides/sNN.html`, then `versions/<n>/deck.html` |
-| 7 | Refine | Builder | per-slide chat edits; every build is a saved version |
+| 3 | Outline | Outliner (Opus) | `outline.json`: sections and one card per slide with its point, narration, time budget and visual direction (explainer technique, interaction, motion beats, 3D parts, entry and exit state) |
+| 4 | Build | Builder (Sonnet) and Critic (Opus, vision) | `slides/sNN.html`, then `versions/<n>/deck.html` |
+| 5 | Refine | Builder | per-slide chat edits; every build is a saved version |
+
+The outline runs in two passes: one call plans the arc (sections, each slide's point and time, and an explainer technique and composition per slide, chosen across the deck so they vary), then one call per slide, up to 6 at once, writes that slide's card from the arc, the research and the style. Projects made before the outline, script and storyboard became one stage are upgraded when opened: the three old files are merged into one `outline.json` and the originals moved to `legacy/`; a project with only the old outline keeps it in `legacy/` and runs the Outline stage again.
 
 The build stage writes up to 6 slides concurrently. Each slide goes through draft → screenshot every step in Chromium → critique → fix, for up to 2 rounds. The last fix escalates to Opus if the critic still reports a high-severity issue. Models and limits live in [`packages/forge/src/pipeline/config.ts`](packages/forge/src/pipeline/config.ts).
 
@@ -59,7 +59,7 @@ packages/forge/     the engine
   src/agents/       the agents; their prompts are in packages/forge/prompts/
   src/pipeline/     stage runner: runStage, reviseSlide, versions, events
   fixtures/exemplars/  14 reference slides across 5 decks, indexed by explainer technique
-projects/           your decks (gitignored): brief, style, research, outline, script, storyboard, slides, versions
+projects/           your decks (gitignored): brief, style, research, outline, slides, versions
 docs/               design docs
 ```
 

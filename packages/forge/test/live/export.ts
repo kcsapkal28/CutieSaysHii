@@ -7,7 +7,7 @@ import { listVersions, loadProject } from "../../src/pipeline/index.ts";
 const [arg, out] = process.argv.slice(2);
 const p = loadProject(arg!);
 mkdirSync(out!, { recursive: true });
-for (const f of ["brief.json", "style.json", "style.rationale.json", "research.md", "outline.json", "script.json", "storyboard.json", "build.json", "log.jsonl"]) {
+for (const f of ["brief.json", "style.json", "style.rationale.json", "research.md", "outline.json", "build.json", "log.jsonl"]) {
   if (existsSync(join(p.dir, f))) cpSync(join(p.dir, f), join(out!, f));
 }
 if (existsSync(join(p.dir, "slides"))) cpSync(join(p.dir, "slides"), join(out!, "slides"), { recursive: true });

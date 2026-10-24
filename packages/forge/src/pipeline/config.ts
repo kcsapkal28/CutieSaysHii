@@ -1,14 +1,13 @@
 // Pipeline defaults in one place. Every value can be overridden per call through PipelineContext.
 import { MODELS } from "../llm.ts";
 
-export type AgentName = "stylist" | "researcher" | "outline" | "script" | "storyboarder" | "builder" | "builderEscalation" | "critic";
+export type AgentName = "stylist" | "researcher" | "outline" | "builder" | "builderEscalation" | "critic";
 
 export const DEFAULT_MODELS: Record<AgentName, string> = {
   stylist: MODELS.sonnet,
   researcher: MODELS.sonnet,
-  outline: MODELS.sonnet,
-  script: MODELS.sonnet,
-  storyboarder: MODELS.opus,
+  /** Both outline passes (the arc and the per-slide cards): the strongest creative model. */
+  outline: MODELS.opus,
   /** Drafts and fix rounds. */
   builder: MODELS.sonnet,
   /** One extra fix attempt when the final critique still says "fix" with a high-severity issue. */
@@ -28,4 +27,9 @@ export const BUILD_DEFAULTS = {
    * 30–60k tokens with the model's adaptive thinking (often hitting max_tokens). The escalated Opus round thinks.
    */
   builderThinking: "off" as "off" | "model",
+};
+
+export const OUTLINE_DEFAULTS = {
+  /** Slide cards written at once in the outline's second pass. */
+  concurrency: 6,
 };

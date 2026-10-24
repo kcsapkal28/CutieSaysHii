@@ -55,31 +55,9 @@ export const Research = z.object({
 });
 export type Research = z.infer<typeof Research>;
 
-// ---- outline.json ----
+// ---- legacy outline.json (before Outline, Script and Storyboard were one stage; see pipeline/migrate.ts) ----
 
-export const OutlineDraft = z.object({
-  title: z.string().describe("Deck title, short and evocative."),
-  subtitle: z.string(),
-  throughline: z.string().describe("The one story the deck tells, in two sentences."),
-  sections: z
-    .array(
-      z.object({
-        name: z.string().describe("1–2 words, used as a section tab."),
-        slides: z
-          .array(
-            z.object({
-              keyMessage: z.string().describe("The single idea this slide lands, as a full sentence."),
-              role: z.enum(["opener", "context", "mechanism", "evidence", "comparison", "tradeoff", "recap", "closer"]),
-              budgetSec: z.number().positive().describe("Seconds; rescaled in code so the deck fits the talk length."),
-            }),
-          )
-          .min(1),
-      }),
-    )
-    .min(2),
-});
-
-export const Outline = z.object({
+export const LegacyOutline = z.object({
   title: z.string(),
   subtitle: z.string(),
   throughline: z.string(),
@@ -91,9 +69,9 @@ export const Outline = z.object({
     }),
   ),
 });
-export type Outline = z.infer<typeof Outline>;
+export type LegacyOutline = z.infer<typeof LegacyOutline>;
 
-// ---- script.json ----
+// ---- the builder's and critic's inputs: Script and Storyboard, derived from outline.json (toScript, toStoryboard) ----
 
 export const ScriptSlide = z.object({
   id: z.string(),
@@ -113,8 +91,6 @@ export const Script = z.object({
   slides: z.array(ScriptSlide.extend({ section: z.string() })),
 });
 export type Script = z.infer<typeof Script>;
-
-// ---- storyboard.json ----
 
 export const EXPLAINERS = [
   "3d-object",
@@ -175,6 +151,8 @@ export const StoryboardSlide = z.object({
     .optional(),
   data: z.string().optional().describe("For data-viz, timeline, map and comparison: the actual values, units, dates, places or items"),
   reducedMotion: z.string().describe("What the slide shows when motion is off"),
+  entry: z.string().optional().describe("What is on screen at step 1, picking up where the previous slide left off (or a clean cut)."),
+  exit: z.string().optional().describe("The state at the last step, set up so the next slide can pick it up."),
 });
 export type StoryboardSlide = z.infer<typeof StoryboardSlide>;
 
@@ -184,6 +162,66 @@ export const Storyboard = z.object({
   slides: z.array(StoryboardSlide).min(1),
 });
 export type Storyboard = z.infer<typeof Storyboard>;
+
+// ---- outline.json: the deck's arc plus one card per slide (the words and the visual direction together) ----
+
+export const ROLES = ["opener", "context", "mechanism", "evidence", "comparison", "tradeoff", "recap", "closer"] as const;
+
+/** A slide's visual direction: its storyboard entry without the id. */
+export const Visual = StoryboardSlide.omit({ id: true });
+export type Visual = z.infer<typeof Visual>;
+
+export const OutlineSlide = z.object({
+  id: z.string(),
+  title: ScriptSlide.shape.title,
+  kicker: ScriptSlide.shape.kicker,
+  subtitle: ScriptSlide.shape.subtitle,
+  point: z.string().describe("The single idea this slide lands, as a full sentence."),
+  role: z.string(),
+  callouts: ScriptSlide.shape.callouts,
+  notes: ScriptSlide.shape.notes,
+  budgetSec: z.number().int().positive(),
+  visual: Visual,
+});
+export type OutlineSlide = z.infer<typeof OutlineSlide>;
+
+export const Outline = z.object({
+  title: z.string(),
+  subtitle: z.string(),
+  throughline: z.string(),
+  /** The talk length the budgets were planned for (edits can make the slides' sum drift from it). */
+  totalSec: z.number().int(),
+  visualThroughline: Storyboard.shape.visualThroughline,
+  motifs: Storyboard.shape.motifs,
+  sections: z.array(z.object({ name: z.string(), slides: z.array(OutlineSlide) })),
+});
+export type Outline = z.infer<typeof Outline>;
+
+/** Every slide in deck order, with its section name. */
+export const outlineSlides = (o: Outline): (OutlineSlide & { section: string })[] =>
+  o.sections.flatMap((s) => s.slides.map((sl) => ({ ...sl, section: s.name })));
+
+/** The builder's script (the words per slide), derived from the outline. */
+export function toScript(o: Outline): Script {
+  return {
+    title: o.title,
+    slides: outlineSlides(o).map((s) => ({
+      id: s.id,
+      title: s.title,
+      ...(s.kicker ? { kicker: s.kicker } : {}),
+      ...(s.subtitle ? { subtitle: s.subtitle } : {}),
+      callouts: s.callouts,
+      notes: s.notes,
+      budgetSec: s.budgetSec,
+      section: s.section,
+    })),
+  };
+}
+
+/** The builder's and critic's storyboard (the visual direction per slide), derived from the outline. */
+export function toStoryboard(o: Outline): Storyboard {
+  return { visualThroughline: o.visualThroughline, motifs: o.motifs, slides: outlineSlides(o).map((s) => ({ id: s.id, ...s.visual })) };
+}
 
 // ---- critic ----
 

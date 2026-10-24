@@ -38,15 +38,28 @@ test("brief → style → stages → build → viewer", async ({ page }) => {
 
   // Stages: each auto-runs on arrival, then gets approved.
   await approveStage(page, "research", /\/outline(\?run=1)?$/);
-  await approveStage(page, "outline", /\/script(\?run=1)?$/);
-  await page.waitForURL(/\/script$/);
+
+  // Outline: one card per slide with the words and the visual together; edit both in the same card.
+  await page.waitForURL(/\/outline$/);
   await expect(page.getByText("Ready for review").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByLabel("Agent activity").getByText(/Arc planned: 10 slides/)).toBeVisible();
+  await expect(page.getByText("20:00").first()).toBeVisible();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
-  await page.getByLabel("s01 key message").fill("ANC makes sound to remove sound. Edited.");
+  await page.getByLabel("s01 point").fill("ANC makes sound to remove sound. Edited.");
+  await page.getByLabel("s01 interaction kind").selectOption("click");
+  await page.getByLabel("s01 interaction", { exact: true }).fill("Click the bud to explode it.");
   await page.getByRole("button", { name: /Done editing/ }).click();
   await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+  await expect(page.getByText("ANC makes sound to remove sound. Edited.")).toBeVisible();
+  await expect(page.getByText("click: Click the bud to explode it.")).toBeVisible();
+
+  // Old stage URLs land on the outline.
+  const id = /\/p\/([^/]+)\//.exec(page.url())![1];
+  await page.goto(`/p/${id}/storyboard`);
+  await expect(page).toHaveURL(/\/outline$/);
+  await expect(page.getByRole("button", { name: /Approve and continue/ })).toBeEnabled();
   await page.getByRole("button", { name: /Approve and continue/ }).click();
-  await approveStage(page, "storyboard", /\/build(\?run=1)?$/);
+  await expect(page).toHaveURL(/\/build(\?run=1)?$/);
 
   // Build: the filmstrip fills in, every slide passes.
   await expect(page.getByText("10/10")).toBeVisible({ timeout: 90_000 });

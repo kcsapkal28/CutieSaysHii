@@ -1,24 +1,44 @@
 // Studio-side data shapes for the files in `projects/<id>/` (see the v2 design spec).
 // Client-safe: no runtime imports.
 import type { Style } from "@deckforge/forge";
+import type { Outline, OutlineSlide, Visual } from "@deckforge/forge/pipeline";
 
-export type { Style };
+export type { Outline, OutlineSlide, Style, Visual };
 
 /** The stages the user approves one by one. Brief and style are set before these run. */
-export const STAGES = ["research", "outline", "script", "storyboard", "build"] as const;
+export const STAGES = ["research", "outline", "build"] as const;
 export type StageName = (typeof STAGES)[number];
 
 /** idle = never run · running · review = output ready, waiting for approval · approved · error. */
 export type StageStatus = "idle" | "running" | "review" | "approved" | "error";
 
-export type StageFileName = "brief.json" | "style.json" | "research.md" | "outline.json" | "script.json" | "storyboard.json";
+export type StageFileName = "brief.json" | "style.json" | "research.md" | "outline.json";
 
 export const STAGE_FILE: Record<Exclude<StageName, "build">, StageFileName> = {
   research: "research.md",
   outline: "outline.json",
-  script: "script.json",
-  storyboard: "storyboard.json",
 };
+
+/** The engine's explainer types (packages/forge/src/agents/schemas.ts EXPLAINERS), for the outline editor. */
+export const EXPLAINERS = [
+  "3d-object",
+  "simulation",
+  "animated-diagram",
+  "data-viz",
+  "timeline",
+  "map",
+  "comparison",
+  "quote",
+  "typographic",
+  "image-led",
+] as const satisfies readonly Visual["explainer"][];
+
+export const INTERACTIONS = ["none", "click", "hover", "toggle", "slider", "drag"] as const satisfies readonly Visual["interaction"]["kind"][];
+
+/** Every slide of an outline in deck order, with its section name. */
+export function outlineSlides(o: Outline | null | undefined): (OutlineSlide & { section: string })[] {
+  return (o?.sections ?? []).flatMap((s) => s.slides.map((sl) => ({ ...sl, section: s.name })));
+}
 
 /** `brief.json` */
 export interface Brief {
@@ -29,33 +49,6 @@ export interface Brief {
   goal: string;
   /** Free-form "anything else". */
   notes?: string;
-}
-
-/** `outline.json` */
-export interface Outline {
-  title: string;
-  sections: { name: string; slides: { id: string; title: string; point: string }[] }[];
-}
-
-/** `script.json` */
-export interface Script {
-  slides: { id: string; title: string; keyMessage: string; narration: string; budgetSec: number }[];
-}
-
-export const VISUAL_TYPES = ["3d-object", "simulation", "diagram", "chart", "typographic", "comparison"] as const;
-export type VisualType = (typeof VISUAL_TYPES)[number];
-
-/** `storyboard.json` */
-export interface Storyboard {
-  slides: {
-    id: string;
-    layout: string;
-    visual: VisualType;
-    interaction: string;
-    motionBeats: string[];
-    /** Procedural Three.js object spec, when the slide uses 3D. */
-    object3d?: string;
-  }[];
 }
 
 export type Verdict = "pass" | "revise";

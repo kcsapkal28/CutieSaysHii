@@ -1,7 +1,10 @@
 // Hand-written slide files for the mock ANC deck, following the v2 slide contract
 // (one <section class="df-slide">, slide-scoped <style>, one DF.slide script). The engine bundles them for real.
 // Slide scripts avoid template literals so they can live inside these TS strings.
-import { ANC_SCRIPT } from "./anc";
+import { outlineSlides } from "../types";
+import { ANC_OUTLINE } from "./anc";
+
+const SLIDES = outlineSlides(ANC_OUTLINE);
 
 export interface SlideOpts {
   /** Animation speed multiplier (0.5 = half speed). */
@@ -16,13 +19,13 @@ export const DEFAULT_OPTS: SlideOpts = { speed: 1, titleScale: 1, altCopy: false
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 function notes(id: string): string {
-  const s = ANC_SCRIPT.slides.find((x) => x.id === id);
-  return s ? `<aside class="df-notes"><p>${esc(s.narration)}</p></aside>` : "";
+  const s = SLIDES.find((x) => x.id === id);
+  return s ? `<aside class="df-notes"><p>${esc(s.notes)}</p></aside>` : "";
 }
 
 function caption(id: string, o: SlideOpts, base: string): string {
-  const s = ANC_SCRIPT.slides.find((x) => x.id === id);
-  return o.altCopy && s ? s.keyMessage : base;
+  const s = SLIDES.find((x) => x.id === id);
+  return o.altCopy && s ? s.point : base;
 }
 
 const file = (id: string, section: string, css: string, js: string) =>

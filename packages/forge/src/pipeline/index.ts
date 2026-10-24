@@ -1,8 +1,8 @@
 // Public API of the agent pipeline (wired into cli.ts / index.ts and the Studio by the controller).
 //
 //   const project = createProject({ topic, audience, minutes, prefs });   // or loadProject(slugOrDir)
-//   await runStage(project, "style", { onEvent });                         // style → research → outline → script → storyboard → build
-//   saveStageFile(project, "script", editedScript);                        // user edit; later stages are invalidated
+//   await runStage(project, "style", { onEvent });                         // style → research → outline → build
+//   saveStageFile(project, "outline", editedOutline);                      // user edit; later stages are invalidated
 //   await reviseSlide(project, "s03", "make the earbud bigger", { onEvent });
 //   listVersions(project);
 //
@@ -17,7 +17,10 @@ export type { BuildSummary, SlideBuild, RoundRecord, VersionMeta } from "./build
 export type { ForgeEvent, OnEvent, Verdict } from "./events.ts";
 export { journalFile, readJournal, summarizeRun, summarizeRuns, formatRun } from "./journal.ts";
 export type { JournalLine, RunSummary, StageRow, SlideRow, CostRow } from "./journal.ts";
-export { DEFAULT_MODELS, BUILD_DEFAULTS } from "./config.ts";
+export { DEFAULT_MODELS, BUILD_DEFAULTS, OUTLINE_DEFAULTS } from "./config.ts";
+export { migrateProject, mergeLegacy } from "./migrate.ts";
+export type { Migration } from "./migrate.ts";
+export { toScript, toStoryboard, outlineSlides } from "../agents/schemas.ts";
 export type { AgentName } from "./config.ts";
 export { createSharedEngine } from "./shared-engine.ts";
 export { deckConfig } from "./build.ts";
@@ -26,4 +29,4 @@ export { refineResearch, researchSection } from "../agents/research-refiner.ts";
 export type { RefineInput, RefineResult } from "../agents/research-refiner.ts";
 export { createLlm, createProxyLlm, loadLlmEnv, MODELS, LlmError } from "../llm.ts";
 export type { Llm, Usage, CallRecord, Transport } from "../llm.ts";
-export type { StylePrefs, Brief, Outline, Script, Storyboard } from "../agents/schemas.ts";
+export type { StylePrefs, Brief, Outline, OutlineSlide, Visual, LegacyOutline, Script, Storyboard } from "../agents/schemas.ts";

@@ -3,8 +3,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join, resolve } from "node:path";
 import { repoRoot } from "../llm.ts";
 import { Brief, type StylePrefs } from "../agents/schemas.ts";
+import { migrateProject } from "./migrate.ts";
 
-export const STAGES = ["style", "research", "outline", "script", "storyboard", "build"] as const;
+export const STAGES = ["style", "research", "outline", "build"] as const;
 export type Stage = (typeof STAGES)[number];
 
 /** What each stage writes. Re-running a stage deletes these for every later stage; versions/ is never deleted. */
@@ -12,8 +13,6 @@ export const STAGE_OUTPUTS: Record<Stage, string[]> = {
   style: ["style.json"],
   research: ["research.md", "research.json"],
   outline: ["outline.json"],
-  script: ["script.json"],
-  storyboard: ["storyboard.json"],
   build: ["build.json", "slides", "shots"],
 };
 
@@ -47,11 +46,12 @@ export function createProject(input: NewProject): Project {
   return { dir, slug };
 }
 
-/** Opens an existing project by directory, or by slug under `<root>/projects/`. */
+/** Opens an existing project by directory, or by slug under `<root>/projects/`, upgrading an old one (see migrate.ts). */
 export function loadProject(dirOrSlug: string, root?: string): Project {
   const candidates = [resolve(dirOrSlug), join(root ?? repoRoot(), "projects", dirOrSlug)];
   const abs = candidates.find((d) => existsSync(join(d, "brief.json")));
   if (!abs) throw new Error(`not a DeckForge project (no brief.json): ${dirOrSlug}`);
+  migrateProject({ dir: abs });
   return { dir: abs, slug: abs.split(/[\\/]/).pop()! };
 }
 export const openProject = loadProject;

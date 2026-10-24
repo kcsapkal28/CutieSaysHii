@@ -27,16 +27,12 @@ export function useProject(): Ctx {
 export const STAGE_LABEL: Record<StageName, string> = {
   research: "Research",
   outline: "Outline",
-  script: "Script",
-  storyboard: "Storyboard",
   build: "Build",
 };
 
 export const STAGE_BLURB: Record<StageName, string> = {
   research: "Facts and sources the deck will stand on.",
-  outline: "The narrative arc, one point per slide.",
-  script: "What each slide says, and how long it gets.",
-  storyboard: "How each slide shows it: visual, interaction, motion.",
+  outline: "The arc, then one card per slide: what it says, how long it gets, and how it shows it.",
   build: "Agents write every slide, screenshot it and fix it.",
 };
 

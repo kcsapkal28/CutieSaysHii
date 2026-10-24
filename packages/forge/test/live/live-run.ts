@@ -1,5 +1,5 @@
 // Live evaluation run through the proxy and the real engine:
-//   tsx test/live/live-run.ts new "<topic>" "<audience>" <minutes> [--to storyboard|build]
+//   tsx test/live/live-run.ts new "<topic>" "<audience>" <minutes> [--to outline|build]
 //   tsx test/live/live-run.ts <projectDirOrSlug> <stage> [<stage>…]
 // Prints one line per event; appends usage/timing per stage to the project's log.jsonl.
 import { createProject, loadProject, runStage, STAGES, type ForgeEvent, type Stage } from "../../src/pipeline/index.ts";
@@ -44,9 +44,9 @@ let project;
 let stages: Stage[];
 if (args[0] === "new") {
   const [, topic, audience, minutes] = args;
-  const to = (args[args.indexOf("--to") + 1] as Stage | undefined) ?? "storyboard";
+  const to = (args[args.indexOf("--to") + 1] as Stage | undefined) ?? "outline";
   project = createProject({ topic: topic!, audience: audience!, minutes: Number(minutes) });
-  stages = STAGES.slice(0, STAGES.indexOf(args.includes("--to") ? to : "storyboard") + 1);
+  stages = STAGES.slice(0, STAGES.indexOf(args.includes("--to") ? to : "outline") + 1);
 } else {
   project = loadProject(args[0]!);
   stages = args.slice(1) as Stage[];

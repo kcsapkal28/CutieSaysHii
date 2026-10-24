@@ -3,12 +3,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/client/api";
-import { STAGE_FILE, STAGES, type Outline, type Script, type StageName, type Storyboard, type Usage } from "@/lib/types";
+import { STAGE_FILE, STAGES, type Outline, type StageName, type Usage } from "@/lib/types";
 import { ActivityPanel } from "./activity-panel";
 import { IconArrowRight, IconCheck, IconEdit, IconPlay, IconRefresh, IconStop } from "./icons";
 import { STAGE_BLURB, STAGE_LABEL, useProject } from "./project-shell";
 import { ResearchDoc } from "./research-doc";
-import { OutlineEditor, ScriptEditor, StoryboardEditor } from "./stage-editors";
+import { OutlineEditor } from "./stage-editors";
 import { Button, EmptyState, ErrorNote, Kbd, Spinner, StatusPill } from "./ui";
 import { useStageRun, type LogLine } from "./use-stage-run";
 
@@ -16,14 +16,12 @@ type DocStage = Exclude<StageName, "build">;
 
 const RUN_EMPTY: Record<DocStage, string> = {
   research: "Searches, sources read and facts kept will stream here.",
-  outline: "The script writer’s steps will stream here.",
-  script: "Narration progress will stream here.",
-  storyboard: "The creative’s decisions will stream here.",
+  outline: "The arc, then each slide’s card as it is written, will stream here.",
 };
 
 const ZERO: Usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
 
-/** "outline, script and build" */
+/** "outline and build" */
 function listOf(stages: StageName[]): string {
   const names = stages.map((s) => STAGE_LABEL[s].toLowerCase());
   return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
@@ -161,8 +159,6 @@ export function StageView({ stage }: { stage: DocStage }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const scriptTitles = Object.fromEntries((parse<Script>(project.files["script.json"])?.slides ?? []).map((s) => [s.id, s.title]));
-
   let body: ReactNode;
   if (blocked && !saved) {
     body = (
@@ -221,11 +217,9 @@ export function StageView({ stage }: { stage: DocStage }) {
       </article>
     );
   } else {
-    const parsed = parse<Outline & Script & Storyboard>(content);
+    const parsed = parse<Outline>(content);
     if (!parsed) body = <ErrorNote message={`${file} isn’t valid JSON. Re-run the stage or fix the file.`} />;
-    else if (stage === "outline") body = <OutlineEditor value={parsed} editing={editing} onChange={(v) => setDraft(JSON.stringify(v, null, 2))} />;
-    else if (stage === "script") body = <ScriptEditor value={parsed} editing={editing} onChange={(v) => setDraft(JSON.stringify(v, null, 2))} targetMinutes={project.brief.minutes} />;
-    else body = <StoryboardEditor value={parsed} editing={editing} titles={scriptTitles} onChange={(v) => setDraft(JSON.stringify(v, null, 2))} />;
+    else body = <OutlineEditor value={parsed} editing={editing} onChange={(v) => setDraft(JSON.stringify(v, null, 2))} targetMinutes={project.brief.minutes} />;
   }
 
   return (

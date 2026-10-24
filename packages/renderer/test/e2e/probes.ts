@@ -199,18 +199,48 @@ export function diagramFills(): string[] {
   return fill >= 0.8 ? [] : [`${s.id}: drawing fills ${fill.toFixed(2)} of its region`];
 }
 
-/** A bleed image's caption sits on an opaque --df-bg plate (below the template root) at 4.5:1. */
+/**
+ * Image-slide text (the caption, and the kicker when shown) reaches 4.5:1. Text that overlaps the picture must sit on
+ * an opaque --df-bg plate below the template root, since a picture has no single background colour, and must be
+ * painted above it. A bleed picture covers the slide; a split picture reaches its top, bottom and left edges.
+ */
 export function imageCaptionLegible(): string[] {
   const s = window.Reveal.getCurrentSlide();
   const m = window.dfMetrics;
+  const figure = s.querySelector(".df-image");
   const caption = s.querySelector('.df-caption, [data-region="caption"]');
+  if (!figure || !m.isShown(figure)) return [`${s.id}: no image`];
   if (!caption || !m.isShown(caption)) return [`${s.id}: no caption`];
-  let plate: Element | null = caption;
-  while (plate && !plate.matches(".df-slide, section") && m.parseColour(getComputedStyle(plate).backgroundColor)[3] < 1)
-    plate = plate.parentElement;
-  if (!plate || plate.matches(".df-slide, section")) return [`${s.id}: caption has no opaque plate`];
-  const fill = getComputedStyle(plate).backgroundColor;
-  const out = m.rgbContrast(fill, m.resolveColour("var(--df-bg)")) > 1.01 ? [`${s.id}: plate ${fill} is not --df-bg`] : [];
-  const ratio = m.rgbContrast(getComputedStyle(caption).color, fill);
-  return ratio >= 4.5 ? out : [...out, `${s.id}: caption ${ratio.toFixed(2)}:1`];
+  const pic = figure.getBoundingClientRect();
+  const overlaps = (r: DOMRect) => r.left < pic.right - 1 && r.right > pic.left + 1 && r.top < pic.bottom - 1 && r.bottom > pic.top + 1;
+  const bg = m.resolveColour("var(--df-bg)");
+  const out: string[] = [];
+  // bleed covers the whole slide; split reaches its top, bottom and left edges.
+  const layout = document.querySelector(".reveal")?.getAttribute("data-df-image-layout");
+  const box = s.getBoundingClientRect();
+  const edges = layout === "bleed" ? (["top", "right", "bottom", "left"] as const) : layout === "split" ? (["top", "bottom", "left"] as const) : [];
+  for (const e of edges)
+    if (Math.abs(pic[e] - box[e]) > 1) out.push(`${s.id}: ${layout} picture ${e} ${pic[e].toFixed(0)} is not the slide's ${box[e].toFixed(0)}`);
+  for (const [what, el] of [["caption", caption], ["kicker", s.querySelector(".df-kicker")]] as const) {
+    if (!el || !m.isShown(el) || !el.textContent?.trim()) continue;
+    let fill = m.effectiveBackground(el);
+    const r = el.getBoundingClientRect();
+    if (overlaps(r)) {
+      // Paint order: what shows at the text's centre is the text, not the picture.
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (!hit || !el.contains(hit)) out.push(`${s.id}: ${what} is painted under <${hit?.localName ?? "nothing"}.${hit?.classList[0] ?? ""}>`);
+      let plate: Element | null = el;
+      while (plate && !plate.matches(".df-slide, section") && m.parseColour(getComputedStyle(plate).backgroundColor)[3] < 1)
+        plate = plate.parentElement;
+      if (!plate || plate.matches(".df-slide, section")) {
+        out.push(`${s.id}: ${what} over the picture has no opaque plate`);
+        continue;
+      }
+      fill = getComputedStyle(plate).backgroundColor;
+      if (m.rgbContrast(fill, bg) > 1.01) out.push(`${s.id}: ${what} plate ${fill} is not --df-bg`);
+    }
+    const ratio = m.rgbContrast(getComputedStyle(el).color, fill);
+    if (ratio < 4.5) out.push(`${s.id}: ${what} ${ratio.toFixed(2)}:1`);
+  }
+  return out;
 }

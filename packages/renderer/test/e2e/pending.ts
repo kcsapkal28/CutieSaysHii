@@ -29,7 +29,4 @@ export const PENDING: ReadonlyMap<string, string> = new Map([
 
   // Task 6c
   ["slide-number-once", "6c"],
-
-  // Task 9
-  ["image-caption-legible", "9"],
 ]);

@@ -14,7 +14,7 @@ import { diagramKey } from "../src/blocks/render.ts";
 import { build } from "../src/build.ts";
 import { bundleDiagramPage } from "../src/bundle.ts";
 import { compileDeckCss } from "../src/css.ts";
-import { renderDiagrams, reservedClassNames, selectorClassNames } from "../src/diagrams.ts";
+import { renderDiagrams, reservedClassNames, selectorClassNames, UnenumerableClassSelectorError } from "../src/diagrams.ts";
 
 type SanitiseOptions = { idPrefix: string; reservedClasses: readonly string[] };
 type PageGlobal = { deckforgeDiagrams: { sanitiseSvg: (s: string, o: SanitiseOptions) => string } };
@@ -28,6 +28,7 @@ const CLOBBER = `graph TD\n A["<span id=deck class=reveal>x</span>"] --> B`;
 const SLIDE_ID = `graph TD\n A["<span id='s15'>y</span>"] --> B`;
 const HOOKS =
   `graph TD\n A["<span data-df-final=9 data-motion-el data-region=body tabindex=0 aria-hidden=true name=n>z</span>"] --> B`;
+const NAV = "graph TD\n A[Next] --> B[Other]\n class A navigate-next";
 
 let catalog: Catalog;
 let theme: ThemeSpec;
@@ -50,7 +51,7 @@ beforeAll(async () => {
     interactionModeId: "linear",
     threeJs: false,
   });
-  const out = await renderDiagrams([HIDDEN, FRAGMENT, CLOBBER, SLIDE_ID, HOOKS], theme);
+  const out = await renderDiagrams([HIDDEN, FRAGMENT, CLOBBER, SLIDE_ID, HOOKS, NAV], theme);
   expect(out.warnings).toEqual([]);
   svgs = out.svgs;
 }, 120_000);
@@ -96,6 +97,24 @@ describe("reserved class names", () => {
     for (const c of selectorClassNames(await compileDeckCss())) expect(reserved.has(c), c).toBe(true);
     // Mermaid's own structural classes stay usable.
     for (const c of ["node", "nodeLabel", "edgeLabel", "label", "cluster", "flowchart-link"]) expect(reserved.has(c), c).toBe(false);
+  });
+
+  // Reveal binds clicks on these anywhere in the deck, so a diagram node carrying one would navigate or go fullscreen.
+  it("reserves Reveal's navigation and fullscreen hooks", async () => {
+    const reserved = await reservedClassNames();
+    for (const c of ["navigate-prev", "navigate-next", "enter-fullscreen"]) expect(reserved, c).toContain(c);
+    const doc = svgOf(NAV);
+    expect(doc.querySelectorAll(".navigate-next")).toHaveLength(0);
+    expect(doc.querySelector('[id*="-flowchart-A-"]')?.classList.contains("node")).toBe(true);
+  });
+
+  // A class attribute selector matches tokens no class list can enumerate, so the reserved set would be incomplete.
+  it("selectorClassNames fails closed on class attribute selectors", () => {
+    for (const css of ['[class~="a"]{}', '[ CLASS *= "df" ]{}', "[*|class]{}", "a[class]{}", ".x [class^=r-]{}", "[ns|class$='y' i]{}"])
+      expect(() => selectorClassNames(css), css).toThrow(UnenumerableClassSelectorError);
+    for (const css of ["[data-class]{}", "/* [class] */ .a{}", '.a{content:"[class]"}', ".a{background:x}[data-classy]{}", "[classy]{}"])
+      expect(() => selectorClassNames(css), css).not.toThrow();
+    expect(selectorClassNames('/* [class] */ .a{content:"[class]"}')).toEqual(["a"]);
   });
 });
 

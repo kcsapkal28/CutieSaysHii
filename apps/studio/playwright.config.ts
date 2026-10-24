@@ -17,8 +17,8 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    // Mock delays at 5% so the full walk takes seconds, not minutes.
-    command: `STUDIO_DIST_DIR=.next-e2e STUDIO_MOCK_SPEED=0.05 NODE_OPTIONS=--experimental-transform-types pnpm exec next dev -p ${PORT}`,
+    // The mock backend, with delays at 5% so the full walk takes seconds, not minutes.
+    command: `STUDIO_BACKEND=mock STUDIO_DIST_DIR=.next-e2e STUDIO_MOCK_SPEED=0.05 pnpm exec next dev -p ${PORT}`,
     url: `http://localhost:${PORT}/api/projects`,
     reuseExistingServer: false,
     timeout: 120_000,

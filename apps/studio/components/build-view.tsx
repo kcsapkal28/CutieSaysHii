@@ -33,6 +33,12 @@ function Verdict({ s }: { s: SlideBuildState }) {
         <Spinner size={11} /> Round {s.rounds || 1}
       </span>
     );
+  if (s.status === "done" && s.verdict === "revise")
+    return (
+      <span className="flex items-center gap-1 text-[11.5px] text-ember" title="The critic still had notes after the last round; the best round was kept.">
+        <IconCheck size={12} strokeWidth={2} /> Best of {s.rounds} {s.rounds === 1 ? "round" : "rounds"}
+      </span>
+    );
   if (s.status === "done")
     return (
       <span className="flex items-center gap-1 text-[11.5px] text-ok">

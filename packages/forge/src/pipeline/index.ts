@@ -18,6 +18,8 @@ export type { ForgeEvent, OnEvent, Verdict } from "./events.ts";
 export { DEFAULT_MODELS, BUILD_DEFAULTS } from "./config.ts";
 export type { AgentName } from "./config.ts";
 export { createSharedEngine } from "./shared-engine.ts";
+export { deckConfig } from "./build.ts";
+export { runStylist } from "../agents/stylist.ts";
 export { createLlm, createProxyLlm, loadLlmEnv, MODELS, LlmError } from "../llm.ts";
 export type { Llm, Usage, CallRecord, Transport } from "../llm.ts";
 export type { StylePrefs, Brief, Outline, Script, Storyboard } from "../agents/schemas.ts";

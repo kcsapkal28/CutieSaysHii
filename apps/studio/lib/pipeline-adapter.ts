@@ -1,28 +1,9 @@
-// Maps the agent pipeline's events (packages/forge/src/pipeline/events.ts, `ForgeEvent`, on feat/v2-agents at the time
-// of writing) onto the Studio's PipelineEvent stream (lib/events.ts). The real StudioBackend adapter feeds every
-// `onEvent` callback through this and yields the results from runStage / reviseSlide.
-//
-// `ForgeEvent` is mirrored structurally below so this file compiles before the pipeline merges. After the merge,
-// replace the mirror with `import type { ForgeEvent } from "@deckforge/forge"` (the shapes are copied verbatim).
+// Maps the agent pipeline's events (`ForgeEvent`, packages/forge/src/pipeline/events.ts) onto the Studio's
+// PipelineEvent stream (lib/events.ts). RealBackend feeds every `onEvent` callback through this and streams the results
+// from runStage / reviseSlide.
+import type { ForgeEvent, Usage as ForgeUsage } from "@deckforge/forge/pipeline";
 import type { PipelineEvent } from "./events";
 import { STAGES, type StageName, type Usage } from "./types";
-
-type ForgeStage = "style" | StageName;
-type ForgeUsage = { input: number; output: number; cacheRead: number; cacheWrite: number };
-type ForgeVerdict = "pass" | "fix";
-
-export type ForgeEventMirror =
-  | { type: "stage:start"; stage: ForgeStage; invalidated: ForgeStage[] }
-  | { type: "stage:done"; stage: ForgeStage; ms: number; usage: ForgeUsage; calls: number }
-  | { type: "stage:error"; stage: ForgeStage; error: string }
-  | { type: "usage"; stage: ForgeStage | "revise"; label: string; model: string; ms: number; usage: ForgeUsage }
-  | { type: "slide:round"; id: string; round: number; phase: "build" | "bundle" | "shoot" | "critic"; model?: string; escalated?: boolean }
-  | { type: "slide:shots"; id: string; round: number; files: string[] }
-  | { type: "slide:verdict"; id: string; round: number; verdict: ForgeVerdict; score: number; issues: number; errors: number }
-  | { type: "slide:error"; id: string; round: number; error: string }
-  | { type: "slide:escalate"; id: string; round: number; model: string }
-  | { type: "slide:done"; id: string; bestRound: number; rounds: number; verdict: ForgeVerdict | "failed"; score: number }
-  | { type: "deck:done"; version: number; file: string };
 
 /** USD per million tokens [input, output]; cache reads at 10% of input, writes at 125%. Unknown models cost 0. */
 const PRICE: [RegExp, number, number][] = [
@@ -43,12 +24,12 @@ const isStage = (s: string): s is StageName => (STAGES as readonly string[]).inc
  * Returns a stateful mapper for one run. `context` is the stage being run ("build" for reviseSlide), used for
  * events that carry no stage of their own.
  */
-export function createForgeEventAdapter(context: StageName, opts: { note?: string } = {}) {
+export function createForgeEventAdapter(context: StageName, opts: { note?: string; titles?: Record<string, string> } = {}) {
   let total: Usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
   const started = new Set<string>();
   const now = () => new Date().toISOString();
 
-  return (e: ForgeEventMirror): PipelineEvent[] => {
+  return (e: ForgeEvent): PipelineEvent[] => {
     switch (e.type) {
       case "stage:start":
         return isStage(e.stage) ? [{ type: "stage.start", stage: e.stage, at: now() }] : [];
@@ -71,7 +52,7 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
         const out: PipelineEvent[] = [];
         if (!started.has(e.id)) {
           started.add(e.id);
-          out.push({ type: "slide.start", slideId: e.id, title: e.id });
+          out.push({ type: "slide.start", slideId: e.id, title: opts.titles?.[e.id] ?? e.id });
         }
         const phase = e.phase === "build" ? "build" : e.phase === "critic" ? "critique" : "shoot";
         out.push({ type: "slide.round", slideId: e.id, round: e.round, phase });

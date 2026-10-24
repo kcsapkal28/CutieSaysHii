@@ -1,0 +1,34 @@
+{
+  "name": "@deckforge/forge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "forge": "./src/cli.ts"
+  },
+  "scripts": {
+    "forge": "tsx src/cli.ts",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5",
+    "@fontsource/ibm-plex-sans": "^5",
+    "@fontsource/inter": "^5",
+    "@fontsource/inter-tight": "^5",
+    "@fontsource/jetbrains-mono": "^5",
+    "@fontsource/fraunces": "^5",
+    "@fontsource/playfair-display": "^5",
+    "@fontsource/source-serif-4": "^5",
+    "@fontsource/space-grotesk": "^5",
+    "@fontsource/work-sans": "^5",
+    "esbuild": "^0.28.2",
+    "gsap": "^3.15.0",
+    "playwright": "1.64.1",
+    "zod": "^3.25.76"
+  }
+}

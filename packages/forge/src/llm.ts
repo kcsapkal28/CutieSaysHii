@@ -20,8 +20,9 @@ export function addUsage(a: Usage, b: Usage): Usage {
   return { input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite };
 }
 
-/** A user-turn content part: text, or a PNG (critic screenshots). */
-export type Part = { type: "text"; text: string } | { type: "image"; png: Buffer };
+export type ImageData = { data: Buffer; mediaType: "image/png" | "image/jpeg" };
+/** A user-turn content part: text, or an image (critic screenshots). */
+export type Part = { type: "text"; text: string } | ({ type: "image" } & ImageData);
 
 type CallBase = {
   /** Who is calling (e.g. "storyboarder", "builder:s03"): shows up in usage records and errors. */
@@ -31,6 +32,8 @@ type CallBase = {
   user: string | Part[];
   maxTokens?: number;
   temperature?: number;
+  /** "off": no thinking before the answer (fast, cheap code generation). Default: the model's own adaptive thinking. */
+  thinking?: "off";
   timeoutMs?: number;
   signal?: AbortSignal;
 };
@@ -54,7 +57,7 @@ export interface Llm {
 
 export type WireContent =
   | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: "image/png"; data: string } }
+  | { type: "image"; source: { type: "base64"; media_type: ImageData["mediaType"]; data: string } }
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
 export type WireMessage = { role: "user" | "assistant"; content: WireContent[] };
@@ -66,6 +69,8 @@ export type WireRequest = {
   temperature?: number;
   tools?: { name: string; description: string; input_schema: Record<string, unknown> }[];
   tool_choice?: { type: "auto" };
+  /** These models reject {type:"disabled"}; "between_tools" means no thinking before answering. */
+  thinking?: { type: "between_tools" };
   /** Automatic prompt caching (the builder and critic resend long system prompts per slide). */
   cache_control?: { type: "ephemeral" };
 };
@@ -172,7 +177,7 @@ export function createLlm(o: LlmOptions): Llm {
   function userContent(user: string | Part[]): WireContent[] {
     if (typeof user === "string") return [{ type: "text", text: user }];
     return user.map((p) =>
-      p.type === "text" ? p : { type: "image", source: { type: "base64", media_type: "image/png", data: p.png.toString("base64") } },
+      p.type === "text" ? p : { type: "image", source: { type: "base64", media_type: p.mediaType, data: p.data.toString("base64") } },
     );
   }
 
@@ -196,6 +201,7 @@ export function createLlm(o: LlmOptions): Llm {
           tool_choice: { type: "auto" },
           cache_control: { type: "ephemeral" },
           ...(c.temperature === undefined ? {} : { temperature: c.temperature }),
+          ...(c.thinking === "off" ? { thinking: { type: "between_tools" as const } } : {}),
         };
         const { res, attempts: a } = await send(req, c);
         attempts += a;
@@ -239,6 +245,7 @@ export function createLlm(o: LlmOptions): Llm {
         messages: [{ role: "user", content: userContent(c.user) }],
         cache_control: { type: "ephemeral" },
         ...(c.temperature === undefined ? {} : { temperature: c.temperature }),
+        ...(c.thinking === "off" ? { thinking: { type: "between_tools" as const } } : {}),
       };
       const { res, attempts } = await send(req, c);
       const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");

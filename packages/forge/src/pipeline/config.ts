@@ -23,4 +23,9 @@ export const BUILD_DEFAULTS = {
   maxRounds: 2,
   /** Escalate the last fix attempt to `builderEscalation` when the final critique has a high-severity issue. */
   escalate: true,
-} as const;
+  /**
+   * Builder thinking on draft/fix rounds. "off" measured 50 s / 9k output tokens for a slide that took 3–7 min and
+   * 30–60k tokens with the model's adaptive thinking (often hitting max_tokens). The escalated Opus round thinks.
+   */
+  builderThinking: "off" as "off" | "model",
+};

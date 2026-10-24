@@ -218,6 +218,16 @@ describe("build fix loop", () => {
     expect(texts).toContain('- [high] s01: selector ".x" must start with "#s01" (where: slide source)');
   });
 
+  it("sends the critic at most 4 steps (first and last included) and the builder runs without thinking", async () => {
+    engine = fakeEngine({ steps: 6 });
+    await runAll(project, { auto: true, ...opts() });
+    const review = llm.requests.find((r) => toolOf(r) === "review_slide")!;
+    const labels = review.messages[0]!.content.flatMap((c) => (c.type === "text" && /^Step \d/.test(c.text) ? [c.text] : []));
+    expect(labels).toEqual(["Step 1 of 6:", "Step 3 of 6:", "Step 4 of 6:", "Step 6 of 6:"]);
+    expect(llm.requests.find((r) => toolOf(r) === "write_slide")!.thinking).toEqual({ type: "between_tools" });
+    expect(review.thinking).toBeUndefined();
+  });
+
   it("turns console errors into a fix even when the critic says pass", async () => {
     engine = fakeEngine({ errors: (f) => (f.includes("/r1/") ? ["TypeError: x is undefined"] : []) });
     await runAll(project, { auto: true, ...opts() });

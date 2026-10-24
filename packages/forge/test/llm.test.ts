@@ -50,7 +50,7 @@ describe("callTool", () => {
   it("sends the tool with a JSON schema and PNG parts as base64 image blocks", async () => {
     const seen: WireRequest[] = [];
     const llm = createLlm({ transport: async (req) => (seen.push(req), toolReply({ n: 1 })) });
-    await call(llm, [{ type: "text", text: "look" }, { type: "image", png: PNG }]);
+    await call(llm, [{ type: "text", text: "look" }, { type: "image", data: PNG, mediaType: "image/png" }]);
     expect(seen[0]!.tools![0]!.input_schema).toEqual({
       type: "object",
       properties: { n: { type: "integer", minimum: 1 } },

@@ -14,7 +14,7 @@ import { runBuild, type BuildOptions, type BuildSummary } from "./build.ts";
 import { DEFAULT_MODELS, type AgentName } from "./config.ts";
 import { meteredLlm, type OnEvent } from "./events.ts";
 import { invalidateAfter, isStageDone, readJson, STAGES, writeJson, type Project, type Stage } from "./project.ts";
-import { createSharedEngine } from "./shared-engine.ts";
+import { createSharedEngine, type ClosableEngine } from "./shared-engine.ts";
 
 export type PipelineOptions = {
   onEvent?: OnEvent;
@@ -28,6 +28,8 @@ export type PipelineOptions = {
   concurrency?: number;
   maxRounds?: number;
   escalate?: boolean;
+  /** Builder thinking on draft and fix rounds (default "off", see config.ts). */
+  builderThinking?: "off" | "model";
   /** Web search for the researcher (milestone 3). */
   search?: WebSearch;
   /** Builder few-shot slides; defaults to fixtures/proof. */
@@ -63,6 +65,10 @@ export function buildOptions(o: PipelineOptions, llm: Llm, engine: Engine, onEve
     ...(o.maxRounds ? { maxRounds: o.maxRounds } : {}),
     ...(o.escalate === undefined ? {} : { escalate: o.escalate }),
     ...(o.exemplars ? { exemplars: o.exemplars } : {}),
+    ...(o.builderThinking ? { builderThinking: o.builderThinking } : {}),
+    ...(typeof (engine as Partial<ClosableEngine>).shrink === "function"
+      ? { shrinkImage: (png: Buffer) => (engine as ClosableEngine).shrink(png) }
+      : {}),
     models: { builder: model(o, "builder").model, builderEscalation: model(o, "builderEscalation").model, critic: model(o, "critic").model },
   };
 }

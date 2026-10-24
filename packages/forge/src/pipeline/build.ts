@@ -5,8 +5,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ContractError } from "../check.ts";
 import type { DeckConfig, Engine, Style } from "../contract.ts";
-import type { Llm } from "../llm.ts";
-import { attemptScore, runCritic } from "../agents/critic.ts";
+import type { ImageData, Llm } from "../llm.ts";
+import { attemptScore, runCritic, sampleSteps } from "../agents/critic.ts";
 import { runBuilder, type BuildFix, type Exemplar } from "../agents/builder.ts";
 import type { CriticReport, Issue, Outline, Script, Storyboard, StoryboardSlide } from "../agents/schemas.ts";
 import { BUILD_DEFAULTS, DEFAULT_MODELS } from "./config.ts";
@@ -21,8 +21,14 @@ export type BuildOptions = {
   maxRounds?: number;
   escalate?: boolean;
   models?: { builder?: string; builderEscalation?: string; critic?: string };
+  /** Builder thinking for draft and fix rounds ("off" = fast); the escalated round always uses the model's own. */
+  builderThinking?: "off" | "model";
   exemplars?: Exemplar[];
+  /** Downscales a screenshot for the critic (the shared engine does it in Chromium); default sends the PNG as is. */
+  shrinkImage?: (png: Buffer) => Promise<ImageData>;
 };
+
+const asPng = async (png: Buffer): Promise<ImageData> => ({ data: png, mediaType: "image/png" });
 
 export type RoundRecord = {
   round: number;
@@ -113,7 +119,7 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
       const built = await runBuilder(
         o.llm,
         { deckTitle: outline.title, style, slide, board, deck: storyboard, index: job.index, total: script.slides.length, ...(fix ? { fix } : {}) },
-        { model, ...(o.exemplars ? { exemplars: o.exemplars } : {}) },
+        { model, thinking: escalated ? "model" : (o.builderThinking ?? BUILD_DEFAULTS.builderThinking), ...(o.exemplars ? { exemplars: o.exemplars } : {}) },
       );
       writeFileSync(join(roundDir, "slide.html"), built.html);
 
@@ -144,9 +150,12 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
       ];
 
       o.onEvent({ type: "slide:round", id: slide.id, round, phase: "critic" });
+      // Full-size PNGs of every step overflow the proxy's request limit: review ≤ 4 steps, downscaled.
+      const shrink = o.shrinkImage ?? asPng;
+      const reviewed = await Promise.all(sampleSteps(shots).map(async (s) => ({ step: s.step, image: await shrink(s.png) })));
       report = await runCritic(
         o.llm,
-        { slide, board, shots, steps: shot.steps[slide.id] ?? shots.length, errors, ...(job.instruction ? { instruction: job.instruction } : {}) },
+        { slide, board, shots: reviewed, steps: shot.steps[slide.id] ?? shots.length, errors, ...(job.instruction ? { instruction: job.instruction } : {}) },
         { model: models.critic },
       );
       writeJson(join(roundDir, "review.json"), { ...report, errors });
@@ -159,8 +168,8 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
         Object.assign(build, { verdict: report.verdict, bestRound: round, score: report.score, issues: report.issues });
       }
       if (report.verdict === "pass") break;
-      const last = shots.at(-1);
-      fix = { previousHtml: built.html, issues: report.issues, errors, ...(last ? { screenshot: last.png } : {}), ...(job.instruction ? { instruction: job.instruction } : {}) };
+      const last = reviewed.at(-1);
+      fix = { previousHtml: built.html, issues: report.issues, errors, ...(last ? { screenshot: last.image } : {}), ...(job.instruction ? { instruction: job.instruction } : {}) };
     } catch (e) {
       record.error = e instanceof Error ? e.message : String(e);
       o.onEvent({ type: "slide:error", id: slide.id, round, error: record.error });

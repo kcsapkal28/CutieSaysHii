@@ -28,6 +28,7 @@ DF.slide("<id>", (api) => {
 - `api.onFrame((t, dt) => …)`: shared animation loop (seconds since enter, seconds since last frame), paused while the slide is hidden. Returns an unsubscribe function.
 - `api.onResize((scale) => …)`: called when the stage scale changes.
 - `api.on(target, type, fn)`: addEventListener that is removed on dispose (for window/document listeners).
+- `api.setStep(i)`: moves the deck to step i of this slide (the shell then calls your `step(i)`). Use it for in-slide step tabs or "next" buttons so on-slide controls and the deck's step stay in sync.
 - `api.three(el, { fov?, environment?, environmentIntensity?, exposure? })` → `{ renderer, scene, camera, canvas, render(), toSlide(vec3) → {x, y} in slide px, resize() }`. Sized to `el` (a canvas is used as-is; any other element gets a filling canvas), with studio environment lighting by default; disposed automatically. Call `render()` yourself (in `onFrame`, or once after each state change when static). Use `toSlide()` to pin HTML callouts and SVG leader lines to 3D parts.
 
 Lifecycle:

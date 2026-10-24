@@ -1,13 +1,13 @@
-// Critic (Opus, vision): every step's screenshot + console errors + storyboard intent → { verdict, issues }.
-import { MODELS, type Llm, type Part } from "../llm.ts";
+// Critic (Opus, vision): the steps' screenshots + console errors + storyboard intent → { verdict, issues }.
+import { MODELS, type ImageData, type Llm, type Part } from "../llm.ts";
 import { loadPrompt } from "./prompts.ts";
 import { CriticReport, type ScriptSlide, type StoryboardSlide } from "./schemas.ts";
 
 export type CriticInput = {
   slide: ScriptSlide;
   board: StoryboardSlide;
-  /** Screenshots in step order. */
-  shots: { step: number; png: Buffer }[];
+  /** Screenshots in step order (already downscaled; see sampleSteps for how many to send). */
+  shots: { step: number; image: ImageData }[];
   /** Steps the slide reported (from the shooter). */
   steps: number;
   errors: string[];
@@ -27,25 +27,33 @@ export async function runCritic(llm: Llm, input: CriticInput, opts: { model?: st
         `On-slide copy:\n${JSON.stringify({ kicker: slide.kicker, subtitle: slide.subtitle, callouts: slide.callouts }, null, 2)}`,
         `The slide reports ${input.steps} step(s); the storyboard planned ${board.steps.length}.`,
         `Console and page errors:\n${errors.length ? errors.map((e) => `- ${e}`).join("\n") : "- (none)"}`,
-        `Screenshots follow, one per step (${shots.length}).`,
+        `Screenshots follow (${shots.length} of ${input.steps} steps, rendered at 1920×1080 and downscaled).`,
       ].join("\n\n"),
     },
   ];
   for (const s of shots) {
     user.push({ type: "text", text: `Step ${s.step + 1} of ${input.steps}:` });
-    user.push({ type: "image", png: s.png });
+    user.push({ type: "image", ...s.image });
   }
   const { data } = await llm.callTool({
     label: `critic:${slide.id}`,
     model: opts.model ?? MODELS.opus,
     system: loadPrompt("critic"),
     user,
-    maxTokens: 6000,
+    maxTokens: 12000,
     tool: { name: "review_slide", description: "Record the review of this slide.", schema: CriticReport },
   });
   // Errors and high-severity issues always block a pass.
   const blocked = errors.length > 0 || data.issues.some((i) => i.severity === "high");
   return blocked && data.verdict === "pass" ? { ...data, verdict: "fix" } : data;
+}
+
+/** At most `max` steps for review: always the first and the last, the rest evenly spaced (keeps requests small). */
+export function sampleSteps<T>(shots: T[], max = 4): T[] {
+  if (shots.length <= max) return shots;
+  const idx = new Set<number>();
+  for (let k = 0; k < max; k++) idx.add(Math.round((k * (shots.length - 1)) / (max - 1)));
+  return [...idx].sort((a, b) => a - b).map((i) => shots[i]!);
 }
 
 /** Ranks attempts so the build keeps the best one: a pass beats any fix; then score, then fewer serious issues. */

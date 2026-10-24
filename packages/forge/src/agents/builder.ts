@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Style } from "../contract.ts";
-import { MODELS, type Llm, type Part } from "../llm.ts";
+import { MODELS, type ImageData, type Llm, type Part } from "../llm.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
 import { exemplarSection, loadExemplars, pickExemplars, type Exemplar } from "./exemplars.ts";
 import type { Issue, ScriptSlide, Storyboard, StoryboardSlide } from "./schemas.ts";
@@ -17,7 +17,7 @@ export type BuildFix = {
   issues: Issue[];
   errors: string[];
   /** One screenshot of the previous render (the last step), so the builder sees what the critic saw. */
-  screenshot?: Buffer;
+  screenshot?: ImageData;
   /** A presenter's change request (per-slide chat); it outranks the storyboard. */
   instruction?: string;
 };
@@ -47,7 +47,12 @@ export function builderSchema(id: string) {
   });
 }
 
-export function builderSystem(exemplars: Exemplar[], shellTypesFile = SHELL_TYPES, shellCssFile = SHELL_CSS): string {
+export function builderSystem(
+  exemplars: Exemplar[],
+  board?: Pick<StoryboardSlide, "explainer" | "technique">,
+  shellTypesFile = SHELL_TYPES,
+  shellCssFile = SHELL_CSS,
+): string {
   let system = loadPrompt("builder");
   if (existsSync(shellTypesFile)) {
     system += `\n\n## Exact API types (from the shell)\n\n\`\`\`ts\n${readFileSync(shellTypesFile, "utf8")}\n\`\`\`\n`;
@@ -60,7 +65,7 @@ export function builderSystem(exemplars: Exemplar[], shellTypesFile = SHELL_TYPE
       system += `\n\n## Shell kit classes (global and already loaded: use them, and adjust under #<id> when needed)\n\n\`\`\`css\n${css.slice(start).trim()}\n\`\`\`\n`;
     }
   }
-  system += exemplarSection(exemplars);
+  system += exemplarSection(exemplars, board);
   return system;
 }
 
@@ -103,7 +108,7 @@ export function builderUser(input: BuilderInput): Part[] {
         "Fix every issue and error while keeping what works. Return the complete revised fragment." +
         (fix.screenshot ? " The screenshot below is the current render of the last step." : ""),
     });
-    if (fix.screenshot) parts.push({ type: "image", png: fix.screenshot });
+    if (fix.screenshot) parts.push({ type: "image", ...fix.screenshot });
   }
   return parts;
 }
@@ -111,16 +116,19 @@ export function builderUser(input: BuilderInput): Part[] {
 export async function runBuilder(
   llm: Llm,
   input: BuilderInput,
-  opts: { model?: string; exemplars?: Exemplar[] } = {},
+  opts: { model?: string; exemplars?: Exemplar[]; thinking?: "off" | "model" } = {},
 ): Promise<{ html: string; steps: number; summary: string }> {
-  const exemplars = pickExemplars(opts.exemplars ?? loadExemplars(), input.board);
+  // Exemplars by technique; ties lean away from decks that look like this one (its look and topic words).
+  const exemplars = pickExemplars(opts.exemplars ?? loadExemplars(), input.board, { avoid: `${input.style.look} ${input.deckTitle}` });
   const { data } = await llm.callTool({
     label: `builder:${input.slide.id}`,
     model: opts.model ?? MODELS.sonnet,
-    system: builderSystem(exemplars),
+    system: builderSystem(exemplars, input.board),
     user: builderUser(input),
-    maxTokens: 32000,
+    maxTokens: 48000,
     timeoutMs: 15 * 60_000,
+    // Thinking before a long code answer multiplied output 3-6x (and hit max_tokens); off unless asked for.
+    ...((opts.thinking ?? "off") === "off" ? { thinking: "off" as const } : {}),
     tool: { name: "write_slide", description: "Write the slide fragment.", schema: builderSchema(input.slide.id) },
   });
   return data;

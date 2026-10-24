@@ -23,17 +23,25 @@ export function addUsage(a: Usage, b: Usage): Usage {
 export type ImageData = { data: Buffer; mediaType: "image/png" | "image/jpeg" };
 /** A user-turn content part: text, or an image (critic screenshots). */
 export type Part = { type: "text"; text: string } | ({ type: "image" } & ImageData);
+/**
+ * A system prompt block. `cache: true` puts a cache breakpoint at its end: mark only a prefix that later calls resend
+ * byte for byte. A plain string system prompt is never cached (most calls are one-shot or start in parallel, so a
+ * cache write there is a 25% surcharge nobody reads back).
+ */
+export type SystemBlock = { text: string; cache?: boolean };
+/** "off": no thinking before the answer (fast, cheap); "model": the model's own adaptive thinking. */
+export type Thinking = "off" | "model";
 
 type CallBase = {
   /** Who is calling (e.g. "storyboarder", "builder:s03"): shows up in usage records and errors. */
   label: string;
   model: string;
-  system: string;
+  system: string | SystemBlock[];
   user: string | Part[];
   maxTokens?: number;
   temperature?: number;
-  /** "off": no thinking before the answer (fast, cheap code generation). Default: the model's own adaptive thinking. */
-  thinking?: "off";
+  /** Default "off" (see wireThinking); "model" only where thinking measurably pays. */
+  thinking?: Thinking;
   timeoutMs?: number;
   signal?: AbortSignal;
 };
@@ -48,9 +56,17 @@ export type CallRecord = { label: string; model: string; ms: number; usage: Usag
 export type ToolResult<T> = CallRecord & { data: T };
 export type TextResult = CallRecord & { text: string };
 
+/** A cache pre-warm: the request a later callTool sends, minus its user turn, with max_tokens 0. */
+export type WarmOpts = Pick<ToolCallOpts<z.ZodTypeAny>, "label" | "model" | "system" | "thinking" | "tool" | "timeoutMs" | "signal">;
+
 export interface Llm {
   callTool<S extends z.ZodTypeAny>(opts: ToolCallOpts<S>): Promise<ToolResult<z.infer<S>>>;
   callText(opts: CallBase): Promise<TextResult>;
+  /**
+   * Writes the cache for `system`'s marked blocks (with the tool) without generating anything, so calls that start
+   * together read that prefix instead of each writing it. Optional: wrappers and fakes may leave it out.
+   */
+  warm?(opts: WarmOpts): Promise<CallRecord>;
 }
 
 // ---- transport: the only part that touches the network (tests swap it) ----
@@ -61,18 +77,19 @@ export type WireContent =
   | { type: "tool_use"; id: string; name: string; input: unknown }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
 export type WireMessage = { role: "user" | "assistant"; content: WireContent[] };
+export type WireSystemBlock = { type: "text"; text: string; cache_control?: { type: "ephemeral" } };
 export type WireRequest = {
   model: string;
   max_tokens: number;
-  system: string;
+  system: string | WireSystemBlock[];
   messages: WireMessage[];
   temperature?: number;
   tools?: { name: string; description: string; input_schema: Record<string, unknown> }[];
   tool_choice?: { type: "auto" };
-  /** These models reject {type:"disabled"}; "between_tools" means no thinking before answering. */
+  /** These models reject {type:"disabled"}; "between_tools" means no thinking before answering (Sonnet only). */
   thinking?: { type: "between_tools" };
-  /** Automatic prompt caching (the builder and critic resend long system prompts per slide). */
-  cache_control?: { type: "ephemeral" };
+  /** Opus can't turn thinking off (between_tools is a 400 there): low effort is the closest. */
+  output_config?: { effort: "low" | "medium" | "high" };
 };
 export type WireResponse = {
   content: WireContent[];
@@ -128,6 +145,10 @@ export function sdkTransport({ baseUrl, apiKey }: LlmEnv): Transport {
   // The SDK's own timeout is a backstop; each call's timeoutMs (an abort signal) is what governs.
   const client = new Anthropic({ baseURL: baseUrl, apiKey, maxRetries: 0, timeout: 30 * 60_000 });
   return async (req, { signal }) => {
+    // A cache pre-warm (max_tokens 0) is rejected when streamed, and returns at once anyway.
+    if (req.max_tokens === 0) {
+      return (await client.messages.create(req as Anthropic.MessageCreateParamsNonStreaming, { signal })) as unknown as WireResponse;
+    }
     // Streaming avoids the SDK's non-streaming guard on large max_tokens (builder output).
     const stream = client.messages.stream(req as Anthropic.MessageStreamParams, { signal });
     return (await stream.finalMessage()) as unknown as WireResponse;
@@ -135,6 +156,26 @@ export function sdkTransport({ baseUrl, apiKey }: LlmEnv): Transport {
 }
 
 // ---- client ----
+
+/**
+ * A call's thinking setting on the wire. "off" (the default) is between_tools on Sonnet; Opus rejects both
+ * between_tools and disabled, so there "off" means low effort. "model" sends nothing: the model's adaptive default.
+ */
+export function wireThinking(model: string, thinking: Thinking = "off"): Pick<WireRequest, "thinking" | "output_config"> {
+  if (thinking === "model") return {};
+  return /sonnet/i.test(model) ? { thinking: { type: "between_tools" } } : { output_config: { effort: "low" } };
+}
+
+/** The system prompt on the wire: cache breakpoints only after the marked blocks; `suffix` (uncached) goes last. */
+export function wireSystem(system: string | SystemBlock[], suffix = ""): string | WireSystemBlock[] {
+  if (typeof system === "string") return suffix ? `${system}\n\n${suffix}` : system;
+  const blocks: WireSystemBlock[] = system
+    .filter((b) => b.text)
+    .map((b) => ({ type: "text", text: b.text, ...(b.cache ? { cache_control: { type: "ephemeral" as const } } : {}) }));
+  return suffix ? [...blocks, { type: "text", text: suffix }] : blocks;
+}
+
+const toolInstruction = (name: string) => `Respond only by calling the \`${name}\` tool, exactly once, with no other text.`;
 
 export type LlmOptions = {
   transport: Transport;
@@ -184,7 +225,7 @@ export function createLlm(o: LlmOptions): Llm {
   return {
     async callTool(c) {
       const started = Date.now();
-      const tool = { name: c.tool.name, description: c.tool.description, input_schema: toJsonSchema(c.tool.schema) };
+      const tool = wireTool(c.tool);
       const messages: WireMessage[] = [{ role: "user", content: userContent(c.user) }];
       let usage = ZERO_USAGE;
       let attempts = 0;
@@ -195,13 +236,12 @@ export function createLlm(o: LlmOptions): Llm {
           model: c.model,
           max_tokens: c.maxTokens ?? 8000,
           // These models reject forced tool_choice ("tool"/"any"), so the tool is required by instruction and enforced here.
-          system: `${c.system}\n\nRespond only by calling the \`${c.tool.name}\` tool, exactly once, with no other text.`,
+          system: wireSystem(c.system, toolInstruction(c.tool.name)),
           messages,
           tools: [tool],
           tool_choice: { type: "auto" },
-          cache_control: { type: "ephemeral" },
           ...(c.temperature === undefined ? {} : { temperature: c.temperature }),
-          ...(c.thinking === "off" ? { thinking: { type: "between_tools" as const } } : {}),
+          ...wireThinking(c.model, c.thinking),
         };
         const { res, attempts: a } = await send(req, c);
         attempts += a;
@@ -241,17 +281,34 @@ export function createLlm(o: LlmOptions): Llm {
       const req: WireRequest = {
         model: c.model,
         max_tokens: c.maxTokens ?? 8000,
-        system: c.system,
+        system: wireSystem(c.system),
         messages: [{ role: "user", content: userContent(c.user) }],
-        cache_control: { type: "ephemeral" },
         ...(c.temperature === undefined ? {} : { temperature: c.temperature }),
-        ...(c.thinking === "off" ? { thinking: { type: "between_tools" as const } } : {}),
+        ...wireThinking(c.model, c.thinking),
       };
       const { res, attempts } = await send(req, c);
       const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
       const rec = { label: c.label, model: c.model, ms: Date.now() - started, usage: toUsage(res), attempts };
       o.onCall?.(rec);
       return { ...rec, text };
+    },
+
+    async warm(c) {
+      const started = Date.now();
+      // Same tools, system and thinking as the real calls (all part of the cached prefix); the user turn is a stand-in.
+      const req: WireRequest = {
+        model: c.model,
+        max_tokens: 0,
+        system: wireSystem(c.system, toolInstruction(c.tool.name)),
+        messages: [{ role: "user", content: [{ type: "text", text: "(cache warm-up)" }] }],
+        tools: [wireTool(c.tool)],
+        tool_choice: { type: "auto" },
+        ...wireThinking(c.model, c.thinking),
+      };
+      const { res, attempts } = await send(req, { ...c, user: "" });
+      const rec = { label: c.label, model: c.model, ms: Date.now() - started, usage: toUsage(res), attempts };
+      o.onCall?.(rec);
+      return rec;
     },
   };
 }
@@ -260,6 +317,10 @@ export function createLlm(o: LlmOptions): Llm {
 export function createProxyLlm(opts: Omit<LlmOptions, "transport" | "baseUrl"> & { env?: LlmEnv } = {}): Llm {
   const env = opts.env ?? loadLlmEnv();
   return createLlm({ ...opts, transport: sdkTransport(env), baseUrl: env.baseUrl });
+}
+
+function wireTool(t: ToolCallOpts<z.ZodTypeAny>["tool"]) {
+  return { name: t.name, description: t.description, input_schema: toJsonSchema(t.schema) };
 }
 
 function toUsage(res: WireResponse): Usage {

@@ -5,16 +5,24 @@ import { createLlm, type Llm, type WireRequest, type WireResponse } from "../src
 
 export type Handler = (req: WireRequest, call: number) => unknown;
 
-export type FakeLlm = Llm & { requests: WireRequest[]; calls: Record<string, number> };
+export type FakeLlm = Llm & { requests: WireRequest[]; calls: Record<string, number>; warms: WireRequest[] };
 
-/** Every request is answered by the handler for its tool (or "text" for callText), with the returned input. */
+/**
+ * Every request is answered by the handler for its tool (or "text" for callText), with the returned input. Cache
+ * pre-warms (max_tokens 0) go to `warms` and get an empty answer.
+ */
 export function fakeLlm(handlers: Record<string, Handler>): FakeLlm {
   const requests: WireRequest[] = [];
+  const warms: WireRequest[] = [];
   const calls: Record<string, number> = {};
   let ids = 0;
   const llm = createLlm({
     sleep: async () => {},
     transport: async (req): Promise<WireResponse> => {
+      if (req.max_tokens === 0) {
+        warms.push(structuredClone(req));
+        return { content: [], stop_reason: "max_tokens", usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 100 } };
+      }
       requests.push(structuredClone(req));
       const name = req.tools?.[0]?.name ?? "text";
       const handler = handlers[name];
@@ -26,7 +34,7 @@ export function fakeLlm(handlers: Record<string, Handler>): FakeLlm {
       return { content: [{ type: "tool_use", id: `tu_${++ids}`, name, input: out }], stop_reason: "tool_use", usage };
     },
   });
-  return Object.assign(llm, { requests, calls });
+  return Object.assign(llm, { requests, calls, warms });
 }
 
 export const PNG = Buffer.from(

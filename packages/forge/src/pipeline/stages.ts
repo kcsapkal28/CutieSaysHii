@@ -10,7 +10,7 @@ import { runOutline } from "../agents/outliner.ts";
 import { Brief, Outline, toScript, toStoryboard } from "../agents/schemas.ts";
 import { runStylist } from "../agents/stylist.ts";
 import { runBuild, type BuildOptions, type BuildSummary } from "./build.ts";
-import { DEFAULT_MODELS, OUTLINE_DEFAULTS, type AgentName } from "./config.ts";
+import { DEFAULT_MODELS, OUTLINE_DEFAULTS, withDefaultThinking, type AgentName } from "./config.ts";
 import { meteredLlm, type OnEvent } from "./events.ts";
 import { journaled, journalFile, newRunId } from "./journal.ts";
 import { invalidateAfter, isStageDone, readJson, STAGES, writeJson, type Project, type Stage } from "./project.ts";
@@ -30,6 +30,8 @@ export type PipelineOptions = {
   concurrency?: number;
   maxRounds?: number;
   escalate?: boolean;
+  /** Build: fix rounds as edits on the previous version (default in config.ts). */
+  patchFixes?: boolean;
   /** Outline: slide cards written at once (default in config.ts). */
   outlineConcurrency?: number;
   /** Builder thinking on draft and fix rounds (default "off", see config.ts). */
@@ -70,9 +72,10 @@ export function buildOptions(o: PipelineOptions, llm: Llm, engine: Engine, onEve
     ...(o.maxRounds ? { maxRounds: o.maxRounds } : {}),
     ...(o.escalate === undefined ? {} : { escalate: o.escalate }),
     ...(o.exemplars ? { exemplars: o.exemplars } : {}),
+    ...(o.patchFixes === undefined ? {} : { patchFixes: o.patchFixes }),
     ...(o.builderThinking ? { builderThinking: o.builderThinking } : {}),
     ...(typeof (engine as Partial<ClosableEngine>).shrink === "function"
-      ? { shrinkImage: (png: Buffer) => (engine as ClosableEngine).shrink(png) }
+      ? { shrinkImage: (png: Buffer, width?: number) => (engine as ClosableEngine).shrink(png, width) }
       : {}),
     models: { builder: model(o, "builder").model, builderEscalation: model(o, "builderEscalation").model, critic: model(o, "critic").model },
   };
@@ -98,7 +101,7 @@ export async function runStage(project: Project, stage: Stage, opts: PipelineOpt
   const invalidated = invalidateAfter(project, stage);
   onEvent({ type: "stage:start", stage, invalidated });
   const started = Date.now();
-  const { llm, total } = meteredLlm(opts.llm ?? createProxyLlm(), stage, onEvent);
+  const { llm, total } = meteredLlm(withDefaultThinking(opts.llm ?? createProxyLlm()), stage, onEvent);
   try {
     const result = await execute(project, stage, opts, llm, onEvent);
     onEvent({ type: "stage:done", stage, ms: Date.now() - started, ...total() });

@@ -3,7 +3,7 @@
 import { builderSchema, builderSystem, builderUser } from "../../src/agents/builder.ts";
 import { loadExemplars, pickExemplars } from "../../src/agents/exemplars.ts";
 import { toJsonSchema } from "../../src/agents/json-schema.ts";
-import { loadLlmEnv, MODELS, sdkTransport } from "../../src/llm.ts";
+import { loadLlmEnv, MODELS, sdkTransport, wireSystem } from "../../src/llm.ts";
 import { loadOutline, loadProject, loadScript, loadStoryboard, loadStyle } from "../../src/pipeline/index.ts";
 
 const [slug, id, mode = "default"] = process.argv.slice(2);
@@ -13,13 +13,14 @@ const sb = loadStoryboard(p);
 const slide = script.slides.find((s) => s.id === id)!;
 const board = sb.slides.find((s) => s.id === id)!;
 const exemplars = pickExemplars(loadExemplars(), board);
-const user = builderUser({ deckTitle: loadOutline(p).title, style: loadStyle(p), slide, board, deck: sb, index: 1, total: script.slides.length });
+const input = { deckTitle: loadOutline(p).title, style: loadStyle(p), slide, board, deck: sb, index: 1, total: script.slides.length };
+const user = builderUser(input);
 const started = Date.now();
 const res = await sdkTransport(loadLlmEnv())(
   {
     model: MODELS.sonnet,
     max_tokens: 64000,
-    system: `${builderSystem(exemplars, board)}\n\nRespond only by calling the \`write_slide\` tool, exactly once, with no other text.`,
+    system: wireSystem(builderSystem(input, exemplars, board), "Respond only by calling the `write_slide` tool, exactly once, with no other text."),
     messages: [{ role: "user", content: user.map((u) => (u.type === "text" ? u : { type: "text", text: "" })) }],
     tools: [{ name: "write_slide", description: "Write the slide fragment.", input_schema: toJsonSchema(builderSchema(id!)) }],
     tool_choice: { type: "auto" },

@@ -228,8 +228,8 @@ export function toStoryboard(o: Outline): Storyboard {
 export const Issue = z.object({
   severity: z.enum(["high", "medium", "low"]),
   what: z.string(),
-  where: z.string().describe("Step number and region, e.g. 'step 2, bottom-left legend'"),
-  fix: z.string().describe("A concrete code-level fix"),
+  where: z.string().describe("Step number and a CSS selector when you can tell it, else the region, e.g. 'step 2, #s03 .legend (bottom-left)'"),
+  fix: z.string().describe("A concrete code-level fix, with the measured or target number when there is one"),
 });
 export type Issue = z.infer<typeof Issue>;
 
@@ -237,6 +237,6 @@ export const CriticReport = z.object({
   verdict: z.enum(["pass", "fix"]),
   score: z.number().min(0).max(10).describe("Polish against the reference decks: 10 = indistinguishable, 6 = decent but generic, 3 = broken."),
   summary: z.string(),
-  issues: z.array(Issue),
+  issues: z.array(Issue).describe("At most 5, the most important first; leave out anything that doesn't matter."),
 });
 export type CriticReport = z.infer<typeof CriticReport>;

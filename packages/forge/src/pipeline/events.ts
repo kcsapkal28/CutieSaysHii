@@ -53,6 +53,8 @@ export type ForgeEvent =
   | { type: "slide:error"; id: string; round: number; error: string }
   /** The final critique still had a high-severity issue, so one more fix attempt runs on the escalation model. */
   | { type: "slide:escalate"; id: string; round: number; model: string }
+  /** The slide ended early: its wall budget ran out, or a patch measured worse and the best version is kept. */
+  | { type: "slide:stop"; id: string; round: number; reason: string }
   /** The slide is settled: the best round was written to slides/<id>.html. `failed` = no round produced a slide. */
   | { type: "slide:done"; id: string; bestRound: number; rounds: number; verdict: Verdict | "failed"; score: number }
   /** A full deck was bundled to versions/<version>/deck.html. */

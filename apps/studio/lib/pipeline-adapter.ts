@@ -115,6 +115,8 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
         return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id} round ${e.round} failed: ${e.error}`, at: now() }];
       case "slide:escalate":
         return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id}: serious issue left, one more fix round on ${modelName(e.model)}`, at: now() }];
+      case "slide:stop":
+        return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id}: ${e.reason}`, at: now() }];
       case "slide:patch":
         return [
           {

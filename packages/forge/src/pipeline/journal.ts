@@ -101,6 +101,8 @@ export type SlideRow = {
   rounds: number;
   firstPass: boolean;
   escalated: boolean;
+  /** Why the slide ended early (budget used, or a patch measured worse), when it did. */
+  stopped?: string;
   /** Fix rounds answered with edits that held, and edit attempts that fell back to a full rewrite. */
   patches: number;
   patchFallbacks: number;
@@ -222,6 +224,9 @@ export function summarizeRun(run: string, lines: JournalLine[]): RunSummary {
       }
       case "slide:escalate":
         slideRow(str(l.id), at).escalated = true;
+        break;
+      case "slide:stop":
+        slideRow(str(l.id), at).stopped = str(l.reason);
         break;
       case "slide:patch": {
         const s = slideRow(str(l.id), at);

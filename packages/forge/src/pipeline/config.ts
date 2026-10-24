@@ -60,10 +60,12 @@ export function withDefaultThinking(llm: Llm): Llm {
 }
 
 export const BUILD_DEFAULTS = {
-  /** Slides built at once. */
-  concurrency: 6,
-  /** Builder → shoot → critic rounds per slide (before any escalation). */
+  /** Slides built at once (the proxy's passthrough has no limiter; Chromium is the shared resource). */
+  concurrency: 8,
+  /** Builder → shoot → critic rounds per slide (before any escalation). Journals: r1 passes 26%, r2 11%, r3+ ~5%. */
   maxRounds: 2,
+  /** No new attempt starts for a slide once it has used this much wall-clock; the best version so far is kept. */
+  slideBudgetMs: 8 * 60_000,
   /**
    * One extra fix attempt on `builderEscalation` when the final critique has a high-severity issue and scores below
    * `escalateBelowScore` (or the pre-check still fails). Off: the Opus round was the build's biggest cost item.
@@ -74,13 +76,18 @@ export const BUILD_DEFAULTS = {
    * Extra builder attempts per slide for rounds whose deterministic pre-check finds hard failures (the critic is
    * skipped for those). They don't use up one of the `maxRounds`; once spent, a failing pre-check uses a round.
    */
-  precheckRetries: 2,
+  precheckRetries: 1,
   /**
    * Fix rounds return search/replace edits on the previous version (~1–2k output tokens instead of ~9k for the whole
    * slide). An edit that doesn't apply, a result that breaks the contract or a pre-check that gets worse falls back
    * to a full rewrite in the same round. First drafts are always full HTML.
    */
   patchFixes: true,
+  /**
+   * When a patch measures worse than the version it revised: "stop" keeps the best version and ends the slide (a
+   * rewrite at that point passed ~5% of the time in the journals), "rewrite" spends a full draft on another try.
+   */
+  patchWorse: "stop" as "stop" | "rewrite",
   /** One max_tokens-0 call writes the builder's shared prompt prefix to the cache before the slides fan out. */
   warmCache: true,
   /** Exemplar slides in the builder's prompt, each trimmed to at most `exemplarChars`. */

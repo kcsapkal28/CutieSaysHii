@@ -38,6 +38,12 @@ export type PipelineOptions = {
   thinking?: Thinking;
   /** Builder thinking on draft and fix rounds (default "off", see config.ts). */
   builderThinking?: "off" | "model";
+  /** Build loop stop rules (defaults in config.ts). */
+  precheckRetries?: number;
+  patchWorse?: "stop" | "rewrite";
+  slideBudgetMs?: number;
+  /** Injected clock for tests. */
+  now?: () => number;
   /** Web search for the researcher (milestone 3). */
   search?: WebSearch;
   /** Builder few-shot slides; defaults to fixtures/proof. */
@@ -76,6 +82,10 @@ export function buildOptions(o: PipelineOptions, llm: Llm, engine: Engine, onEve
     ...(o.exemplars ? { exemplars: o.exemplars } : {}),
     ...(o.patchFixes === undefined ? {} : { patchFixes: o.patchFixes }),
     ...(o.builderThinking ? { builderThinking: o.builderThinking } : {}),
+    ...(o.precheckRetries === undefined ? {} : { precheckRetries: o.precheckRetries }),
+    ...(o.patchWorse ? { patchWorse: o.patchWorse } : {}),
+    ...(o.slideBudgetMs ? { slideBudgetMs: o.slideBudgetMs } : {}),
+    ...(o.now ? { now: o.now } : {}),
     ...(typeof (engine as Partial<ClosableEngine>).shrink === "function"
       ? { shrinkImage: (png: Buffer, width?: number) => (engine as ClosableEngine).shrink(png, width) }
       : {}),

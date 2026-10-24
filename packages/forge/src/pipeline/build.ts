@@ -34,6 +34,12 @@ export type BuildOptions = {
   /** Builder thinking for draft and fix rounds (overrides `thinking.builder`). */
   builderThinking?: Thinking;
   thinking?: { builder?: Thinking; builderEscalation?: Thinking; critic?: Thinking };
+  /** A patch that measures worse: keep the best version and stop, or rewrite (config.ts). */
+  patchWorse?: "stop" | "rewrite";
+  /** Wall-clock per slide after which no new attempt starts (config.ts). */
+  slideBudgetMs?: number;
+  /** Injected for tests. */
+  now?: () => number;
   /** Fix rounds as search/replace edits on the previous version, with a full-rewrite fallback. */
   patchFixes?: boolean;
   /** Write the builder's shared prompt prefix to the cache before the slides fan out. */
@@ -160,8 +166,16 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
   const shrink = o.shrinkImage ?? asPng;
   let retries = o.precheckRetries ?? d.precheckRetries;
   let slot = 0; // index into `plan`: the critic round this attempt belongs to
+  const now = o.now ?? Date.now;
+  const started = now();
+  const budget = o.slideBudgetMs ?? d.slideBudgetMs;
+  const patchWorse = o.patchWorse ?? d.patchWorse;
 
   for (let round = 1; slot < plan.length; round++) {
+    if (round > 1 && now() - started > budget) {
+      o.onEvent({ type: "slide:stop", id: slide.id, round, reason: `slide budget of ${Math.round(budget / 1000)} s used; keeping the best version` });
+      break;
+    }
     const { model, escalated } = plan[slot]!;
     const tag = escalated ? { escalated: true } : {};
     const record: RoundRecord = { round, model, ...tag };
@@ -231,6 +245,11 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
         if (reason) {
           o.onEvent({ type: "slide:patch", id: slide.id, round, applied: false, edits: a?.edits ?? 0, reason });
           Object.assign(record, { patchError: reason });
+          if (a && patchWorse === "stop") {
+            // The best version is the reviewed one the patch revised; another draft rarely does better.
+            o.onEvent({ type: "slide:stop", id: slide.id, round, reason: `${reason}; keeping the best version` });
+            break;
+          }
           a = undefined;
           mode = "rewrite";
         } else if (a!.edits > 0) {

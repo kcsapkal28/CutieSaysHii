@@ -149,9 +149,38 @@ describe("patch-style fix rounds", () => {
         review_slide: firstFixThenPass(),
       }),
     );
+    // Default: the reviewed version the patch revised is kept and the slide stops (a rewrite rarely passes).
     const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
-    expect(summary!.slides[0]!.rounds[1]).toMatchObject({ mode: "rewrite", verdict: "pass", patchError: expect.stringMatching(/pre-check got worse \(0 → 1/) });
+    expect(summary!.slides[0]!.rounds).toHaveLength(2);
+    expect(summary!.slides[0]!.rounds[1]).toMatchObject({ patchError: expect.stringMatching(/pre-check got worse \(0 → 1/) });
+    expect(events).toContainEqual(expect.objectContaining({ type: "slide:stop", id: "s01", round: 2, reason: expect.stringMatching(/got worse.*keeping the best/) }));
+    expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain("v1");
+    // No rewrite was spent: no revision request asked for the whole fragment.
+    expect(llm.requests.filter((r) => toolOf(r) === "write_slide" && texts(r).includes("This is a revision") && !asksForEdits(r))).toHaveLength(0);
+
+    // patchWorse: "rewrite" spends a full draft on another try.
+    events = [];
+    llm = fakeLlm(
+      handlers({
+        write_slide: (req) =>
+          asksForEdits(req)
+            ? { edits: [{ find: "Title v1", replace: "Title patched" }], steps: 2, summary: "Patched." }
+            : { html: slideHtml(slideOf(req), texts(req).includes("This is a revision") ? "rewritten" : "v1"), steps: 2, summary: "Built." },
+        review_slide: firstFixThenPass(),
+      }),
+    );
+    const again = await runStage(project, "build", { ...opts(), concurrency: 1, patchWorse: "rewrite" });
+    expect(again!.slides[0]!.rounds[1]).toMatchObject({ mode: "rewrite", verdict: "pass", patchError: expect.stringMatching(/pre-check got worse \(0 → 1/) });
     expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain("rewritten");
+  });
+
+  it("starts no new attempt once the slide's wall budget is used", async () => {
+    llm = fakeLlm(handlers({ review_slide: () => review("fix", 5) }));
+    let t = 0;
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, slideBudgetMs: 1000, now: () => (t += 1100) });
+    expect(summary!.slides[0]!.rounds).toHaveLength(1);
+    expect(events).toContainEqual(expect.objectContaining({ type: "slide:stop", id: "s01", round: 2, reason: expect.stringMatching(/budget/) }));
+    expect(summary!.slides[0]).toMatchObject({ verdict: "fix", bestRound: 1, score: 5 });
   });
 
   it("can be switched off: every fix round is a full rewrite", async () => {

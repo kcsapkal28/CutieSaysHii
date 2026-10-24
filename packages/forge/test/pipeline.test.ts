@@ -356,7 +356,7 @@ describe("deterministic pre-check in the build loop", () => {
   it("does not use up a critic round, and caps the extra attempts", async () => {
     await upToOutline();
     engine = fakeEngine({ findings: () => [clipped] });
-    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: true });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: true, precheckRetries: 2 });
 
     // maxRounds (2) + precheckRetries (2) + the escalated round (a pre-check failure is serious): 5 attempts, no critic.
     const s01 = summary!.slides[0]!;
@@ -374,7 +374,7 @@ describe("deterministic pre-check in the build loop", () => {
     expect(s01).toMatchObject({ verdict: "fix", bestRound: 1, score: 0 });
     expect(s01.issues[0]).toMatchObject({ severity: "high", what: expect.stringMatching(/^Measured \(text clipped\)/) });
     expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain('id="s01"');
-    expect(BUILD_DEFAULTS.precheckRetries).toBe(2);
+    expect(BUILD_DEFAULTS.precheckRetries).toBe(1);
   });
 
   it("ranks any critic-reviewed attempt above a pre-check failure", async () => {
@@ -386,7 +386,7 @@ describe("deterministic pre-check in the build loop", () => {
         review_slide: () => ({ ...review("fix", 1), issues: Array.from({ length: 8 }, () => review("fix").issues[0]) }),
       }),
     );
-    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: false });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: false, precheckRetries: 2, patchWorse: "rewrite" });
     const s01 = summary!.slides[0]!;
     // r1 pre-check (retry), r2 critic (round 1 of 2), r3 pre-check (retry), r4 critic (round 2 of 2).
     expect(s01.rounds.map((r) => (r.precheck ? "pre" : r.verdict))).toEqual(["pre", "fix", "pre", "fix"]);

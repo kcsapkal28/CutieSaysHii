@@ -430,8 +430,13 @@ export function ResearchDoc({
 }
 
 function Suggestion({ ask, result, note, onAccept, onDismiss }: { ask: Ask; result: ResearchRefineResult; note: string | null; onAccept: () => void; onDismiss: () => void }) {
+  // The card sits after the whole list when the passage is a list item, which can be well below the fold.
+  const card = useRef<HTMLElement>(null);
+  useEffect(() => {
+    card.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, []);
   return (
-    <section data-no-map aria-label="Suggested change" className="my-4 animate-rise rounded-xl border border-line-strong bg-panel p-4">
+    <section ref={card} data-no-map aria-label="Suggested change" className="my-4 animate-rise rounded-xl border border-line-strong bg-panel p-4">
       <p className="text-[12px] text-dim">
         <IconChat size={13} className="mr-1.5 inline align-[-2px] text-ember" />
         You asked: <span className="text-sub">{ask.question}</span>

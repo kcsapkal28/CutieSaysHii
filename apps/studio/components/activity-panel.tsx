@@ -33,10 +33,11 @@ export function ActivityPanel({ log, usage, model, running, empty }: { log: LogL
     if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [log.length, collapsed]);
 
-  const first = log[0] ? new Date(log[0].at).getTime() : 0;
-  const since = (iso: string) => {
-    const s = Math.max(0, Math.round((new Date(iso).getTime() - first) / 1000));
-    return s < 60 ? `+${s}s` : `+${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
+  /** Gap since the previous line, so slow steps stand out. */
+  const gap = (i: number) => {
+    if (i === 0) return "";
+    const s = Math.max(0, Math.round((new Date(log[i]!.at).getTime() - new Date(log[i - 1]!.at).getTime()) / 1000));
+    return s < 60 ? `+${s}s` : s < 3600 ? `+${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s` : "+1h+";
   };
 
   async function copy() {
@@ -114,7 +115,7 @@ export function ActivityPanel({ log, usage, model, running, empty }: { log: LogL
                   </span>
                   <span className="shrink-0 text-right font-mono text-[10.5px] leading-[1.45] text-dim" title={clock(l.at)}>
                     {clock(l.at)}
-                    <span className="block text-dim/70">{since(l.at)}</span>
+                    <span className="block text-dim/70">{gap(i)}</span>
                   </span>
                 </li>
               );

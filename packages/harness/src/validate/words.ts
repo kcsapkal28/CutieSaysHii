@@ -53,7 +53,7 @@ export function visibleWords(slide: Slide, cover?: CoverText): number {
 }
 
 // Fields the renderer passes through emphasize(); titles, chart text and image alt are never marked.
-function blockEmphasisTexts(block: Block): string[] {
+export function blockEmphasisTexts(block: Block): string[] {
   switch (block.type) {
     case "Bullets":
       return block.items;

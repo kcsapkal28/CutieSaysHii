@@ -6,10 +6,12 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEFAULT_PROMPTS_DIR, loadPrompts } from "../../src/adapters/prompts-fs.ts";
 import { buildContentRequest } from "../../src/agents/deck-tool.ts";
 import { buildDesignRequest } from "../../src/agents/design-tool.ts";
+import { buildPatchRequest } from "../../src/agents/patch-tool.ts";
 import type { AgentPrompt, AgentRequest } from "../../src/agents/messages.ts";
 import { toSkeleton } from "../../src/design/skeleton.ts";
-import { ContentChoicesSchema, DesignChoicesSchema } from "../../src/kernel/contracts.ts";
+import { ContentChoicesSchema, DesignChoicesSchema, PatchChoicesSchema } from "../../src/kernel/contracts.ts";
 import { testCatalog } from "../helpers/context.ts";
+import { reportWith } from "../qa/fixtures.ts";
 import { STANDARD_DECK } from "../validate/fixtures.ts";
 
 const dirs: string[] = [];
@@ -24,7 +26,7 @@ beforeAll(async () => {
   prompts = await loadPrompts(DEFAULT_PROMPTS_DIR);
 });
 
-const TOOLS = { content: "emit_deck", design: "emit_design" } as const;
+const TOOLS = { content: "emit_deck", design: "emit_design", patch: "emit_patches" } as const;
 const JSON_LITERALS = ["null", "true", "false"];
 
 /** Every object key the agent receives, in its input and in its tool's schema. */
@@ -51,6 +53,11 @@ function requests(): Record<keyof typeof TOOLS, AgentRequest> {
   return {
     content: buildContentRequest({ brief, choices: ContentChoicesSchema.parse(choices) }, c, { prompt: prompts.content!, model }),
     design: buildDesignRequest({ choices: DesignChoicesSchema.parse(choices), skeleton: toSkeleton(STANDARD_DECK) }, c, { prompt: prompts.design!, model }),
+    patch: buildPatchRequest(
+      { deck: STANDARD_DECK, report: reportWith({ s04: { overflow: true } }), choices: PatchChoicesSchema.parse(choices), wordCap: 40 },
+      c,
+      { prompt: prompts.patch!, model },
+    ),
   };
 }
 
@@ -74,9 +81,10 @@ describe("loadPrompts", () => {
     });
   });
 
-  it("ships content and design prompts", () => {
+  it("ships content, design and patch prompts", () => {
     expect(prompts.content?.name).toMatch(/^content\.v\d+$/);
     expect(prompts.design?.name).toMatch(/^design\.v\d+$/);
+    expect(prompts.patch?.name).toMatch(/^patch\.v\d+$/);
   });
 });
 
@@ -142,5 +150,11 @@ describe("prompt text", () => {
     const text = prompts.design!.text;
     for (const phrase of ["exactly once", "reason", "blockIndex", "maxInteractiveComponentsPerSlide", "minComponentsPerSlides", "propsJson", "JSON object"])
       expect(text).toContain(phrase);
+  });
+
+  it("the patch prompt covers the patch rules", () => {
+    const text = prompts.patch!.text;
+    for (const phrase of ["exactly once", "least invasive", "rules.slides", "slideCount", "halves", "null"]) expect(text).toContain(phrase);
+    expect(text).toMatch(/`dropBlock`.*`shortenText`.*`swapLayout`.*`splitSlide`/s);
   });
 });

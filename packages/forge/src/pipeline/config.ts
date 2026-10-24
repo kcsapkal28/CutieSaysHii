@@ -27,6 +27,7 @@ export const DEFAULT_THINKING: Record<AgentName | "outlineArc", Thinking> = {
   stylist: "off",
   researcher: "off",
   outline: "off",
+  outlineCard: "off",
   outlineArc: "model",
   builder: "off",
   builderEscalation: "off",

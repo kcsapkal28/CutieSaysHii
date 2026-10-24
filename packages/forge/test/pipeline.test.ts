@@ -279,10 +279,10 @@ describe("build fix loop", () => {
     expect(labels).toEqual(["Step 1 of 6:", "Step 4 of 6:", "Step 6 of 6:"]);
     expect(llm.requests.find((r) => toolOf(r) === "write_slide")!.thinking).toEqual({ type: "between_tools" });
     expect(review.thinking).toEqual({ type: "between_tools" });
-    // The outline's arc (Opus) keeps the model's thinking; its cards run at low effort (Opus can't turn thinking off).
+    // The outline's arc (Opus) keeps the model's thinking; its cards (Sonnet) run without it.
     const arc = llm.requests.find((r) => toolOf(r) === "plan_arc")!;
     expect([arc.thinking, arc.output_config]).toEqual([undefined, undefined]);
-    expect(llm.requests.find((r) => toolOf(r) === "write_card")!.output_config).toEqual({ effort: "low" });
+    expect(llm.requests.find((r) => toolOf(r) === "write_card")!.thinking).toEqual({ type: "between_tools" });
   });
 
   it("sends console errors straight back to the builder without calling the critic", async () => {

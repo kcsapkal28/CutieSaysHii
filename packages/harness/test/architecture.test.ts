@@ -183,6 +183,15 @@ describe("architecture", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("only src/adapters/** touches the filesystem or the renderer (except its pure hash entry)", () => {
+    const touches = (spec: string) =>
+      ["fs", "node:fs", "fs/promises", "node:fs/promises"].includes(spec) || (isPkg(spec, "@deckforge/renderer") && spec !== "@deckforge/renderer/hash");
+    const offenders = harnessSrc
+      .filter((s) => !s.rel.startsWith("src/adapters/"))
+      .flatMap((s) => s.imports.filter(touches).map((spec) => `${s.rel}: ${spec}`));
+    expect(offenders).toEqual([]);
+  });
+
   it("pure layers import no I/O, node:crypto, adapters, llm.ts, env.ts or */node entries", () => {
     const offenders = pure.flatMap((s) =>
       s.imports.flatMap((spec) => {

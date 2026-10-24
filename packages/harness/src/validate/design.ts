@@ -6,7 +6,7 @@ import type { DesignWire } from "./design-wire.ts";
 type Path = (string | number)[];
 
 // A component that binds "*" decorates the whole slide (notes, score) and is not interactive.
-const WHOLE_SLIDE = "*";
+export const WHOLE_SLIDE = "*";
 const MOTION_STEPS = ["transition", "enter", "emphasis", "exit"] as const;
 
 const isJsonObject = (text: string): boolean => {

@@ -90,6 +90,16 @@ export const DesignChoicesSchema = ChoicesSchema.pick({
 });
 export type DesignChoices = z.infer<typeof DesignChoicesSchema>;
 
+// Agent C keeps the deck rules (content choices) and reconciles the design plan (design choices).
+export const PatchChoicesSchema = ChoicesSchema.pick({
+  depth: true,
+  styleFamilyId: true,
+  motionTemplateId: true,
+  interactionModeId: true,
+  questionCount: true,
+});
+export type PatchChoices = z.infer<typeof PatchChoicesSchema>;
+
 export const JobInputsSchema = z.object({ brief: BriefSpecSchema, choices: ChoicesSchema });
 export type JobInputs = { brief: BriefSpec; choices: Choices };
 

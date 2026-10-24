@@ -24,16 +24,22 @@ export type DeckRules = {
 };
 
 const QUIZ_BLOCK: Block["type"] = "Quiz";
-const COVER_REGION = "meta";
+/** The renderer draws a slide type with this region as the deck cover. */
+export const COVER_REGION = "meta";
 const REQUIRED_WHEN = /^depth\s*(==|!=)\s*([\w-]+)$/;
 // Off the cover, a Paragraph renders into one of these regions when the body doesn't take it.
-const PARAGRAPH_REGIONS = ["subtitle", "aside", "caption"];
+export const PARAGRAPH_REGIONS: readonly string[] = ["subtitle", "aside", "caption"];
 const PARAGRAPH: Block["type"] = "Paragraph";
 
 /** The block types a slide of `type` may hold: its `accepts`, plus Paragraph when it has a region for one. */
 export function acceptedBlocks(type: SlideType, cover: boolean): string[] {
   const takesParagraph = !cover && !type.accepts.includes(PARAGRAPH) && type.regions.some((r) => PARAGRAPH_REGIONS.includes(r));
   return takesParagraph ? [...type.accepts, PARAGRAPH] : [...type.accepts];
+}
+
+/** Slide types the renderer draws as the deck cover. */
+export function coverTypeIds(c: Catalog): string[] {
+  return c.slideTypes.types.filter((t) => t.regions.includes(COVER_REGION)).map((t) => t.id);
 }
 
 export function evalRequiredWhen(expr: string, choices: Pick<ContentChoices, "depth">): boolean {
@@ -58,7 +64,7 @@ export function deckRules(c: Catalog, choices: ContentChoices): DeckRules {
     firstType: requiredAt("first"),
     lastType: requiredAt("last"),
     penultimateOrLastType: requiredAt("penultimate-or-last"),
-    coverTypes: types.filter((t) => t.regions.includes(COVER_REGION)).map((t) => t.id),
+    coverTypes: coverTypeIds(c),
     requiredTypes: types.filter((t) => t.requiredWhen !== undefined && evalRequiredWhen(t.requiredWhen, choices)).map((t) => t.id),
     modeOnlyTypes: types.filter((t) => t.onlyIn !== undefined && !t.onlyIn.includes(mode.id)).map((t) => t.id),
     quizTypes: types.filter((t) => t.accepts.includes(QUIZ_BLOCK)).map((t) => t.id),

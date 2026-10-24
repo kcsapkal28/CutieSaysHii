@@ -842,7 +842,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
 
 **Interfaces:**
 - Produces:
-  - `patchWireSchema({slideIds, slideTypeIds})`: `{ patches: (shortenText{slideId, title: nullable, body} | splitSlide{slideId, first, second} | swapLayout{slideId, type} | dropBlock{slideId, blockIndex})[] }`. A `null` title keeps the original.
+  - `patchWireSchema({slideIds, slideTypeIds})`: `{ patches: (shortenText{slideId, title: nullable, body} | splitSlide{slideId, halves: [first, second]} | swapLayout{slideId, type} | dropBlock{slideId, blockIndex})[] }`. A `null` title keeps the original. The halves are one exactly-two array, because two separate Slide fields would exceed the 16-union-param budget (the wire compiles to 14).
   - `patchTool(c, failingIds)`.
   - `toDomainPatch(w): Patch` = `{slideId, op, payload: rest}`.
   - `applyPatches(deck, patches, rules): {ok:true; deck} | {ok:false; issues}`. Pure, in order:
@@ -851,7 +851,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
     - `swapLayout`: body accepted by the new type (`block-not-accepted`).
     - `dropBlock`: the index must exist (`patch-shape`).
     - A missing or removed id → `unknown-slide`.
-  - `reconcileDesign(c, choices: DesignChoices, plan, deck): DesignPlan`:
+  - `reconcileDesign(c, choices: DesignChoices, plan, { before, after }: { before: DeckSpec; after: DeckSpec }): DesignPlan` (the previous deck is needed to tell retyped slides):
     - keeps surviving same-type motion entries, uses the base for new or retyped slides, drops removed ids;
     - drops placements on removed or retyped slides and those whose `blockIndex` no longer binds.
   - `failingSlideIds(report, wordCap)`, `qaFailureReasons(slide, wordCap)` (`overflow`, `console: <msg>`, `contrast <r> < 4.5 at <sel>`, `<n> words > <cap>`).
@@ -866,11 +866,11 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
     - `fingerprint = input`;
     - `run`: `theme = resolveTheme(ctx.catalog, choices)` (N3), then `ctx.renderer.build({jobId, deck, theme, motion, interaction, outDir: ctx.paths.distDir}, ctx.signal)`, then `ctx.report.warn(w)` for **every** manifest warning;
     - `summarize → {slideIds, totalBytes, warnings}`.
-  - `createQaStage()`: `version "qa.v1"`; `select` computes `wordCap = wordsPerSlideMax(c, depth, family)`; `summarize → {pass, failures:[{slideId, reasons}]}`.
-  - `wordCountQa: QaPort`: per slide `overflow:false`, `consoleErrors:[]`, `contrastFails:[]`, `wordCount = visibleWords`; `pass` = all ≤ `wordCap`; `patches: []`.
+  - `createQaStage()`: `version "qa.v1"`; `select` computes `wordCap = wordsPerSlideMax(c, depth, family)`; output `{ report: QAReport, wordCap }` (`reduce` stores `report` as `state.report`); `summarize → {pass, failures:[{slideId, reasons}]}`.
+  - `wordCountQa(catalog): QaPort` (the catalog gives the cover types, counted as the renderer prints them): per slide `overflow:false`, `consoleErrors:[]`, `contrastFails:[]`, `wordCount = visibleWords`; `pass` = all ≤ `wordCap`; `patches: []`.
   - `failFirstQa(inner, pickSlide)`: the first call fails the picked slide (`overflow:true`); later calls delegate.
   - `createRendererPort(catalog): RendererPort`:
-    1. remove stale `<jobDir>/dist.tmp-*` and `dist.old-*`;
+    1. if `dist` is missing and a `dist.old-*` exists (a crash between the two renames), rename the newest `dist.old-*` back to `dist`; then remove stale `<jobDir>/dist.tmp-*` and `dist.old-*`;
     2. build into `dist.tmp-<iteration>-<6 hex>` with `signal`;
     3. if `signal.aborted` after `build` resolves → remove tmp and throw `signal.reason`;
     4. otherwise rename `dist` → `dist.old-<hex>`, tmp → `dist`, and remove old;
@@ -967,7 +967,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
 
     `job.usage` accumulates across invocations.
   - **`adapters/system.ts`**: `systemClock` (with `every`), `consoleLogger`, `randomIds()`.
-  - **`node.ts`**: `createNodeHarness(o?: { env?; cwd?; wrapLlm? })`, wiring `loadEnv`, `createAnthropicLlm(createLlmClient(…), {…, proxyControls, logger})`, `loadCatalog`, `createRendererPort`, `wordCountQa`, `createSqliteStore`, `loadPrompts`.
+  - **`node.ts`**: `createNodeHarness(o?: { env?; cwd?; wrapLlm? })`, wiring `loadEnv`, `createAnthropicLlm(createLlmClient(…), {…, proxyControls, logger})`, `loadCatalog`, `createRendererPort`, `wordCountQa(catalog)`, `createSqliteStore`, `loadPrompts`.
 
 - [ ] **Step 1: Write the failing tests** (FakeLlm, fake renderer/QA ports, `memoryStore`):
   - `registry.test.ts`:
@@ -1051,7 +1051,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
 
     Exit codes: succeeded 0, failed 1, usage/`InputError` 2, qa_failed 3, cancelled 130. `main.ts` wires SIGINT and `createNodeHarness`.
   - `test/fixtures/solar.brief.json`: a test-only brief, not a golden.
-  - `test/cli/fake-entry.ts`: `runCli` with `createHarness`, a FakeLlm scripted with `standard.deck.json` (contains a Diagram) and a valid design wire, the **real** `createRendererPort`, `wordCountQa` and `createSqliteStore`.
+  - `test/cli/fake-entry.ts`: `runCli` with `createHarness`, a FakeLlm scripted with `standard.deck.json` (contains a Diagram) and a valid design wire, the **real** `createRendererPort`, `wordCountQa(catalog)` and `createSqliteStore`.
 
 - [ ] **Step 1: Write the failing tests:**
   - `args.test.ts`: run, run --choices, rerun, `resume j_1`, missing --from, `--from patch`, unknown command.
@@ -1095,7 +1095,7 @@ Skip any step the renderer's final fix wave already landed. Its test must still 
     9. "Creatures of the deep sea" / general / 10
   - `record-golden.ts [n…] [--patch-loop]`:
     - `createNodeHarness({ wrapLlm: l => new RecordingLlm(l) })` with a tmp jobs dir;
-    - `--patch-loop` (golden 1) wraps QA with `failFirstQa(wordCountQa, deck => the id of the slide with the most visible words)`;
+    - `--patch-loop` (golden 1) wraps QA with `failFirstQa(wordCountQa(catalog), deck => the id of the slide with the most visible words)`;
     - requires `succeeded`;
     - writes the cassette.
   - **Allow-list (N4)**, in the test file:

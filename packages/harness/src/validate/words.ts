@@ -23,7 +23,8 @@ export function blockTexts(block: Block): string[] {
     case "Timeline":
       return block.steps.flatMap((s) => [s.label, s.detail, ...(s.date === undefined ? [] : [s.date])]);
     case "Chart":
-      return [...block.labels, ...block.series.map((s) => s.name)];
+      // The unit is printed on every axis tick and in the footer.
+      return [...block.labels, ...block.series.map((s) => s.name), ...(block.unit === undefined ? [] : [block.unit])];
     case "Quiz":
       return [block.question, ...block.options];
     case "Diagram":
@@ -53,7 +54,7 @@ export function visibleWords(slide: Slide, cover?: CoverText): number {
 }
 
 // Fields the renderer passes through emphasize(); titles, chart text and image alt are never marked.
-function blockEmphasisTexts(block: Block): string[] {
+export function blockEmphasisTexts(block: Block): string[] {
   switch (block.type) {
     case "Bullets":
       return block.items;

@@ -92,8 +92,9 @@ describe("stage ordering and invalidation", () => {
     expect(build?.version).toBe(1);
     expect(JSON.parse(readFileSync(join(project.dir, "outline.json"), "utf8")).sections[1].slides[0]).toMatchObject({ id: "s02", budgetSec: 290 });
     const done = events.find((e) => e.type === "stage:done" && e.stage === "build") as Extract<ForgeEvent, { type: "stage:done" }>;
-    expect(done.calls).toBe(4); // 2 slides × (builder + critic)
-    expect(done.usage.input).toBe(400);
+    expect(done.calls).toBe(5); // the cache warm-up, then 2 slides × (builder + critic)
+    expect(done.usage.input).toBe(410);
+    expect(llm.warms).toHaveLength(1);
   });
 
   it("re-running a stage deletes every later stage's outputs but keeps earlier ones and versions", async () => {
@@ -214,7 +215,7 @@ describe("build fix loop", () => {
     expect(revision).toMatch(/This is a revision/);
     expect(revision).toMatch(/\[high\] Title clipped \(where: step 1, top\)\. Fix: Reduce to 64px/);
     expect(builderCalls[1]!.messages[0]!.content.some((c) => c.type === "image")).toBe(true);
-    expect(llm.requests.filter((r) => toolOf(r) === "review_slide").every((r) => r.model === MODELS.opus)).toBe(true);
+    expect(llm.requests.filter((r) => toolOf(r) === "review_slide").every((r) => r.model === MODELS.sonnet)).toBe(true);
 
     expect(existsSync(join(project.dir, "shots/s01/r1/step-0.png"))).toBe(true);
     expect(existsSync(join(project.dir, "shots/s01/r2/step-1.png"))).toBe(true);
@@ -222,7 +223,7 @@ describe("build fix loop", () => {
     expect(verdicts).toEqual(expect.arrayContaining(["s01:fix", "s01:pass", "s02:pass"]));
   });
 
-  it("after 2 rounds escalates one last fix to Opus on a high-severity issue, stops there, and keeps the best attempt", async () => {
+  it("when enabled, after 2 rounds escalates one last fix to Opus on a high-severity issue, stops there, and keeps the best attempt", async () => {
     await upToOutline();
     const scores = [4, 6, 5];
     let n = 0;
@@ -232,7 +233,7 @@ describe("build fix loop", () => {
         review_slide: (_req, k) => review("fix", scores[k - 1]),
       }),
     );
-    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: true });
 
     const s01 = summary!.slides[0]!;
     expect(s01.rounds.map((r) => [r.round, r.model, r.escalated ?? false])).toEqual([
@@ -270,14 +271,18 @@ describe("build fix loop", () => {
     expect(texts).toContain('- [high] s01: selector ".x" must start with "#s01" (where: slide source)');
   });
 
-  it("sends the critic at most 4 steps (first and last included) and the builder runs without thinking", async () => {
+  it("sends the critic at most 3 steps (first and last included), and the builder and critic run without thinking", async () => {
     engine = fakeEngine({ steps: 6 });
     await runAll(project, { auto: true, ...opts() });
     const review = llm.requests.find((r) => toolOf(r) === "review_slide")!;
     const labels = review.messages[0]!.content.flatMap((c) => (c.type === "text" && /^Step \d/.test(c.text) ? [c.text] : []));
-    expect(labels).toEqual(["Step 1 of 6:", "Step 3 of 6:", "Step 4 of 6:", "Step 6 of 6:"]);
+    expect(labels).toEqual(["Step 1 of 6:", "Step 4 of 6:", "Step 6 of 6:"]);
     expect(llm.requests.find((r) => toolOf(r) === "write_slide")!.thinking).toEqual({ type: "between_tools" });
-    expect(review.thinking).toBeUndefined();
+    expect(review.thinking).toEqual({ type: "between_tools" });
+    // The outline's arc (Opus) keeps the model's thinking; its cards run at low effort (Opus can't turn thinking off).
+    const arc = llm.requests.find((r) => toolOf(r) === "plan_arc")!;
+    expect([arc.thinking, arc.output_config]).toEqual([undefined, undefined]);
+    expect(llm.requests.find((r) => toolOf(r) === "write_card")!.output_config).toEqual({ effort: "low" });
   });
 
   it("sends console errors straight back to the builder without calling the critic", async () => {
@@ -351,7 +356,7 @@ describe("deterministic pre-check in the build loop", () => {
   it("does not use up a critic round, and caps the extra attempts", async () => {
     await upToOutline();
     engine = fakeEngine({ findings: () => [clipped] });
-    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: true });
 
     // maxRounds (2) + precheckRetries (2) + the escalated round (a pre-check failure is serious): 5 attempts, no critic.
     const s01 = summary!.slides[0]!;

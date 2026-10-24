@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "
 import { join } from "node:path";
 import { createProxyLlm } from "../llm.ts";
 import { buildSlide, bundleVersion, type BuildSummary, type SlideBuild, type VersionMeta } from "./build.ts";
+import { withDefaultThinking } from "./config.ts";
 import { meteredLlm, type OnEvent } from "./events.ts";
 import { journaled, journalFile } from "./journal.ts";
 import { readJson, writeJson, type Project } from "./project.ts";
@@ -40,7 +41,7 @@ async function revise(project: Project, slideId: string, instruction: string, op
 
   const revDir = join(project.dir, "shots", slideId);
   const k = existsSync(revDir) ? readdirSync(revDir).filter((d) => /^rev\d+$/.test(d)).length + 1 : 1;
-  const { llm } = meteredLlm(opts.llm ?? createProxyLlm(), "revise", onEvent);
+  const { llm } = meteredLlm(withDefaultThinking(opts.llm ?? createProxyLlm()), "revise", onEvent);
 
   return withEngine(opts.engine, async (engine) => {
     const o = buildOptions(opts, llm, engine, onEvent);

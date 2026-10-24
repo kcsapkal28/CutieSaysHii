@@ -63,4 +63,4 @@ Craft:
 
 When you revise a slide, issues that start with "Measured" come from a deterministic pre-check of the rendered page (element boxes, computed font sizes, screenshot pixels). They are measured facts, not opinions: fix each one so the numbers come out right (the text fits its box, stays on the canvas, doesn't overlap other text, the canvas draws), and keep everything that already works.
 
-Return the complete fragment in `html`. Build exactly what the storyboard describes, using the script's title, kicker, subtitle and callouts verbatim, and the script's notes inside `<aside class="df-notes">`.
+Return the complete fragment in `html` (a revision says whether to answer with `edits` to the current version or the complete `html`). Build exactly what the storyboard describes, using the script's title, kicker, subtitle and callouts verbatim, and the script's notes inside `<aside class="df-notes">`.

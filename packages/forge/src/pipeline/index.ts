@@ -17,7 +17,7 @@ export type { BuildSummary, SlideBuild, RoundRecord, VersionMeta } from "./build
 export type { ForgeEvent, OnEvent, Verdict } from "./events.ts";
 export { journalFile, readJournal, summarizeRun, summarizeRuns, formatRun } from "./journal.ts";
 export type { JournalLine, RunSummary, StageRow, SlideRow, CostRow } from "./journal.ts";
-export { DEFAULT_MODELS, BUILD_DEFAULTS, OUTLINE_DEFAULTS } from "./config.ts";
+export { DEFAULT_MODELS, DEFAULT_THINKING, BUILD_DEFAULTS, OUTLINE_DEFAULTS } from "./config.ts";
 export { migrateProject, mergeLegacy } from "./migrate.ts";
 export type { Migration } from "./migrate.ts";
 export { toScript, toStoryboard, outlineSlides } from "../agents/schemas.ts";

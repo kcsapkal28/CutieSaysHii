@@ -87,7 +87,8 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
         }
         // "bundle" (the single-slide preview) is part of shooting as far as the UI is concerned.
         if (e.phase !== "bundle") out.push({ type: "slide.round", slideId: e.id, round: e.round, phase: e.phase === "critic" ? "critique" : e.phase });
-        const who = e.phase === "build" && e.model ? ` (${modelName(e.model)}${e.escalated ? ", escalated round" : ""})` : "";
+        const how = e.mode === "patch" ? ", editing the previous version" : e.mode === "rewrite" ? ", rewriting" : "";
+        const who = e.phase === "build" && e.model ? ` (${modelName(e.model)}${how}${e.escalated ? ", escalated round" : ""})` : "";
         out.push({ type: "progress", stage: context, slideId: e.id, message: `${e.id} round ${e.round}: ${PHASE_TEXT[e.phase]}${who}`, at: now() });
         return out;
       }
@@ -114,6 +115,18 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
         return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id} round ${e.round} failed: ${e.error}`, at: now() }];
       case "slide:escalate":
         return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id}: serious issue left, one more fix round on ${modelName(e.model)}`, at: now() }];
+      case "slide:patch":
+        return [
+          {
+            type: "progress",
+            stage: context,
+            slideId: e.id,
+            message: e.applied
+              ? `${e.id} round ${e.round}: ${e.edits} edit${e.edits === 1 ? "" : "s"} applied to the previous version`
+              : `${e.id} round ${e.round}: edits dropped (${e.reason ?? "they did not apply"}), rewriting the slide`,
+            at: now(),
+          },
+        ];
       case "slide:shots":
         return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id} round ${e.round}: ${e.files.length} screenshot${e.files.length === 1 ? "" : "s"} taken`, at: now() }];
       case "slide:done":

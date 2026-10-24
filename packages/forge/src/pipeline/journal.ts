@@ -101,6 +101,9 @@ export type SlideRow = {
   rounds: number;
   firstPass: boolean;
   escalated: boolean;
+  /** Fix rounds answered with edits that held, and edit attempts that fell back to a full rewrite. */
+  patches: number;
+  patchFallbacks: number;
   final: Verdict | "failed" | "running";
   bestRound: number;
   score: number;
@@ -155,7 +158,7 @@ export function summarizeRun(run: string, lines: JournalLine[]): RunSummary {
   const slides = new Map<string, SlideRow & { start: number; end: number }>();
   const slideRow = (id: string, at: number) => {
     if (!slides.has(id)) {
-      slides.set(id, { id, verdicts: [], scores: [], rounds: 0, firstPass: false, escalated: false, final: "running", bestRound: 0, score: 0, ms: 0, start: at, end: at });
+      slides.set(id, { id, verdicts: [], scores: [], rounds: 0, firstPass: false, escalated: false, patches: 0, patchFallbacks: 0, final: "running", bestRound: 0, score: 0, ms: 0, start: at, end: at });
     }
     const s = slides.get(id)!;
     s.end = Math.max(s.end, at);
@@ -220,6 +223,12 @@ export function summarizeRun(run: string, lines: JournalLine[]): RunSummary {
       case "slide:escalate":
         slideRow(str(l.id), at).escalated = true;
         break;
+      case "slide:patch": {
+        const s = slideRow(str(l.id), at);
+        if (l.applied) s.patches++;
+        else s.patchFallbacks++;
+        break;
+      }
       case "slide:done": {
         const s = slideRow(str(l.id), at);
         Object.assign(s, { final: l.verdict, bestRound: num(l.bestRound), score: num(l.score), rounds: num(l.rounds) || s.rounds });
@@ -284,7 +293,7 @@ export function formatRun(s: RunSummary): string {
     out.push(
       "",
       table(
-        ["slide", "rounds", "verdicts", "scores", "escalated", "final", "best", "score", "time"],
+        ["slide", "rounds", "verdicts", "scores", "escalated", "final", "best", "score", "time", "edits"],
         s.slides.map((r) => [
           r.id,
           String(r.rounds),
@@ -295,6 +304,7 @@ export function formatRun(s: RunSummary): string {
           r.bestRound ? `r${r.bestRound}` : "-",
           String(r.score),
           secs(r.ms),
+          r.patches || r.patchFallbacks ? `${r.patches} held${r.patchFallbacks ? `, ${r.patchFallbacks} rewritten` : ""}` : "",
         ]),
       ),
     );

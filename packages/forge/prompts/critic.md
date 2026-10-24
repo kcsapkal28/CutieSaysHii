@@ -19,7 +19,7 @@ Check each step's screenshot for:
 ## Verdict
 
 - `pass` only when there are no high-severity issues, no errors, and the slide meets the bar (score ≥ 7). Minor nits alone don't block a pass; list them as low.
-- Otherwise `fix`. Order issues by severity. Give each a precise location ("step 3, top-right chip '03 Intake valve'") and a concrete code-level fix ("move the legend to y=980 and center it", "raise the key light to 2.5 and add a rim light behind the object", "set the label font-size to 26px").
+- Otherwise `fix`. Return **at most 5 issues**, the ones that matter most, ordered by severity: high = breaks the slide or misses the bar, medium = clearly visible flaw, low = nit. Give each the step and a precise location, with the CSS selector when you can tell it ("step 3, #s04 .chip (top-right, '03 Intake valve')"), and a concrete code-level fix with numbers ("move the legend to y=980 and center it", "raise the key light to 2.5 and add a rim light behind the object", "set the label font-size to 26px"). When a measured fact backs the issue, quote it.
 - Score honestly: 9–10 indistinguishable from the references, 7–8 good, 5–6 generic or flawed, ≤4 broken.
 
 The slide already passed the pre-check's hard checks (no clipped, off-canvas or overlapping text, no blank render, no canvas that draws nothing, no console errors). The "Measured by the pre-check" lines are measured facts from the rendered page (font sizes in px, WCAG contrast ratios against the pixels behind the text, identical step screenshots), not guesses: trust the numbers, and decide whether each one matters for this slide (dimmed past states or a decorative label may be deliberate). Turn the ones that matter into issues with the measured numbers in them.

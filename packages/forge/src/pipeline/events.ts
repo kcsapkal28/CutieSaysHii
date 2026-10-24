@@ -22,9 +22,23 @@ export type ForgeEvent =
   | { type: "outline:card"; id: string; title: string; done: number; total: number }
   /**
    * A slide's round moved to a new phase: build (the builder is writing it, with `model`), bundle (single-slide preview),
-   * shoot (screenshots in Chromium), critic (vision review). `escalated` marks the extra Opus round.
+   * shoot (screenshots in Chromium), critic (vision review). `escalated` marks the extra Opus round. `mode` (build
+   * phase): a full first draft, edits on the previous version, or a full rewrite of it.
    */
-  | { type: "slide:round"; id: string; round: number; phase: "build" | "bundle" | "shoot" | "critic"; model?: string; escalated?: boolean }
+  | {
+      type: "slide:round";
+      id: string;
+      round: number;
+      phase: "build" | "bundle" | "shoot" | "critic";
+      model?: string;
+      escalated?: boolean;
+      mode?: "draft" | "patch" | "rewrite";
+    }
+  /**
+   * A fix round's edits on the previous version: `applied` with `edits` operations, or not (the edits didn't apply,
+   * broke the contract, or the pre-check got worse: `reason`), in which case a full rewrite follows in the same round.
+   */
+  | { type: "slide:patch"; id: string; round: number; applied: boolean; edits: number; reason?: string }
   /** Screenshots of a round are on disk (`files` are absolute PNG paths, one per step). */
   | { type: "slide:shots"; id: string; round: number; files: string[] }
   /**
@@ -67,6 +81,15 @@ export function meteredLlm(llm: Llm, stage: Stage | "revise", onEvent: OnEvent):
         record(r);
         return r;
       },
+      ...(llm.warm
+        ? {
+            async warm(opts) {
+              const r = await llm.warm!(opts);
+              record(r);
+              return r;
+            },
+          }
+        : {}),
     },
     total: () => ({ usage, calls }),
   };

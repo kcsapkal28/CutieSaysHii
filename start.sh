@@ -79,7 +79,8 @@ else
     say "Starting claude-openai proxy on :$PROXY_PORT (localhost only)"
     mkdir -p "$LOG_DIR"
     # BIND_HOST=127.0.0.1 keeps the proxy off the LAN; its start.sh binds 0.0.0.0 by default.
-    (cd "$PROXY_DIR" && BIND_HOST=127.0.0.1 exec bash start.sh) >"$LOG_DIR/proxy.log" 2>&1 &
+    # MAX_CONCURRENT (proxy default 5) above the build's 6 slides at once plus the outline's 6 cards.
+    (cd "$PROXY_DIR" && BIND_HOST=127.0.0.1 MAX_CONCURRENT="${MAX_CONCURRENT:-12}" exec bash start.sh) >"$LOG_DIR/proxy.log" 2>&1 &
     PROXY_PID=$!
     for _ in $(seq 1 60); do
       proxy_up && break

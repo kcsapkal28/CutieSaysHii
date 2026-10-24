@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { bundleDeck, CHROMIUM_ARGS, readProject, shootDeck } from "../src/index.ts";
 
 const FIXTURES = [
+  ["proof (anc)", new URL("../fixtures/proof/anc", import.meta.url).pathname],
   ["light check", new URL("./fixtures/light", import.meta.url).pathname],
 ] as const;
 
@@ -24,7 +25,7 @@ afterAll(async () => {
 describe.each(FIXTURES)("%s deck", (name, dir) => {
   const deckFile = join(out, name.replace(/\W+/g, "-"), "deck.html");
 
-  it("shoots every slide and step with zero errors and zero external requests", { timeout: 90_000 }, async () => {
+  it("shoots every slide and step with zero errors and zero external requests", { timeout: 120_000 }, async () => {
     const project = readProject(dir);
     await bundleDeck({ ...project, outFile: deckFile });
     const r = await shootDeck({ deckFile, browser });
@@ -55,6 +56,24 @@ describe.each(FIXTURES)("%s deck", (name, dir) => {
       await expect(page.locator("#df-notes-panel .df-notes-body").count()).resolves.toBe(1);
     }
     expect(errors).toEqual([]);
+    await page.close();
+  });
+});
+
+describe("proof deck interactivity", () => {
+  it("s04 slider and frequency toggle drive the live residual stat", { timeout: 30_000 }, async () => {
+    const deckFile = join(out, "proof-anc-", "deck.html");
+    const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+    await page.goto(`${pathToFileURL(deckFile).href}?df-shot=s04&step=0`);
+    await page.evaluate(() => window.__dfReady);
+    const db = page.locator("#s04 .db");
+    const before = await db.textContent();
+    await page.locator("#s04 .delay").fill("300");
+    const afterDelay = await db.textContent();
+    expect(afterDelay).not.toBe(before);
+    await page.locator('#s04 [data-f="100"]').click();
+    expect(await db.textContent()).not.toBe(afterDelay);
+    await expect(page.locator("#s04 .delay-out").textContent()).resolves.toBe("300 µs");
     await page.close();
   });
 });

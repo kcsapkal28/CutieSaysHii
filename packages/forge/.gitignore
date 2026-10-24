@@ -1,2 +1,3 @@
 fixtures/proof/*/versions/
 fixtures/proof/*/shots/
+test/fixtures/*/versions/

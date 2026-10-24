@@ -1,0 +1,151 @@
+<section class="df-slide" id="s04">
+  <header class="head">
+    <p class="df-eyebrow">Simulation · Feedforward timing</p>
+    <h2 class="df-h2">Anti-noise only works if it arrives on time</h2>
+  </header>
+  <div class="plot">
+    <canvas width="1120" height="620"></canvas>
+    <div class="lane-label" style="top: 34px"><i style="--c: var(--df-muted)"></i>Outside noise</div>
+    <div class="lane-label" style="top: 228px"><i style="--c: var(--df-accent)"></i>Anti-noise, delayed</div>
+    <div class="lane-label" style="top: 422px"><i style="--c: var(--df-accent-3)"></i>What you hear</div>
+  </div>
+  <div class="ctrl">
+    <div class="row">
+      <label for="s04-delay" class="df-stat-label">Processing delay</label>
+      <output class="val delay-out">40 µs</output>
+    </div>
+    <input id="s04-delay" class="df-range delay" type="range" min="0" max="400" step="5" value="40">
+    <div class="row gap">
+      <span class="df-stat-label">Noise frequency</span>
+    </div>
+    <div class="df-toggle freqs" role="group" aria-label="Noise frequency">
+      <button class="df-btn" data-f="100">100 Hz</button>
+      <button class="df-btn" data-f="300" aria-pressed="true">300 Hz</button>
+      <button class="df-btn" data-f="1000">1 kHz</button>
+      <button class="df-btn" data-f="3000">3 kHz</button>
+    </div>
+    <div class="stats">
+      <div class="df-stat"><span class="df-stat-label">Residual noise</span><span class="df-stat-value db">−22.4 dB</span></div>
+      <div class="df-stat"><span class="df-stat-label">Phase error</span><span class="df-stat-value small phase">4.3°</span></div>
+    </div>
+    <div class="meter"><i></i></div>
+    <p class="verdict"></p>
+  </div>
+  <aside class="df-notes">
+    <p>Let someone in the room drag the slider. At 100 Hz even 200 µs still cancels well; at 3 kHz 40 µs already ruins it.</p>
+    <p>This is why ANC is great on engine drone and weak on voices.</p>
+  </aside>
+</section>
+
+<style>
+  #s04 .head { position: absolute; left: 128px; top: 92px; width: 1500px; }
+  #s04 .head .df-eyebrow { margin: 0 0 22px; }
+  #s04 .plot {
+    position: absolute; left: 128px; top: 292px; width: 1120px; height: 620px; border-radius: 22px; overflow: hidden;
+    background: color-mix(in oklab, var(--df-surface) 75%, transparent); border: 1px solid var(--df-line);
+  }
+  #s04 .plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #s04 .lane-label {
+    position: absolute; left: 28px; display: flex; align-items: center; gap: 12px;
+    font: 500 18px/1 var(--df-font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--df-muted);
+  }
+  #s04 .lane-label i { width: 22px; height: 3px; border-radius: 2px; background: var(--c); }
+  #s04 .ctrl { position: absolute; left: 1336px; top: 292px; width: 456px; }
+  #s04 .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 22px; }
+  #s04 .row.gap { margin-top: 52px; }
+  #s04 .val { font: 500 30px/1 var(--df-font-mono); color: var(--df-accent); }
+  #s04 .freqs .df-btn { padding: 14px 18px; font-size: 20px; }
+  #s04 .stats { display: grid; grid-template-columns: 1fr auto; gap: 40px; margin-top: 60px; }
+  #s04 .stats .df-stat-label { white-space: nowrap; }
+  #s04 .db { transition: color .3s; font-size: 64px; white-space: nowrap; }
+  #s04 .small { font-size: 40px; line-height: 64px; color: var(--df-muted); }
+  #s04 .meter { margin-top: 28px; height: 10px; border-radius: 5px; background: var(--df-line); overflow: hidden; }
+  #s04 .meter i { display: block; height: 100%; width: 50%; border-radius: inherit; background: linear-gradient(90deg, var(--df-accent-3), var(--df-accent)); transition: width .25s; }
+  #s04 .verdict { margin: 26px 0 0; font: 400 25px/1.45 var(--df-font-body); color: var(--df-muted); min-height: 3em; }
+</style>
+
+<script>
+DF.slide("s04", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const cv = el.querySelector(".plot canvas");
+  const ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  const slider = el.querySelector(".delay");
+  const state = { delayUs: Number(slider.value), f: 300, scroll: 0 };
+
+  const residual = () => {
+    const phi = 2 * Math.PI * state.f * state.delayUs * 1e-6;
+    const amp = Math.sqrt(Math.max(0, 2 - 2 * Math.cos(phi))); // |1 - e^{-j phi}|
+    return { phi, amp, db: Math.max(-60, 20 * Math.log10(Math.max(amp, 1e-3))) };
+  };
+
+  function update() {
+    const r = residual();
+    slider.style.setProperty("--fill", `${(state.delayUs / 400) * 100}%`);
+    el.querySelector(".delay-out").textContent = `${state.delayUs} µs`;
+    const db = el.querySelector(".db");
+    db.textContent = `${r.db <= -59.9 ? "< −60" : (r.db < 0 ? "−" : "+") + Math.abs(r.db).toFixed(1)} dB`;
+    db.style.color = r.db < -20 ? C.accent : r.db < -6 ? C.text : C.accent3;
+    el.querySelector(".phase").textContent = `${((r.phi * 180) / Math.PI).toFixed(1)}°`;
+    el.querySelector(".meter i").style.width = `${Math.max(2, Math.min(100, (-r.db / 40) * 100))}%`;
+    el.querySelector(".verdict").textContent =
+      r.db < -20 ? "Arrives in time: the two waves cancel almost perfectly." :
+      r.db < -6 ? "Partly cancelled. The phase slip lets some noise through." :
+      r.db < 0 ? "Barely helps: the anti-noise is too late for this frequency." :
+      "Too late: the anti-noise now adds to the noise and makes it louder.";
+    for (const b of el.querySelectorAll(".freqs .df-btn")) b.setAttribute("aria-pressed", String(Number(b.dataset.f) === state.f));
+  }
+
+  slider.addEventListener("input", () => { state.delayUs = Number(slider.value); update(); });
+  for (const b of el.querySelectorAll(".freqs .df-btn")) {
+    b.addEventListener("click", () => { state.f = Number(b.dataset.f); update(); });
+  }
+
+  // three lanes, 3 cycles of the noise across the plot; the delay shows up as a phase shift
+  const LANES = [{ y: 130, c: C.muted, w: 3 }, { y: 324, c: C.accent, w: 3 }, { y: 518, c: C.accent3, w: 5 }];
+  const A = 62, X0 = 220, X1 = W - 40;
+  function wave(lane, fn) {
+    ctx.strokeStyle = lane.c;
+    ctx.lineWidth = lane.w;
+    ctx.beginPath();
+    for (let x = X0; x <= X1; x += 3) {
+      const u = ((x - X0) / (X1 - X0)) * 3 * 2 * Math.PI + state.scroll;
+      const y = lane.y - fn(u) * A;
+      x === X0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineJoin = "round";
+    for (const lane of LANES) {
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 8]);
+      ctx.beginPath(); ctx.moveTo(X0, lane.y); ctx.lineTo(X1, lane.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const { phi } = residual();
+    wave(LANES[0], (u) => Math.sin(u));
+    wave(LANES[1], (u) => -Math.sin(u - phi));
+    // the sum gets a soft glow so the residual reads at a glance
+    ctx.save();
+    ctx.shadowColor = C.accent3;
+    ctx.shadowBlur = 18;
+    wave(LANES[2], (u) => Math.sin(u) - Math.sin(u - phi));
+    ctx.restore();
+  }
+  api.onFrame((t, dt) => {
+    if (!api.reducedMotion) state.scroll -= dt * 2.2;
+    draw();
+  });
+
+  return {
+    enter() {
+      update();
+      gsap.from(el.querySelectorAll(".head > *, .plot, .ctrl > *"), { y: 24, opacity: 0, duration: 0.8, stagger: 0.05, ease: "power3.out" });
+    },
+  };
+});
+</script>

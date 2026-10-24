@@ -1,0 +1,69 @@
+<section class="df-slide" id="s05">
+  <svg class="calm" viewBox="0 0 1920 300" preserveAspectRatio="none" aria-hidden="true"><path class="w1"/><path class="w2"/></svg>
+  <header class="head">
+    <p class="df-eyebrow">Key takeaways</p>
+    <h2 class="title">Silence is a signal <span class="df-grad">you compute</span></h2>
+  </header>
+  <ol class="cards">
+    <li><b>01</b><h3>Seal first</h3><p>The ear tip blocks high frequencies on its own. Electronics only have to fight the lows.</p><em>~20 dB passive above 1 kHz</em></li>
+    <li><b>02</b><h3>Invert the wave</h3><p>The outer mic hears noise before your ear does; the chip plays it back flipped by 180°.</p><em>feedforward</em></li>
+    <li><b>03</b><h3>Close the loop</h3><p>An inner mic measures what is left at your eardrum and corrects the estimate continuously.</p><em>feedback</em></li>
+    <li><b>04</b><h3>Latency limits it</h3><p>Every microsecond of delay becomes phase error, which is why ANC shines below 1 kHz.</p><em>≈ 20 µs budget</em></li>
+  </ol>
+  <p class="close">Questions? Try the simulator again: the slider is the whole story.</p>
+  <aside class="df-notes"><p>Recap the four ideas in one breath, then go back to the simulator for questions.</p></aside>
+</section>
+
+<style>
+  #s05 .calm { position: absolute; left: 0; bottom: 70px; width: 1920px; height: 300px; opacity: .55; }
+  #s05 .calm path { fill: none; stroke-width: 2.5; stroke-linecap: round; }
+  #s05 .calm .w1 { stroke: color-mix(in oklab, var(--df-accent) 70%, transparent); }
+  #s05 .calm .w2 { stroke: color-mix(in oklab, var(--df-accent-2) 45%, transparent); stroke-width: 1.5; }
+  #s05 .head { position: absolute; left: 150px; top: 120px; }
+  #s05 .head .df-eyebrow { margin: 0 0 26px; }
+  #s05 .title { margin: 0; font: 300 96px/1.02 var(--df-font-display); letter-spacing: -.03em; }
+  #s05 .title .df-grad { font-weight: 500; }
+  #s05 .cards { list-style: none; margin: 0; padding: 0; position: absolute; left: 150px; right: 150px; top: 400px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+  #s05 .cards li {
+    position: relative; padding: 34px 32px 30px; border-radius: 20px; min-height: 340px; display: flex; flex-direction: column;
+    background: color-mix(in oklab, var(--df-surface) 80%, transparent); border: 1px solid var(--df-line);
+    backdrop-filter: blur(8px);
+  }
+  #s05 .cards li::before { content: ""; position: absolute; left: 32px; right: 32px; top: 0; height: 2px; background: linear-gradient(90deg, var(--df-accent), var(--df-accent-2)); }
+  #s05 .cards b { font: 500 20px/1 var(--df-font-mono); color: var(--df-accent); letter-spacing: .08em; }
+  #s05 .cards h3 { margin: 26px 0 16px; font: 500 38px/1.1 var(--df-font-display); letter-spacing: -.01em; }
+  #s05 .cards p { margin: 0; font: 400 24px/1.45 var(--df-font-body); color: var(--df-muted); flex: 1; }
+  #s05 .cards em { margin-top: 24px; font: 500 17px/1 var(--df-font-mono); font-style: normal; letter-spacing: .06em; color: var(--df-text); opacity: .7; }
+  #s05 .close { position: absolute; left: 150px; bottom: 44px; margin: 0; font: 400 26px/1.4 var(--df-font-body); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s05", (api) => {
+  const { el, gsap } = api;
+  // a noisy wave on the left that settles to a flat line on the right: noise, then silence
+  const w1 = el.querySelector(".calm .w1"), w2 = el.querySelector(".calm .w2");
+  function path(t, k) {
+    let d = "";
+    for (let x = 0; x <= 1920; x += 8) {
+      const fade = Math.max(0, 1 - x / 1300) ** 1.6;
+      const y = 150 + fade * k * (Math.sin(x * 0.018 + t * 2) * 60 + Math.sin(x * 0.047 - t * 3.1) * 28 + Math.sin(x * 0.11 + t) * 10);
+      d += `${x ? "L" : "M"}${x},${y.toFixed(1)}`;
+    }
+    return d;
+  }
+  api.onFrame((t) => {
+    const tt = api.reducedMotion ? 0 : t;
+    w1.setAttribute("d", path(tt, 1));
+    w2.setAttribute("d", path(tt + 0.6, -0.7));
+  });
+  return {
+    enter() {
+      gsap.timeline({ defaults: { ease: "power3.out" } })
+        .from(el.querySelectorAll(".head > *"), { y: 30, opacity: 0, duration: 0.9, stagger: 0.1 })
+        .from(el.querySelectorAll(".cards li"), { y: 60, opacity: 0, duration: 0.9, stagger: 0.14 }, 0.35)
+        .from(el.querySelectorAll(".cards li > *"), { y: 14, opacity: 0, duration: 0.6, stagger: 0.03 }, 0.55)
+        .from(el.querySelector(".close"), { opacity: 0, duration: 0.8 }, 1.2);
+    },
+  };
+});
+</script>

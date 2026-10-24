@@ -76,11 +76,14 @@ export function pickExemplars(all: Exemplar[], board: Pick<StoryboardSlide, "exp
     }
     return picked.slice(0, max);
   }
+  // Proof-deck fallback: prefer the richest mechanisms (animation loop, controls, steps), never a static text slide.
   const is3d = (e: Exemplar) => /\.three\(/.test(e.html);
+  const richness = (e: Exemplar) =>
+    [/onFrame\(/, /<input|<button|df-btn|df-range/, /\bstep\s*\(/, /toSlide\(/].filter((re) => re.test(e.html)).length;
   const want3d = board.explainer === "3d-object";
-  const byLen = (a: Exemplar, b: Exemplar) => a.html.length - b.html.length;
-  const same = fits.filter((e) => is3d(e) === want3d).sort(byLen);
-  const other = fits.filter((e) => is3d(e) !== want3d).sort(byLen);
+  const byRich = (a: Exemplar, b: Exemplar) => richness(b) - richness(a) || a.html.length - b.html.length;
+  const same = fits.filter((e) => is3d(e) === want3d && richness(e) >= 2).sort(byRich);
+  const other = fits.filter((e) => is3d(e) !== want3d && richness(e) >= 2).sort(byRich);
   return [...same.slice(0, 1), ...other.slice(0, 1)];
 }
 

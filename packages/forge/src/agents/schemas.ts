@@ -70,7 +70,7 @@ export const OutlineDraft = z.object({
             z.object({
               keyMessage: z.string().describe("The single idea this slide lands, as a full sentence."),
               role: z.enum(["opener", "context", "mechanism", "evidence", "comparison", "tradeoff", "recap", "closer"]),
-              budgetSec: z.number().int().min(20).max(300),
+              budgetSec: z.number().positive().describe("Seconds; rescaled in code so the deck fits the talk length."),
             }),
           )
           .min(1),
@@ -164,7 +164,7 @@ export const StoryboardSlide = z.object({
   steps: z
     .array(z.object({ beat: z.string().describe("What changes on screen at this step"), motion: z.string().describe("How it moves (or 'none')") }))
     .min(1)
-    .max(6),
+    .max(8),
   object3d: Object3d.optional(),
   simulation: z
     .object({

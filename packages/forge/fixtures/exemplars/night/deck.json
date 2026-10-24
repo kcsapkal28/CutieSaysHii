@@ -1,0 +1,34 @@
+{
+  "title": "Night lectures: rhythms, flows and deep time",
+  "style": {
+    "look": "dark glass, ink-blue night, warm amber and mint signals",
+    "theme": {
+      "colors": {
+        "bg": "#10121a",
+        "surface": "#1a1e2b",
+        "text": "#eef0f6",
+        "muted": "#a0a7ba",
+        "line": "#2c3244",
+        "accent": "#ffb547",
+        "accent2": "#5fd6b4",
+        "accent3": "#ff7b96"
+      },
+      "fonts": { "display": "inter-tight", "body": "inter", "mono": "jetbrains-mono" },
+      "backdrop": "radial-gradient(1400px 900px at 18% -10%, #23283d 0%, rgba(35,40,61,0) 60%), radial-gradient(1200px 800px at 100% 110%, #1b2433 0%, rgba(27,36,51,0) 60%), linear-gradient(180deg, #121521 0%, #0c0e14 100%)"
+    },
+    "motion": "rich",
+    "use3d": false,
+    "interactivity": 2,
+    "density": "balanced",
+    "surface": { "radius": "round", "border": "hairline", "depth": "glass", "texture": "grain" },
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "Every note is a chord in disguise", "section": "Music", "budgetSec": 45 },
+    { "id": "s02", "title": "Two loops, one pump", "section": "Body", "budgetSec": 120 },
+    { "id": "s03", "title": "Life arrived late", "section": "Deep time", "budgetSec": 150 },
+    { "id": "s04", "title": "Traffic jams with no cause", "section": "Roads", "budgetSec": 150 },
+    { "id": "s05", "title": "Remove the otter, lose the forest", "section": "Ecology", "budgetSec": 120 },
+    { "id": "s06", "title": "From your hand to a DNA base", "section": "Scale", "budgetSec": 120 }
+  ]
+}

@@ -6,7 +6,11 @@
     { "id": "tech", "dir": "fixtures/exemplars/tech", "theme": "light technical; warm off-white #f6f4ef, ink boxes; Inter Tight + Work Sans + JetBrains Mono; teal / blue / vermilion" },
     { "id": "history", "dir": "fixtures/exemplars/history", "theme": "editorial paper; Fraunces display + Source Serif 4 body + Plex Mono; oxblood / deep teal / ochre; vignette backdrop" },
     { "id": "data", "dir": "fixtures/exemplars/data", "theme": "bold data story; near-black #0b0b0c, flat; Space Grotesk + Inter + JetBrains Mono; electric lime highlight, orange-red callouts" },
-    { "id": "science", "dir": "fixtures/exemplars/science", "theme": "calm science night; deep teal #0e1c21 with soft glow; Source Serif 4 headings + Inter + Plex Mono; aqua / soft gold / coral" }
+    { "id": "science", "dir": "fixtures/exemplars/science", "theme": "calm science night; deep teal #0e1c21 with soft glow; Source Serif 4 headings + Inter + Plex Mono; aqua / soft gold / coral" },
+    { "id": "field", "dir": "fixtures/exemplars/field", "theme": "light lab notebook; cool white #f7f8f6, soft shadowed cards; Inter + IBM Plex Mono; green / cobalt / burnt orange" },
+    { "id": "night", "dir": "fixtures/exemplars/night", "theme": "dark glass; ink-blue night #10121a with grain, pill-round glass chips; Inter Tight + Inter + JetBrains Mono; amber / mint / rose" },
+    { "id": "folio", "dir": "fixtures/exemplars/folio", "theme": "editorial folio; pale sage paper #eef0ea, sharp hairline cards; Playfair Display + Source Serif 4 + Plex Mono; vermilion / ink blue / ochre" },
+    { "id": "poster", "dir": "fixtures/exemplars/poster", "theme": "bold poster; saturated cobalt #1636c4, bold white borders and hard offset shadows; Space Grotesk + Work Sans + Plex Mono; sun yellow / mint / coral" }
   ],
   "slides": [
     {
@@ -92,6 +96,138 @@
       "techniques": ["procedural-3d", "annotated-labels"], "domain": "astronomy", "theme": "science",
       "steps": 2, "interactive": false, "uses3d": true,
       "whatMakesItGood": "A non-gadget 3D scene: canvas-painted banded planet, moons on line orbits with real periods, deterministic starfield, single sun light. Labels follow the moons via kit.toSlide and are clamped on-screen. A side panel counts completed orbits live, making the 4:2:1 resonance visible on step 2."
+    },
+    {
+      "id": "field/s01", "path": "fixtures/exemplars/field/slides/s01.html", "title": "Two allele shares fix all three genotype shares",
+      "techniques": ["equation-build"], "domain": "genetics", "theme": "field",
+      "steps": 5, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Each term of p² + 2pq + q² = 1 owns one colour across an equation span, an area of a Punnett square whose sides are split p | q (so area = share) and a plain-words row. One term per step, unrevealed terms ghosted; the last step tweens p to a real value and the sliver cells get leader-line tags."
+    },
+    {
+      "id": "field/s02", "path": "fixtures/exemplars/field/slides/s02.html", "title": "One shared line halves the worst wait",
+      "techniques": ["packet-channel"], "domain": "operations / retail queues", "theme": "field",
+      "steps": 2, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "Chip positions are a pure function of (mode, shopper, t) on a deterministic schedule; chips are coloured by how long they waited and a per-item wait-bar strip shows the spread, so the two modes differ in colour and bar height, not only in the big stats. Toggle and steps share one setMode via api.setStep."
+    },
+    {
+      "id": "field/s03", "path": "fixtures/exemplars/field/slides/s03.html", "title": "With air drag, the longest kick is flatter than 45°",
+      "techniques": ["parametric-sim"], "domain": "sport physics", "theme": "field",
+      "steps": 2, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "A fixed-dt integrator fills an equal-scale metres plot: a faint fan of runs every 5°, the live run bold, the best angle dashed, a vacuum ghost with a 'drag costs N m' bracket, and apex/landing chips on leaders. A right column holds the toggle, two sliders, four readouts with units, a verdict and the equation footnote."
+    },
+    {
+      "id": "field/s04", "path": "fixtures/exemplars/field/slides/s04.html", "title": "Sunlight runs out in the first 200 metres",
+      "techniques": ["layered-stack"], "domain": "marine biology", "theme": "field",
+      "steps": 6, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Five equal bands on a declared piecewise depth axis, names left and light/temperature/pressure columns right. One layout() derives every band, tick and row from tweened heights; each step expands one band with an accent outline, dims the rest and tags that zone's drawn creature on a leader."
+    },
+    {
+      "id": "field/s05", "path": "fixtures/exemplars/field/slides/s05.html", "title": "Protect seven hours, in step with your body clock",
+      "techniques": ["key-takeaways"], "domain": "sleep science", "theme": "field",
+      "steps": 1, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Four equal cards with a colour-keyed top rule, mono number, one-line title, bodies of similar length and a sourced footer fact. Under them a generated one-night hypnogram draws in, REM in the accent and one '≈ 90 min' cycle bracketed to tie back to a card; one closing line."
+    },
+    {
+      "id": "night/s01", "path": "fixtures/exemplars/night/slides/s01.html", "title": "Every note is a chord in disguise",
+      "techniques": ["title-hero"], "domain": "music / acoustics of strings", "theme": "night",
+      "steps": 1, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Weight-200 display headline with one gradient word, a one-line lede and a three-beat agenda strip on the left; on the right a generative SVG string: the summed vibration in the accent on top, its first five modes stacked below with nodes marked and mono labels. Gentle onFrame sway, fixed t in shot mode."
+    },
+    {
+      "id": "night/s02", "path": "fixtures/exemplars/night/slides/s02.html", "title": "Two loops, one pump",
+      "techniques": ["particle-flow", "annotated-labels"], "domain": "physiology / circulation", "theme": "night",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Four flows are SVG paths sampled once into lookup tables and drawn as glowing beads on a full-slide canvas, colour-coded by meaning. One flow per step lights its legend key and outlines the chambers it passes; numbered tags sit outside the boxes on leaders so beads never cross text; one big real-number chip."
+    },
+    {
+      "id": "night/s03", "path": "fixtures/exemplars/night/slides/s03.html", "title": "Animals fill only the last eighth of Earth's history",
+      "techniques": ["timeline"], "domain": "geology / palaeontology", "theme": "night",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "A piecewise scale squeezes the first 3.8 billion years and stretches the last 700 million, with a visible ≈ break. Tinted eon bands brighten as they are reached, event cards hang above and below the axis on leader lines, and two day-clock chips computed in the slide carry the argument."
+    },
+    {
+      "id": "night/s04", "path": "fixtures/exemplars/night/slides/s04.html", "title": "Traffic jams with no cause",
+      "techniques": ["parametric-sim"], "domain": "transport / traffic flow", "theme": "night",
+      "steps": 2, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "A seeded cellular automaton is simulated whole on every change (warm-up, then 160 rows), so a full space–time diagram coloured by speed fills the canvas in shot mode. Slider and toggle drive speed, flow and stopped-share readouts with units and a verdict; the annotation measures a real jam's backward speed rather than placing a guess."
+    },
+    {
+      "id": "night/s05", "path": "fixtures/exemplars/night/slides/s05.html", "title": "Remove the otter, lose the forest",
+      "techniques": ["network-graph"], "domain": "ecology / food webs", "theme": "night",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "A 19-node web laid out by trophic row from an edge list; node size from computed degree and the cascade set derived in code. Steps light one node's links, remove it, grow the next group with pulses on its edges, then fade the dependants while a stat counts them; legend with group counts."
+    },
+    {
+      "id": "night/s06", "path": "fixtures/exemplars/night/slides/s06.html", "title": "Your hand is written in letters two nanometres wide",
+      "techniques": ["zoom-scale"], "domain": "cell biology / scale", "theme": "night",
+      "steps": 5, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Five nested SVG levels, each grown from the parent's dashed aim box by an outer wrapper (origin at the parent's aim) and an inner SVG (origin at its own aim) with expo.inOut. A size ladder, a scale bar and a magnification counter tweened in log space show the magnitude; each level keeps one labelled reference object."
+    },
+    {
+      "id": "folio/s01", "path": "fixtures/exemplars/folio/slides/s01.html", "title": "Sunlight kept must equal heat shed",
+      "techniques": ["equation-build"], "domain": "climate / physics", "theme": "folio",
+      "steps": 5, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Each term of S(1 − α)/4 = σT⁴ is a coloured span that rises per step while the same colour lights its part of an SVG diagram (beam, reflected rays, disc vs sphere, infrared). A side card names the term in plain words and carries the running value down to a real result and the gap it explains."
+    },
+    {
+      "id": "folio/s02", "path": "fixtures/exemplars/folio/slides/s02.html", "title": "The deaths gathered around one pump",
+      "techniques": ["map-geo"], "domain": "public-health history", "theme": "folio",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "A stylised hand-drawn street plan with a few named streets and point markers; data drawn as bars stacked outward from the streets by a seeded generator. A walking-distance catchment is computed in the slide and outlined, a live stat counts what falls inside, and the footnote says what is stylised."
+    },
+    {
+      "id": "folio/s03", "path": "fixtures/exemplars/folio/slides/s03.html", "title": "Seven parts, no pump: capillaries move the ink",
+      "techniques": ["exploded-3d", "annotated-labels", "procedural-3d"], "domain": "writing instruments / craft", "theme": "folio",
+      "steps": 4, "interactive": false, "uses3d": true,
+      "whatMakesItGood": "A non-electronic object from lathe, cone and cylinder primitives with physical materials, lit for a light paper ground with a contact shadow. One explode.k tween drives the parts and a camera dolly, small parts turn their faces to the camera as they fly out, and labels track toSlide anchors alternating above and below."
+    },
+    {
+      "id": "folio/s04", "path": "fixtures/exemplars/folio/slides/s04.html", "title": "A Bill becomes law only when both Houses agree",
+      "techniques": ["step-through-pipeline"], "domain": "law / parliamentary procedure", "theme": "folio",
+      "steps": 6, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "Tabs call api.setStep and render(i) derives everything from one step table: a two-lane stage grid with done / current / future states, a hatched warm-accent exception with a drawn zig-zag, a final seal, and a current-state row plus a caption."
+    },
+    {
+      "id": "folio/s05", "path": "fixtures/exemplars/folio/slides/s05.html", "title": "A starter is a loop you keep feeding",
+      "techniques": ["process-loop"], "domain": "cooking / fermentation", "theme": "folio",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Four stages on a circle with arrowed arcs, the purpose in the centre and labels outside the nodes. A glowing token rides only the active arc (fixed phase in shot mode) so it never covers a label, and a drawn jar is the evidence: its level rises and falls with the stage, with a legend and live stats."
+    },
+    {
+      "id": "poster/s01", "path": "fixtures/exemplars/poster/slides/s01.html", "title": "Nearly half of the world's languages are endangered",
+      "techniques": ["typographic-statement"], "domain": "linguistics", "theme": "poster",
+      "steps": 2, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "One 128px sentence in masked word spans that rise in sequence, the key word in the highlight with an SVG underline placed from offsetLeft/offsetTop, attribution on a rule. A faint giant fraction sits behind a 10×10 dot field; step 2 fills the dots so the number becomes a picture."
+    },
+    {
+      "id": "poster/s02", "path": "fixtures/exemplars/poster/slides/s02.html", "title": "A trillion seconds is 31,700 years",
+      "techniques": ["zoom-scale"], "domain": "numeracy / public finance", "theme": "poster",
+      "steps": 3, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "One log-space camera value drives every nested frame (scale = 10^(window − camera) about one shared focus), so each step zooms out ×1000 with expo.inOut and the previous frame collapses into a labelled sliver. A familiar reference per level, a counting readout and a power-of-ten ladder show the magnitude."
+    },
+    {
+      "id": "poster/s03", "path": "fixtures/exemplars/poster/slides/s03.html", "title": "Same warm house, a third of the energy",
+      "techniques": ["comparison"], "domain": "home energy", "theme": "poster",
+      "steps": 2, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Three aligned rows: label, muted A column, bold B column, each number paired with a proportional bar. B is held back until step 2, then counts up while its bars grow and delta chips pop with back.out; units a third the size of the numbers, assumptions in a mono footnote."
+    },
+    {
+      "id": "poster/s04", "path": "fixtures/exemplars/poster/slides/s04.html", "title": "Five layers spread every wheel's weight",
+      "techniques": ["layered-stack", "procedural-3d", "annotated-labels"], "domain": "civil engineering", "theme": "poster",
+      "steps": 6, "interactive": false, "uses3d": true,
+      "whatMakesItGood": "Five RoundedBox slabs with seeded CanvasTexture speckle. Each step lifts the layers above the active one, outlines it in the accent and dims the rest by tinting (not transparency). Left-column tags follow each slab via kit.toSlide with a min-gap sweep; a detail card on the right swaps per layer."
+    },
+    {
+      "id": "poster/s05", "path": "fixtures/exemplars/poster/slides/s05.html", "title": "Most Australians live on a thin coastal rim",
+      "techniques": ["map-geo"], "domain": "geography / demography", "theme": "poster",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "A recognisable coastline from ~110 lon/lat points through a one-line projection; the same path serves as fill, clipPath, outline and a clipped coastal band. Steps add a hatched zone, population-sized circles with sea-side leader tags, then the band and one huge stat; legend keys light per step, projection in the footnote."
+    },
+    {
+      "id": "poster/s06", "path": "fixtures/exemplars/poster/slides/s06.html", "title": "Learning fast means going round faster",
+      "techniques": ["process-loop"], "domain": "business / product", "theme": "poster",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Three stage nodes and three artefact chips on one circle, arcs trimmed clear of what they join, arrowheads only into stages. A glowing token laps the ring behind the nodes (parked on bare arc in shot mode); each step fills the active node, lights its outgoing leg and swaps a side panel."
     }
   ]
 }

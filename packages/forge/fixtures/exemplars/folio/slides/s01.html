@@ -1,0 +1,193 @@
+<section class="df-slide" id="s01">
+  <header class="head">
+    <p class="df-eyebrow">Climate · Energy balance</p>
+    <h2 class="title">Sunlight kept must equal heat shed</h2>
+  </header>
+  <p class="eq" aria-label="S(1 − α) / 4 = σT⁴"><span class="t" style="--c: var(--df-accent-3)">S<i></i></span><span class="t" style="--c: var(--df-accent-2)">(1 − α)<i></i></span><span class="t" style="--c: var(--df-text)">/ 4<i></i></span><span class="t" style="--c: var(--df-accent)">= σT⁴<i></i></span></p>
+  <svg class="dia" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="tags"></div>
+  <div class="card">
+    <p class="k"></p>
+    <h3></h3>
+    <p class="plain"></p>
+    <p class="val"><span class="n">0</span><u></u></p>
+    <p class="calc"></p>
+  </div>
+  <p class="foot">S = 1361 W/m² (solar constant) · α ≈ 0.30 (Earth's albedo) · σ = 5.67×10⁻⁸ W/m²K⁴ · diagram not to scale</p>
+  <aside class="df-notes">
+    <p>Build the equation one term at a time; each term has a colour and a matching piece of the picture.</p>
+    <p>The punchline is the last step: physics alone predicts a frozen planet at −18 °C. The 33 °C we actually enjoy is the greenhouse effect.</p>
+  </aside>
+</section>
+
+<style>
+  #s01 .head { position: absolute; left: 128px; top: 80px; }
+  #s01 .head .df-eyebrow { margin: 0 0 18px; }
+  #s01 .title { margin: 0; font: 500 66px/1.05 var(--df-font-display); letter-spacing: -.015em; }
+  #s01 .eq { position: absolute; left: 128px; top: 232px; margin: 0; display: flex; gap: 34px; font: 400 118px/1.1 var(--df-font-display); font-variant-numeric: lining-nums; white-space: nowrap; }
+  #s01 .t { position: relative; color: var(--c); }
+  #s01 .t i { position: absolute; left: 0; right: 0; bottom: -6px; height: 5px; background: var(--c); transform: scaleX(0); transform-origin: 0 50%; }
+  #s01 .dia { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: visible; }
+  #s01 .tags { position: absolute; inset: 0; pointer-events: none; }
+  #s01 .tags .df-tag { position: absolute; transform: translate(-50%, -50%); font-size: 24px; box-shadow: inset 3px 0 0 var(--c); }
+  #s01 .tags .df-tag b { color: var(--c); }
+  #s01 .card { position: absolute; left: 1336px; top: 400px; width: 456px; padding: 34px 36px 30px; background: var(--df-surface); border: 1px solid var(--df-line); border-top: 5px solid var(--c, var(--df-text)); }
+  #s01 .card .k { margin: 0; font: 500 19px/1 var(--df-font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--c); }
+  #s01 .card h3 { margin: 16px 0 12px; font: 500 40px/1.1 var(--df-font-display); font-variant-numeric: lining-nums; }
+  #s01 .card .plain { margin: 0; min-height: 5.6em; font: 400 25px/1.4 var(--df-font-body); color: var(--df-muted); }
+  #s01 .card .val { margin: 22px 0 6px; font: 500 76px/1 var(--df-font-mono); letter-spacing: -.03em; color: var(--df-text); font-variant-numeric: tabular-nums; }
+  #s01 .card .val u { text-decoration: none; margin-left: 12px; font-size: 30px; letter-spacing: 0; color: var(--df-muted); }
+  #s01 .card .calc { margin: 0; font: 400 21px/1.3 var(--df-font-mono); color: var(--df-muted); }
+  #s01 .foot { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".dia");
+  const E = { x: 860, y: 690, r: 165 }; // Earth
+  const SUN = { x: 230, y: 690, r: 80 };
+  const S = 1361, ALBEDO = 0.3, SIGMA = 5.67e-8;
+  const kept = S * (1 - ALBEDO), mean = kept / 4, T = Math.pow(mean / SIGMA, 0.25);
+
+  // One step per term: the term, its colour, the diagram group it lights up, and its words.
+  const STEPS = [
+    { term: 0, c: C.accent3, k: "Term 1 · S", h: "Sunlight arriving", v: S, unit: "W/m²", dec: 0, calc: "S = 1361 W/m²",
+      plain: "Each square metre facing the Sun, at the top of the atmosphere, receives 1361 watts." },
+    { term: 1, c: C.accent2, k: "Term 2 · (1 − α)", h: "The share that stays", v: kept, unit: "W/m²", dec: 0, calc: "1361 × 0.70 = 953 W/m²",
+      plain: "Clouds, ice and deserts bounce about 30% straight back to space. Only 70% is absorbed." },
+    { term: 2, c: C.text, k: "Term 3 · ÷ 4", h: "Spread over a sphere", v: mean, unit: "W/m²", dec: 0, calc: "953 ÷ 4 = 238 W/m²",
+      plain: "Earth catches light on a disc, πR², but sheds heat from its whole sphere, 4πR²: four times the area." },
+    { term: 3, c: C.accent, k: "Term 4 · σT⁴", h: "Glowing in infrared", v: T, unit: "K", dec: 0, calc: "T = (238 ÷ σ)^¼ = 255 K",
+      plain: "A warm body radiates σT⁴ watts per square metre. Earth warms until that glow matches the 238 it keeps." },
+    { term: 3, c: C.accent, k: "Result", h: "A 33 °C gap", v: Math.round(T) - 273, unit: "°C", dec: 0, calc: "observed: +15 °C",
+      plain: "Physics alone predicts a frozen planet. The real average is +15 °C: air holds back part of the glow." },
+  ];
+
+  const make = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    parent.append(n);
+    return n;
+  };
+  const group = () => make("g", { opacity: 0 });
+  const arrow = (g, d, color, w = 4) => {
+    const p = make("path", { d, fill: "none", stroke: color, "stroke-width": w, "stroke-linecap": "round", "marker-end": `url(#s01-head-${color.slice(1)})` }, g);
+    return p;
+  };
+
+  // ---------- diagram: sun, beam (S), reflected rays (α), disc vs sphere (÷4), infrared glow (σT⁴), greenhouse halo
+  const defs = make("defs", {});
+  for (const c of [C.accent3, C.accent2, C.accent, C.text]) {
+    const m = make("marker", { id: `s01-head-${c.slice(1)}`, viewBox: "0 0 10 10", refX: 7, refY: 5, markerWidth: 4, markerHeight: 4, orient: "auto-start-reverse" }, defs);
+    make("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+  }
+  const glow = make("radialGradient", { id: "s01-sun" }, defs);
+  make("stop", { offset: "0", "stop-color": C.accent3, "stop-opacity": 0.55 }, glow);
+  make("stop", { offset: "1", "stop-color": C.accent3, "stop-opacity": 0 }, glow);
+
+  const halo = make("circle", { cx: E.x, cy: E.y, r: E.r + 34, fill: C.accent, "fill-opacity": 0.1, stroke: C.accent, "stroke-width": 2, "stroke-dasharray": "2 9", opacity: 0 });
+  make("circle", { cx: SUN.x, cy: SUN.y, r: SUN.r * 2.1, fill: "url(#s01-sun)" });
+  make("circle", { cx: SUN.x, cy: SUN.y, r: SUN.r, fill: C.accent3 });
+  for (let a = 0; a < 12; a++) {
+    const t = (a / 12) * Math.PI * 2, r0 = SUN.r + 14, r1 = SUN.r + 34;
+    make("line", { x1: SUN.x + Math.cos(t) * r0, y1: SUN.y + Math.sin(t) * r0, x2: SUN.x + Math.cos(t) * r1, y2: SUN.y + Math.sin(t) * r1, stroke: C.accent3, "stroke-width": 4, "stroke-linecap": "round" });
+  }
+
+  const beam = group();
+  const RAYS = [];
+  for (let i = 0; i < 7; i++) {
+    const y = E.y - 132 + i * 44, hit = E.x - Math.sqrt(E.r * E.r - (y - E.y) ** 2);
+    RAYS.push({ y, hit });
+    arrow(beam, `M${SUN.x + 130},${y} L${hit - 8},${y}`, C.accent3);
+  }
+  // Earth: lit from the left, faint latitude lines
+  const earthGrad = make("linearGradient", { id: "s01-earth" }, defs);
+  make("stop", { offset: "0", "stop-color": C.accent2, "stop-opacity": 0.32 }, earthGrad);
+  make("stop", { offset: "1", "stop-color": C.accent2, "stop-opacity": 0.75 }, earthGrad);
+  make("circle", { cx: E.x, cy: E.y, r: E.r, fill: "url(#s01-earth)", stroke: C.text, "stroke-width": 2.5 });
+  for (const k of [-0.6, -0.25, 0.25, 0.6]) {
+    const yy = E.y + k * E.r, half = Math.sqrt(1 - k * k) * E.r;
+    make("path", { d: `M${E.x - half},${yy} Q${E.x},${yy + 18} ${E.x + half},${yy}`, fill: "none", stroke: C.surface, "stroke-opacity": 0.5, "stroke-width": 1.5 });
+  }
+
+  const reflect = group();
+  for (const i of [0, 1]) {
+    const { y, hit } = RAYS[i];
+    arrow(reflect, `M${hit - 6},${y - 4} L${hit - 210},${y - 150 + i * 30}`, C.accent2, 5);
+  }
+  make("path", { d: `M${E.x - 120},${E.y - 95} q20,-30 50,-14 q22,-26 52,-6 q30,-4 28,22 q-10,22 -40,14 q-24,18 -52,2 q-34,8 -38,-18z`, fill: C.surface, "fill-opacity": 0.9 }, reflect);
+
+  const disc = group();
+  make("ellipse", { cx: E.x, cy: E.y, rx: 36, ry: E.r, fill: C.text, "fill-opacity": 0.12, stroke: C.text, "stroke-width": 3, "stroke-dasharray": "10 8" }, disc);
+  make("circle", { cx: E.x, cy: E.y, r: E.r + 12, fill: "none", stroke: C.text, "stroke-width": 2, "stroke-dasharray": "3 8" }, disc);
+
+  const ir = group();
+  for (const deg of [-120, -80, -40, 0, 40]) {
+    const t = (deg * Math.PI) / 180, ux = Math.cos(t), uy = Math.sin(t);
+    let d = "";
+    for (let s = 0; s <= 40; s++) {
+      const r = E.r + 26 + s * 3.4, w = Math.sin(s * 0.75) * 9;
+      d += `${s ? "L" : "M"}${(E.x + ux * r - uy * w).toFixed(1)},${(E.y + uy * r + ux * w).toFixed(1)}`;
+    }
+    arrow(ir, d, C.accent, 4);
+  }
+
+  // ---------- leader-line labels: anchor on the part, chip at (x, y)
+  const TAGS = [
+    { at: 0, num: "S", name: "1361 W/m² arrives", c: C.accent3, ax: 400, ay: RAYS[6].y, x: 330, y: 905 },
+    { at: 1, num: "α", name: "30% reflected", c: C.accent2, ax: RAYS[0].hit - 150, ay: RAYS[0].y - 107, x: 430, y: 438 },
+    { at: 2, num: "÷4", name: "disc catches, sphere sheds", c: C.text, ax: E.x, ay: E.y + E.r - 6, x: 700, y: 935 },
+    { at: 3, num: "σT⁴", name: "infrared out", c: C.accent, ax: E.x + Math.cos(-0.7) * (E.r + 140), ay: E.y + Math.sin(-0.7) * (E.r + 140), x: 1140, y: 430 },
+    { at: 4, num: "+33 °C", name: "greenhouse blanket", c: C.accent, ax: E.x + Math.cos(1.2) * (E.r + 34), ay: E.y + Math.sin(1.2) * (E.r + 34), x: 1140, y: 935 },
+  ];
+  const layer = el.querySelector(".tags");
+  for (const t of TAGS) {
+    t.g = group();
+    make("line", { x1: t.ax, y1: t.ay, x2: t.x, y2: t.y, stroke: t.c, "stroke-width": 1.5 }, t.g);
+    make("circle", { cx: t.ax, cy: t.ay, r: 6, fill: t.c, stroke: C.bg, "stroke-width": 2.5 }, t.g);
+    t.tag = document.createElement("span");
+    t.tag.className = "df-tag";
+    t.tag.style.setProperty("--c", t.c);
+    t.tag.style.left = `${t.x}px`;
+    t.tag.style.top = `${t.y}px`;
+    t.tag.style.opacity = 0;
+    t.tag.innerHTML = `<b>${t.num}</b>${t.name}`;
+    layer.append(t.tag);
+  }
+
+  const terms = [...el.querySelectorAll(".eq .t")];
+  const card = el.querySelector(".card");
+  const num = card.querySelector(".n");
+  const parts = [beam, reflect, disc, ir];
+  const counter = { v: 0 };
+  const dur = api.reducedMotion ? 0 : 1;
+
+  return {
+    steps: STEPS.length,
+    step(i) {
+      const st = STEPS[i];
+      terms.forEach((t, k) => {
+        gsap.to(t, { opacity: k <= st.term ? 1 : 0.16, y: k <= st.term ? 0 : 10, duration: 0.6 * dur, overwrite: true });
+        gsap.to(t.querySelector("i"), { scaleX: k === st.term && i < 4 ? 1 : 0, duration: 0.5 * dur, overwrite: true });
+      });
+      parts.forEach((g, k) => gsap.to(g, { opacity: k <= Math.min(i, 3) ? 1 : 0, duration: 0.8 * dur, overwrite: true }));
+      gsap.to(halo, { opacity: i >= 4 ? 1 : 0, duration: 0.8 * dur, overwrite: true });
+      for (const t of TAGS) {
+        gsap.to([t.g, t.tag], { opacity: i >= t.at ? 1 : 0, duration: 0.6 * dur, delay: i === t.at ? 0.35 * dur : 0, overwrite: true });
+      }
+      card.style.setProperty("--c", st.c);
+      card.querySelector(".k").textContent = st.k;
+      card.querySelector("h3").textContent = st.h;
+      card.querySelector(".plain").textContent = st.plain;
+      card.querySelector("u").textContent = st.unit;
+      card.querySelector(".calc").textContent = st.calc;
+      gsap.to(counter, { v: st.v, duration: 1.2 * dur, ease: "power3.out", overwrite: true,
+        onUpdate: () => (num.textContent = (counter.v < 0 ? "−" : "") + Math.abs(counter.v).toFixed(st.dec)) });
+      gsap.fromTo(card, { y: 10, opacity: 0.4 }, { y: 0, opacity: 1, duration: 0.5 * dur });
+    },
+  };
+});
+</script>

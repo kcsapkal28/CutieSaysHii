@@ -1,0 +1,120 @@
+<section class="df-slide" id="s01">
+  <div class="copy">
+    <p class="df-eyebrow">Music · Overtones</p>
+    <h1 class="title">Every note is a <span class="df-grad">chord</span> in disguise</h1>
+    <p class="df-lede lede">One plucked string vibrates in halves, thirds and quarters at once.</p>
+    <ol class="agenda">
+      <li><b>01</b>The string</li>
+      <li><b>02</b>Overtones</li>
+      <li><b>03</b>Timbre</li>
+    </ol>
+  </div>
+  <svg class="hero" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="names"></div>
+  <p class="foot">Open A string, 110 Hz. Modes drawn full height; in the sum each falls as 1/n.</p>
+  <aside class="df-notes">
+    <p>Pluck a guitar string and you do not get one frequency: you get 110 Hz plus 220, 330, 440, 550… all sounding together.</p>
+    <p>The top line is what the string really does: the sum of the five modes underneath. Their mix is why a guitar and a piano playing the same A sound different.</p>
+  </aside>
+</section>
+
+<style>
+  #s01 .copy { position: absolute; left: 128px; top: 250px; width: 780px; }
+  #s01 .copy .df-eyebrow { margin: 0 0 30px; }
+  #s01 .title { margin: 0; font: 200 108px/1.02 var(--df-font-display); letter-spacing: -.035em; }
+  #s01 .title .df-grad { font-weight: 400; }
+  #s01 .lede { margin: 40px 0 0; max-width: 640px; }
+  #s01 .agenda { list-style: none; margin: 72px 0 0; padding: 26px 0 0; display: flex; gap: 52px; border-top: 1px solid var(--df-line); }
+  #s01 .agenda li { font: 400 26px/1 var(--df-font-body); color: var(--df-text); display: flex; gap: 12px; align-items: baseline; }
+  #s01 .agenda b { font: 500 20px/1 var(--df-font-mono); color: var(--df-accent); }
+  #s01 .hero { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #s01 .hero .peg { fill: var(--df-bg); stroke: var(--df-muted); stroke-width: 3; }
+  #s01 .hero .rail { stroke: var(--df-line); stroke-width: 1.5; stroke-dasharray: 2 8; }
+  #s01 .hero .node { fill: var(--df-bg); stroke-width: 3; }
+  #s01 .names { position: absolute; inset: 0; pointer-events: none; }
+  #s01 .name { position: absolute; left: 1010px; width: 180px; text-align: right; transform: translateY(-50%); }
+  #s01 .name b { display: block; font: 500 24px/1.1 var(--df-font-mono); color: var(--df-text); }
+  #s01 .name span { display: block; margin-top: 6px; font: 400 19px/1 var(--df-font-mono); color: var(--df-muted); }
+  #s01 .name.sum b { color: var(--df-accent); }
+  #s01 .foot { position: absolute; left: 1230px; bottom: 70px; margin: 0; font: 400 18px/1.3 var(--df-font-mono); color: var(--df-muted); width: 560px; }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".hero");
+  const X0 = 1230, X1 = 1792, N = 160; // string ends and samples per string
+
+  // A string fixed at both ends: mode n has n half-waves; it swings at n times the fundamental.
+  // y(x, t) = A/n · sin(nπx) · cos(2π · n · f · t)
+  const mode = (n, u, t) => Math.sin(n * Math.PI * u) * Math.cos(2 * Math.PI * n * 0.32 * t) / n;
+  const pathFor = (y0, amp, fn) => {
+    let d = "";
+    for (let k = 0; k <= N; k++) {
+      const u = k / N;
+      d += `${k ? "L" : "M"}${(X0 + u * (X1 - X0)).toFixed(1)},${(y0 + amp * fn(u)).toFixed(1)}`;
+    }
+    return d;
+  };
+
+  // Rows: the real string (sum of modes) on top, then each mode.
+  const NOTES = ["A2", "A3", "E4", "A4", "C♯5"];
+  const ROWS = [{ n: 0, y: 230, amp: 100, c: C.accent, w: 5, name: "The string", sub: "sum of 1–5" }];
+  NOTES.forEach((note, i) => ROWS.push({ n: i + 1, y: 430 + i * 112, amp: 40, c: i % 2 ? C.accent2 : C.text, w: 3, name: `${i + 1} × f`, sub: `${note} · ${110 * (i + 1)} Hz` }));
+
+  const names = el.querySelector(".names");
+  for (const r of ROWS) {
+    const rail = document.createElementNS(NS, "line");
+    rail.setAttribute("class", "rail");
+    rail.setAttribute("x1", X0); rail.setAttribute("x2", X1); rail.setAttribute("y1", r.y); rail.setAttribute("y2", r.y);
+    r.path = document.createElementNS(NS, "path");
+    r.path.setAttribute("fill", "none");
+    r.path.setAttribute("stroke", r.c);
+    r.path.setAttribute("stroke-width", r.w);
+    r.path.setAttribute("stroke-linecap", "round");
+    if (r.n === 0) r.path.setAttribute("filter", "drop-shadow(0 0 10px " + C.accent + ")");
+    svg.append(rail, r.path);
+    // nodes: the points of mode n that never move
+    for (let k = 1; k < r.n; k++) {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("class", "node");
+      c.setAttribute("stroke", r.c);
+      c.setAttribute("cx", X0 + (k / r.n) * (X1 - X0)); c.setAttribute("cy", r.y); c.setAttribute("r", 6);
+      svg.append(c);
+    }
+    for (const x of [X0, X1]) {
+      const p = document.createElementNS(NS, "circle");
+      p.setAttribute("class", "peg");
+      p.setAttribute("cx", x); p.setAttribute("cy", r.y); p.setAttribute("r", r.n ? 7 : 10);
+      svg.append(p);
+    }
+    const tag = document.createElement("div");
+    tag.className = "name" + (r.n ? "" : " sum");
+    tag.style.top = `${r.y}px`;
+    tag.innerHTML = `<b>${r.name}</b><span>${r.sub}</span>`;
+    names.append(tag);
+  }
+
+  const live = { k: 0 }; // 0..1: how far the strings have been "plucked" (enter animation)
+  function draw(t) {
+    for (const r of ROWS) {
+      const fn = r.n ? (u) => mode(r.n, u, t) * r.n : (u) => [1, 2, 3, 4, 5].reduce((s, n) => s + mode(n, u, t), 0) / 1.6;
+      r.path.setAttribute("d", pathFor(r.y, r.amp * live.k, fn));
+    }
+  }
+  // Shot mode and reduced motion: a frozen moment where every mode is near its full swing.
+  const T_STILL = 0.05;
+  api.onFrame((t) => draw(api.reducedMotion || api.shot ? T_STILL : t));
+
+  return {
+    steps: 1,
+    enter() {
+      gsap.from(el.querySelectorAll(".copy > *"), { y: 30, opacity: 0, duration: 0.9, stagger: 0.1, ease: "power3.out" });
+      gsap.from(el.querySelectorAll(".name"), { x: -20, opacity: 0, duration: 0.7, stagger: 0.07, delay: 0.4, ease: "power2.out" });
+      gsap.fromTo(live, { k: 0 }, { k: 1, duration: 1.6, delay: 0.3, ease: "power2.out", onUpdate: () => draw(T_STILL) });
+    },
+  };
+});
+</script>

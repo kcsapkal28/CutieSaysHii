@@ -1,0 +1,178 @@
+<section class="df-slide" id="s06">
+  <header class="head">
+    <p class="df-eyebrow">Cell biology · Powers of ten</p>
+    <h2 class="title">Your hand is written in letters two nanometres wide</h2>
+  </header>
+  <ol class="ladder"></ol>
+  <div class="df-stat mag"><span class="df-stat-label">Magnification</span><span class="df-stat-value">×1</span></div>
+  <p class="caption"></p>
+  <div class="frame"><div class="levels"></div><div class="bar"><i></i><span></span></div></div>
+  <p class="foot">Stylised drawings; sizes approximate. Frame width shown under each level.</p>
+  <aside class="df-notes">
+    <p>Each click is a jump of ten, a hundred or a thousand times. Keep one thing in view per level: fingertip, ridge, cell, chromosome, base pair.</p>
+    <p>The last frame is ten million times the first. The letters A, T, C and G are what the cell actually reads.</p>
+  </aside>
+</section>
+
+<style>
+  #s06 .head { position: absolute; left: 128px; top: 80px; width: 1660px; }
+  #s06 .head .df-eyebrow { margin: 0 0 18px; }
+  #s06 .title { margin: 0; font: 500 60px/1.05 var(--df-font-display); letter-spacing: -.025em; }
+  #s06 .ladder { position: absolute; left: 128px; top: 270px; width: 680px; margin: 0; padding: 0; list-style: none; }
+  #s06 .ladder li { display: grid; grid-template-columns: 26px 150px 1fr; align-items: center; height: 70px; color: var(--df-muted); transition: color .4s; }
+  #s06 .ladder li i { width: 12px; height: 12px; border-radius: 50%; background: var(--df-line); transition: background .4s, transform .4s; }
+  #s06 .ladder li b { font: 500 24px/1 var(--df-font-mono); }
+  #s06 .ladder li span { font: 400 28px/1 var(--df-font-body); }
+  #s06 .ladder li.cur { color: var(--df-text); }
+  #s06 .ladder li.cur b { color: var(--df-accent); }
+  #s06 .ladder li.cur i { background: var(--df-accent); transform: scale(1.6); box-shadow: 0 0 14px var(--df-accent); }
+  #s06 .mag { position: absolute; left: 128px; top: 660px; }
+  #s06 .mag .df-stat-value { font-size: 64px; color: var(--df-accent); }
+  #s06 .caption { position: absolute; left: 128px; top: 820px; width: 680px; margin: 0; font: 400 30px/1.35 var(--df-font-body); }
+  #s06 .frame { position: absolute; left: 920px; top: 270px; width: 872px; height: 680px; border-radius: var(--df-radius); overflow: hidden; background: color-mix(in oklab, var(--df-surface) 70%, transparent); border: 1px solid var(--df-line); }
+  #s06 .levels, #s06 .lvl, #s06 .lvl svg { position: absolute; inset: 0; width: 872px; height: 680px; }
+  #s06 .lvl svg text { font: 500 22px var(--df-font-body); fill: var(--df-text); }
+  #s06 .lvl svg .tagbg { fill: var(--df-bg); stroke: var(--df-line); }
+  #s06 .lvl svg .lead { stroke: var(--df-text); stroke-width: 2; }
+  #s06 .lvl svg .aim { fill: none; stroke: var(--df-accent); stroke-width: 3; stroke-dasharray: 6 5; }
+  #s06 .bar { position: absolute; left: 24px; bottom: 22px; display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 10px; background: var(--df-bg); font: 500 20px/1 var(--df-font-mono); color: var(--df-text); }
+  #s06 .bar i { width: 145px; height: 6px; background: var(--df-text); border-left: 2px solid var(--df-text); }
+  #s06 .foot { position: absolute; left: 920px; bottom: 50px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s06", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const FW = 872, FH = 680;
+  // One level per step: frame width, scale bar (1/6 of the frame), where the next level sits (aim), one labelled reference.
+  const LEVELS = [
+    { size: "10 cm", name: "Hand", bar: "2 cm", width: 0.12, aim: [331, 128], ref: "fingertip", text: "A hand, about ten centimetres across. Aim at one fingertip." },
+    { size: "1 mm", name: "Skin ridges", bar: "200 µm", width: 1.2e-3, aim: [598, 300], ref: "sweat pore", text: "×100: the fingerprint's ridges, each dotted with sweat pores." },
+    { size: "100 µm", name: "Skin cells", bar: "20 µm", width: 1.2e-4, aim: [436, 340], ref: "nucleus", text: "×10 more: the ridge is a pavement of cells, each with a nucleus." },
+    { size: "10 µm", name: "Chromosomes", bar: "2 µm", width: 1.2e-5, aim: [560, 460], tagAt: [650, 590], ref: "chromosome", text: "×10 more: inside the nucleus, 46 chromosomes of tightly wound DNA." },
+    { size: "2 nm", name: "DNA", bar: "2 nm", width: 1.2e-8, aim: null, anchor: [360, 300], tagAt: [470, 384], ref: "one base pair · 0.34 nm", text: "×1,000 more: the double helix, a string of four letters, A, T, C and G." },
+  ];
+
+  // ---------- drawings (frame coordinates, 872 × 680), generated from small rules
+  function tag(L) {
+    const [x, y] = L.anchor ?? L.aim;
+    const [tx, ty] = L.tagAt ?? [x > 560 ? x - 330 : x + 70, y > 420 ? y - 110 : y + 110];
+    return `<line class="lead" x1="${x}" y1="${y}" x2="${tx + 10}" y2="${ty}"/><circle cx="${x}" cy="${y}" r="6" fill="${C.text}"/>` +
+      `<rect class="tagbg" x="${tx}" y="${ty - 22}" width="200" height="44" rx="10"/><text class="tagtext" x="${tx + 14}" y="${ty + 8}">${L.ref}</text>`;
+  }
+  const aimBox = ([x, y]) => `<rect class="aim" x="${x - 18}" y="${y - 18}" width="36" height="36" rx="4"/>`;
+  const rnd = ((s) => () => ((s = (s * 16807) % 2147483647) / 2147483647))(11);
+  const DRAW = [
+    () => { // hand: palm, four fingers, thumb (capsules)
+      const skin = `color-mix(in oklab, ${C.accent3} 45%, ${C.surface})`;
+      const fingers = [[302, 98, 270], [370, 70, 300], [438, 90, 280], [506, 150, 220]]
+        .map(([x, y, h]) => `<rect x="${x}" y="${y}" width="60" height="${h}" rx="30" fill="${skin}"/>`).join("");
+      return `<g filter="drop-shadow(0 20px 30px rgb(0 0 0 / .45))">${fingers}<rect x="296" y="300" width="276" height="300" rx="70" fill="${skin}"/>` +
+        `<rect x="190" y="330" width="62" height="220" rx="31" fill="${skin}" transform="rotate(-38 221 440)"/></g>`;
+    },
+    () => { // fingerprint whorl with pores on the ridges
+      let s = "";
+      for (let k = 1; k < 22; k++) {
+        let d = "";
+        for (let a = 0; a <= 64; a++) {
+          const t = (a / 64) * Math.PI * 2, r = k * 26 + Math.sin(t * 3 + k) * 6;
+          d += `${a ? "L" : "M"}${(436 + r * 1.2 * Math.cos(t)).toFixed(1)},${(360 + r * Math.sin(t)).toFixed(1)}`;
+        }
+        s += `<path d="${d}" fill="none" stroke="${C.accent3}" stroke-width="9" stroke-opacity=".55"/>`;
+      }
+      for (let k = 0; k < 60; k++) {
+        const t = rnd() * 6.283, r = (2 + Math.floor(rnd() * 18)) * 26;
+        s += `<circle cx="${(436 + r * 1.2 * Math.cos(t)).toFixed(0)}" cy="${(360 + r * Math.sin(t)).toFixed(0)}" r="5" fill="${C.bg}"/>`;
+      }
+      return s + `<circle cx="598" cy="300" r="7" fill="${C.bg}"/>`;
+    },
+    () => { // cells: jittered hexagons, a nucleus in each
+      let s = "";
+      for (let row = -1; row < 5; row++) for (let col = -1; col < 6; col++) {
+        const cx = 436 + (col - 2) * 172 + (row % 2 ? 86 : 0), cy = 340 + (row - 2) * 150;
+        const pts = [...Array(6)].map((_, a) => { const t = (a / 6) * 6.283 + 0.52, r = 96 + (rnd() - 0.5) * 14; return `${(cx + r * Math.cos(t)).toFixed(0)},${(cy + r * Math.sin(t)).toFixed(0)}`; });
+        s += `<polygon points="${pts.join(" ")}" fill="color-mix(in oklab, ${C.accent3} 22%, ${C.surface})" stroke="${C.bg}" stroke-width="6"/>` +
+          `<ellipse cx="${cx}" cy="${cy}" rx="30" ry="25" fill="${C.accent2}" fill-opacity=".8"/>`;
+      }
+      return s;
+    },
+    () => { // nucleus with X-shaped chromosomes
+      const cols = [C.accent, C.accent2, C.accent3, C.text];
+      let s = `<circle cx="436" cy="340" r="300" fill="color-mix(in oklab, ${C.accent2} 18%, ${C.surface})" stroke="${C.accent2}" stroke-width="4"/>`;
+      const at = [[470, 300], [300, 230], [580, 200], [330, 430], [560, 460], [430, 540], [250, 330], [640, 330], [420, 150], [470, 420]];
+      at.forEach(([x, y], k) => {
+        const c = cols[k % 4], a = (k * 47) % 180;
+        s += `<g transform="rotate(${a} ${x} ${y})"><rect x="${x - 50}" y="${y - 11}" width="100" height="22" rx="11" fill="${c}" transform="rotate(30 ${x} ${y})"/>` +
+          `<rect x="${x - 50}" y="${y - 11}" width="100" height="22" rx="11" fill="${c}" transform="rotate(-30 ${x} ${y})"/></g>`;
+      });
+      return s;
+    },
+    () => { // double helix: 2 nm wide = 145 px; 10.5 base pairs per 3.4 nm turn
+      const SEQ = "ATGCGTACCTGAGTCATGCAAGTCCGATTGCA", px = 24.6, y0 = 268, amp = 72, PAIR = { A: "T", T: "A", C: "G", G: "C" };
+      const col = { A: C.accent, T: C.accent2, C: C.accent3, G: C.text };
+      let s = "", d1 = "", d2 = "";
+      for (let k = 0; k < SEQ.length; k++) {
+        const x = 40 + k * px, ph = (k / 10.5) * 6.283, a = y0 + amp * Math.sin(ph), b = y0 - amp * Math.sin(ph);
+        s += `<line x1="${x}" y1="${a}" x2="${x}" y2="${y0}" stroke="${col[SEQ[k]]}" stroke-width="9"/><line x1="${x}" y1="${y0}" x2="${x}" y2="${b}" stroke="${col[PAIR[SEQ[k]]]}" stroke-width="9"/>` +
+          `<text x="${x}" y="500" text-anchor="middle" fill="${col[SEQ[k]]}" style="font: 600 22px var(--df-font-mono)">${SEQ[k]}</text>`;
+      }
+      for (let x = 30; x <= 830; x += 4) { const ph = ((x - 40) / px / 10.5) * 6.283; d1 += `${x === 30 ? "M" : "L"}${x},${(y0 + amp * Math.sin(ph)).toFixed(1)}`; d2 += `${x === 30 ? "M" : "L"}${x},${(y0 - amp * Math.sin(ph)).toFixed(1)}`; }
+      const keys = ["A", "T", "C", "G"].map((b, k) => `<circle cx="${270 + k * 110}" cy="590" r="9" fill="${col[b]}"/><text x="${286 + k * 110}" y="598">${b}</text>`).join("");
+      return s + `<path d="${d1}" fill="none" stroke="${C.text}" stroke-width="7"/><path d="${d2}" fill="none" stroke="${C.text}" stroke-width="7" stroke-opacity=".6"/>` +
+        `<text x="40" y="455" style="font: 500 20px var(--df-font-mono)" fill="${C.muted}">strand read by the cell</text>${keys}`;
+    },
+  ];
+
+  // ---------- nested frames: level k lives inside level k−1's aim box. Zooming in grows the outgoing level about
+  // its own aim (inner svg) and grows the incoming one from that point (outer wrapper), on an expo ease.
+  const host = el.querySelector(".levels");
+  const buildLevels = () => LEVELS.forEach((L, k) => {
+    L.wrap = document.createElement("div");
+    L.wrap.className = "lvl";
+    const parent = LEVELS[k - 1];
+    L.wrap.style.transformOrigin = parent ? `${parent.aim[0]}px ${parent.aim[1]}px` : "50% 50%";
+    L.wrap.innerHTML = `<svg viewBox="0 0 ${FW} ${FH}">${DRAW[k]()}${tag(L)}${L.aim ? aimBox(L.aim) : ""}</svg>`;
+    L.svg = L.wrap.firstElementChild;
+    L.svg.style.transformOrigin = L.aim ? `${L.aim[0]}px ${L.aim[1]}px` : "50% 50%";
+    host.append(L.wrap);
+    const t = L.svg.querySelector(".tagtext"); // size the tag box to its text
+    t.previousElementSibling.setAttribute("width", t.getBBox().width + 32);
+  });
+  const ratio = (a, b) => LEVELS[a].width / LEVELS[b].width; // how much bigger level a's frame is than b's
+
+  function zoomTo(i, d) {
+    LEVELS.forEach((L, k) => {
+      const grow = k < i ? Math.min(14, ratio(k, i)) : 1;       // already passed: blown up past the frame
+      const seed = k > i ? Math.max(1 / 14, 1 / ratio(i, k)) : 1; // not reached: a speck inside its parent
+      gsap.to(L.svg, { scale: grow, duration: d, ease: "expo.inOut", overwrite: true });
+      gsap.to(L.wrap, { scale: seed, opacity: k === i ? 1 : 0, duration: d, ease: "expo.inOut", overwrite: true });
+    });
+  }
+
+  buildLevels();
+
+  // ---------- ladder, magnification counter, caption
+  const ladder = el.querySelector(".ladder");
+  for (const L of LEVELS) ladder.append((L.li = Object.assign(document.createElement("li"), { innerHTML: `<i></i><b>${L.size}</b><span>${L.name}</span>` })));
+  const magEl = el.querySelector(".mag .df-stat-value"), barEl = el.querySelector(".bar span"), caption = el.querySelector(".caption");
+  const mag = { e: 0 };
+  const showMag = () => (magEl.textContent = `×${Math.round(10 ** mag.e).toLocaleString("en-GB")}`);
+  let first = true;
+
+  return {
+    steps: LEVELS.length,
+    step(i) {
+      const d = first || api.reducedMotion ? 0 : 1.5;
+      first = false;
+      zoomTo(i, d);
+      LEVELS.forEach((L, k) => L.li.classList.toggle("cur", k === i));
+      barEl.textContent = LEVELS[i].bar;
+      caption.textContent = LEVELS[i].text;
+      gsap.to(mag, { e: Math.log10(ratio(0, i)), duration: d || 0.01, ease: "expo.inOut", overwrite: true, onUpdate: showMag });
+      showMag();
+    },
+  };
+});
+</script>

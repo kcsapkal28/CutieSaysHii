@@ -1,0 +1,194 @@
+<section class="df-slide" id="s02">
+  <header class="head">
+    <p class="df-eyebrow">Public health · Soho, London, 1854</p>
+    <h2 class="title">The deaths gathered around one pump</h2>
+  </header>
+  <svg class="map" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="tags"></div>
+  <div class="side">
+    <p class="when"></p>
+    <p class="cap"></p>
+    <div class="df-stat stat"><span class="df-stat-label"></span><span class="df-stat-value">0</span></div>
+    <div class="df-legend legend">
+      <span class="df-key bar"><i></i>One death at an address</span>
+      <span class="df-key"><i></i>Street water pump</span>
+      <span class="df-key area"><i></i>Nearer, on foot, to Broad St</span>
+    </div>
+  </div>
+  <p class="foot">Stylised after John Snow's map (1855). Street plan simplified, not to scale; death positions illustrative. 616 deaths: Snow / Whitehead.</p>
+  <aside class="df-notes">
+    <p>Snow's argument was geographic: draw the deaths, draw the pumps, and the cluster points at one of them.</p>
+    <p>The dashed outline is the area where Broad Street is the nearest pump by walking distance. Almost every bar sits inside it.</p>
+  </aside>
+</section>
+
+<style>
+  #s02 .head { position: absolute; left: 128px; top: 76px; }
+  #s02 .head .df-eyebrow { margin: 0 0 16px; }
+  #s02 .title { margin: 0; font: 500 64px/1.05 var(--df-font-display); letter-spacing: -.015em; }
+  #s02 .map { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #s02 .map text { font: 500 18px var(--df-font-mono); letter-spacing: .14em; fill: var(--df-muted); }
+  #s02 .tags { position: absolute; inset: 0; pointer-events: none; }
+  #s02 .tags .df-tag { position: absolute; transform: translate(-50%, -100%); }
+  #s02 .side { position: absolute; left: 1368px; top: 300px; width: 424px; }
+  #s02 .when { margin: 0 0 18px; font: 500 20px/1 var(--df-font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--df-accent); }
+  #s02 .cap { margin: 0; min-height: 7.2em; font: 400 30px/1.4 var(--df-font-body); }
+  #s02 .stat { margin-top: 18px; padding-top: 24px; border-top: 1px solid var(--df-line); }
+  #s02 .stat .df-stat-value { font-size: 84px; color: var(--df-accent); }
+  #s02 .legend { margin-top: 56px; padding-top: 30px; border-top: 1px solid var(--df-line); flex-direction: column; gap: 16px; font-size: 22px; color: var(--df-text); }
+  #s02 .legend .df-key > i { --c: var(--df-accent-2); box-shadow: none; }
+  #s02 .legend .bar > i { --c: var(--df-accent); width: 24px; height: 6px; border-radius: 0; }
+  #s02 .legend .area > i { width: 24px; height: 18px; border-radius: 0; background: color-mix(in oklab, var(--df-accent-2) 14%, transparent); border: 2px dashed var(--df-accent-2); }
+  #s02 .foot { position: absolute; left: 128px; bottom: 40px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".map");
+  const FRAME = { x0: 140, y0: 250, x1: 1290, y1: 975 };
+  const PUMPS = [[700, 600], [1070, 270], [330, 440], [245, 680], [600, 820], [1140, 880], [1140, 470]];
+  const L1 = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]); // on a street grid you walk in L-shapes
+  const nearest = (p) => PUMPS.reduce((best, q, k) => (L1(p, q) < L1(p, PUMPS[best]) ? k : best), 0);
+
+  // The area whose nearest pump (by walking distance) is Broad Street: march rays out from the pump until
+  // another pump becomes nearer, or the map ends.
+  function catchment() {
+    const pts = [];
+    for (let a = 0; a < 180; a++) {
+      const t = (a / 180) * Math.PI * 2;
+      let r = 0;
+      for (; r < 900; r += 3) {
+        const p = [PUMPS[0][0] + Math.cos(t) * r, PUMPS[0][1] + Math.sin(t) * r];
+        if (nearest(p) !== 0 || p[0] < FRAME.x0 || p[0] > FRAME.x1 || p[1] < FRAME.y0 || p[1] > FRAME.y1) break;
+      }
+      pts.push([PUMPS[0][0] + Math.cos(t) * r, PUMPS[0][1] + Math.sin(t) * r]);
+    }
+    return `M${pts.map((p) => p.map((v) => v.toFixed(1)).join(",")).join("L")}Z`;
+  }
+
+  // Deaths: one bar per death, stacked outward from the street at each address (Snow's notation).
+  let seed = 1854;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  function deaths() {
+    const bars = [];
+    for (const s of STREETS) {
+      for (let k = 0; k < s.p.length - 1; k++) {
+        const [a, b] = [s.p[k], s.p[k + 1]];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+        for (let d = 24; d < len - 24; d += 26) {
+          for (const side of [-1, 1]) {
+            const at = [a[0] + ux * d - uy * side * 24, a[1] + uy * d + ux * side * 24];
+            if (!onMap(at) || STREETS.some((o) => o !== s && nearStreet(o, at, 30))) continue; // no stacks on crossings
+            const inside = nearest(at) === 0;
+            const n = inside ? Math.min(6, Math.round(7.5 * Math.exp(-L1(at, PUMPS[0]) / 180) * (0.4 + rand()))) : rand() < 0.1 ? 1 : 0;
+            for (let j = 0; j < n; j++) bars.push({ x: at[0] - uy * side * j * 7, y: at[1] + ux * side * j * 7, ux, uy, inside });
+          }
+        }
+      }
+    }
+    return bars;
+  }
+
+  const onMap = (p) => p[0] > FRAME.x0 + 20 && p[0] < FRAME.x1 - 20 && p[1] > FRAME.y0 + 20 && p[1] < FRAME.y1 - 20;
+  // distance from point p to street o's polyline is under r
+  const nearStreet = (o, p, r) => o.p.slice(1).some((b, k) => {
+    const a = o.p[k], dx = b[0] - a[0], dy = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]) < r;
+  });
+
+  // ---------- drawing helpers and the street plan
+  const make = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    parent.append(n);
+    return n;
+  };
+  const STREETS = [
+    { name: "OXFORD ST", p: [[140, 270], [1290, 270]], lx: 360 },
+    { name: "REGENT ST", p: [[262, 270], [245, 620], [232, 975]], lx: 0.78 },
+    { name: "GT MARLBOROUGH ST", p: [[250, 440], [860, 440]], lx: 470 },
+    { name: "BROAD ST", p: [[410, 600], [1000, 600]], lx: 543 },
+    { p: [[238, 820], [1290, 820]] },
+    { p: [[410, 440], [410, 820]] },
+    { p: [[530, 440], [530, 600]] },
+    { p: [[660, 270], [660, 600]] },
+    { name: "BERWICK ST", p: [[860, 270], [860, 820]], lx: 0.72 },
+    { name: "WARDOUR ST", p: [[1000, 270], [1000, 975]], lx: 0.66 },
+    { p: [[1140, 270], [1140, 975]] },
+    { p: [[760, 440], [760, 820]] },
+  ];
+  make("rect", { x: FRAME.x0, y: FRAME.y0, width: FRAME.x1 - FRAME.x0, height: FRAME.y1 - FRAME.y0, fill: C.line, "fill-opacity": 0.38, stroke: C.line, "stroke-width": 2 });
+  make("rect", { x: 440, y: 655, width: 170, height: 125, fill: C.accent3, "fill-opacity": 0.12, stroke: C.accent3, "stroke-opacity": 0.5, "stroke-width": 1.5 });
+  const d = (s) => `M${s.p.map((q) => q.join(",")).join("L")}`;
+  for (const s of STREETS) make("path", { d: d(s), fill: "none", stroke: C.muted, "stroke-opacity": 0.35, "stroke-width": 28, "stroke-linecap": "square" });
+  for (const s of STREETS) make("path", { d: d(s), fill: "none", stroke: C.surface, "stroke-width": 24, "stroke-linecap": "square" });
+  const names = make("g", {});
+  for (const s of STREETS.filter((x) => x.name)) {
+    const [a, b] = [s.p[0], s.p[s.p.length - 1]];
+    const t = make("text", { "dominant-baseline": "central", stroke: C.surface, "stroke-width": 8, "paint-order": "stroke" }, names);
+    t.textContent = s.name;
+    if (a[1] === b[1]) { t.setAttribute("x", s.lx); t.setAttribute("y", a[1] + 1); }
+    else {
+      const y = a[1] + (b[1] - a[1]) * s.lx, x = a[0] + (b[0] - a[0]) * s.lx;
+      t.setAttribute("transform", `translate(${x + 1},${y}) rotate(-90)`);
+      t.setAttribute("text-anchor", "middle");
+    }
+  }
+
+  const area = make("path", { d: catchment(), fill: C.accent2, "fill-opacity": 0.1, stroke: C.accent2, "stroke-width": 3, "stroke-dasharray": "12 8", opacity: 0 });
+  const BARS = deaths();
+  const barLayer = make("g", {});
+  for (const b of BARS) {
+    b.node = make("line", { x1: b.x - b.ux * 8, y1: b.y - b.uy * 8, x2: b.x + b.ux * 8, y2: b.y + b.uy * 8, stroke: C.accent, "stroke-width": 4.5, opacity: 0 }, barLayer);
+  }
+  svg.append(names); // street names above the bars
+  const pumps = PUMPS.map(([x, y], k) => {
+    const g = make("g", { transform: `translate(${x},${y})` });
+    make("circle", { r: k ? 11 : 16, fill: C.accent2, stroke: C.surface, "stroke-width": 3 }, g);
+    return g;
+  });
+  const cross = make("path", { d: "M-11,-11 L11,11 M11,-11 L-11,11", stroke: C.surface, "stroke-width": 4, "stroke-linecap": "round", opacity: 0 }, pumps[0]);
+  const TAG = { x: 1150, y: 372 };
+  const lead = make("line", { x1: PUMPS[0][0] + 12, y1: PUMPS[0][1] - 12, x2: TAG.x - 60, y2: TAG.y, stroke: C.accent2, "stroke-width": 2 });
+  const tag = document.createElement("span");
+  tag.className = "df-tag";
+  tag.style.cssText = `left:${TAG.x}px; top:${TAG.y}px; --df-accent: ${C.accent2}`;
+  el.querySelector(".tags").append(tag);
+
+  const inside = BARS.filter((b) => b.inside).length;
+  const STEPS = [
+    { when: "Late August 1854", cap: "Soho has no piped water. Families carry it from the nearest street pump.", label: "Street pumps", value: PUMPS.length, fmt: (v) => v.toFixed(0), tag: "Broad St pump" },
+    { when: "31 Aug – 7 Sept", cap: "Cholera kills hundreds within days. Snow marks every death as a bar at its address.", label: "Deaths marked here", value: BARS.length, fmt: (v) => v.toFixed(0), tag: "Broad St pump" },
+    { when: "Snow's argument", cap: "Nearly every bar lies in the area where Broad Street is the closest pump on foot.", label: "Marked deaths inside", value: (inside / BARS.length) * 100, fmt: (v) => `${v.toFixed(0)}%`, tag: "Broad St pump" },
+    { when: "8 September 1854", cap: "The parish removes the pump's handle. The outbreak, already fading, ends.", label: "Deaths in the outbreak", value: 616, fmt: (v) => v.toFixed(0), tag: "Handle removed · 8 Sept" },
+  ];
+  const when = el.querySelector(".when"), cap = el.querySelector(".cap");
+  const label = el.querySelector(".df-stat-label"), value = el.querySelector(".df-stat-value");
+  const counter = { v: 0 };
+  const dur = api.reducedMotion ? 0 : 1;
+
+  return {
+    steps: STEPS.length,
+    step(i) {
+      const st = STEPS[i];
+      when.textContent = st.when;
+      cap.textContent = st.cap;
+      label.textContent = st.label;
+      tag.innerHTML = `<b>P</b>${st.tag}`;
+      gsap.fromTo([when, cap], { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 * dur, stagger: 0.06 });
+      gsap.to(counter, { v: st.value, duration: 1.2 * dur, ease: "power3.out", overwrite: true, onUpdate: () => (value.textContent = st.fmt(counter.v)) });
+      // deaths rise in order of distance from the pump, so the cluster grows outward
+      BARS.forEach((b) => gsap.to(b.node, { opacity: i >= 1 ? (i >= 2 && !b.inside ? 0.45 : 1) : 0, duration: 0.3 * dur, delay: i === 1 ? (L1([b.x, b.y], PUMPS[0]) / 900) * dur : 0, overwrite: true }));
+      gsap.to(area, { opacity: i >= 2 ? 1 : 0, duration: 0.8 * dur, overwrite: true });
+      gsap.to(cross, { opacity: i >= 3 ? 1 : 0, duration: 0.4 * dur, overwrite: true });
+      pumps[0].firstChild.setAttribute("fill", i >= 3 ? C.accent : C.accent2);
+      lead.setAttribute("stroke", i >= 3 ? C.accent : C.accent2);
+      tag.style.setProperty("--df-accent", i >= 3 ? C.accent : C.accent2);
+    },
+  };
+});
+</script>

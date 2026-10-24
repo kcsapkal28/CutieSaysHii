@@ -1,0 +1,147 @@
+<section class="df-slide" id="s03">
+  <header class="head">
+    <p class="df-eyebrow">Deep time · 4.54 billion years</p>
+    <h2 class="title">Animals fill only the last eighth of Earth's history</h2>
+  </header>
+  <div class="bands"></div>
+  <div class="axis"><i class="line"></i></div>
+  <svg class="leaders" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="events"></div>
+  <p class="coda">Squeeze it into one day: animals turn up at ten to nine in the evening; we turn up in the last 6 seconds.</p>
+  <aside class="df-notes">
+    <p>Note the break in the axis: the left part squeezes 3.8 billion years, the right part stretches the last 700 million so the events fit.</p>
+    <p>For most of the planet's life, life was single cells. The clock chips make that concrete.</p>
+  </aside>
+</section>
+
+<style>
+  #s03 .head { position: absolute; left: 128px; top: 86px; }
+  #s03 .head .df-eyebrow { margin: 0 0 18px; }
+  #s03 .title { margin: 0; font: 500 62px/1.05 var(--df-font-display); letter-spacing: -.025em; }
+  #s03 .bands { position: absolute; left: 0; top: 262px; width: 1920px; height: 640px; }
+  #s03 .band { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--c) 7%, transparent); border-left: 1px solid color-mix(in oklab, var(--c) 40%, transparent); transition: background .6s; }
+  #s03 .band.cur { background: color-mix(in oklab, var(--c) 15%, transparent); }
+  #s03 .band span { position: absolute; left: 14px; bottom: 16px; font: italic 500 24px/1 var(--df-font-display); color: var(--c); white-space: nowrap; }
+  #s03 .axis { position: absolute; left: 0; top: 540px; width: 1920px; height: 3px; }
+  #s03 .axis .line { position: absolute; left: 160px; width: 1632px; height: 3px; background: var(--df-text); transform-origin: 0 50%; }
+  #s03 .tick { position: absolute; top: 12px; width: 2px; height: 14px; background: var(--df-text); }
+  #s03 .tick em { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font: 500 18px/1 var(--df-font-mono); font-style: normal; color: var(--df-muted); white-space: nowrap; }
+  #s03 .gap { position: absolute; top: -18px; width: 44px; height: 38px; background: var(--df-bg); font: 400 34px/38px var(--df-font-display); text-align: center; color: var(--df-accent); }
+  #s03 .leaders { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; }
+  #s03 .leaders line { stroke: var(--df-muted); stroke-width: 1.5; }
+  #s03 .leaders circle { fill: var(--df-bg); stroke: var(--df-accent); stroke-width: 3; }
+  #s03 .events { position: absolute; inset: 0; pointer-events: none; }
+  #s03 .ev { position: absolute; width: 240px; padding: 16px 18px 18px; border-radius: min(var(--df-radius), 18px); background: var(--df-panel-bg); border: 1px solid var(--df-line); backdrop-filter: blur(var(--df-blur)); }
+  #s03 .ev time { display: block; font: 500 18px/1 var(--df-font-mono); color: var(--df-accent); }
+  #s03 .ev h3 { margin: 10px 0 6px; font: 600 26px/1.1 var(--df-font-display); letter-spacing: -.01em; }
+  #s03 .ev p { margin: 0; font: 400 19px/1.35 var(--df-font-body); color: var(--df-muted); }
+  #s03 .ev b { display: inline-block; margin-top: 12px; padding: 6px 10px; border-radius: 8px; font: 600 18px/1 var(--df-font-mono); color: var(--df-bg); background: var(--df-accent); }
+  #s03 .coda { position: absolute; left: 128px; bottom: 60px; margin: 0; font: 400 32px/1.3 var(--df-font-body); color: var(--df-text); }
+</style>
+
+<script>
+DF.slide("s03", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  // Piecewise (broken) scale in millions of years ago: the old eons are squeezed, the last 700 Ma stretched.
+  const SEG = [
+    [[4540, 160], [700, 1040]],
+    [[700, 1110], [0, 1792]],
+  ];
+  const X = (ma) => {
+    for (const [[a0, x0], [a1, x1]] of SEG) if (ma <= a0 && ma >= a1) return x0 + ((a0 - ma) / (a0 - a1)) * (x1 - x0);
+    return ma > 4540 ? 160 : 1792;
+  };
+  const AXIS_Y = 541, ABOVE = 520, BELOW = 568; // cards above end at ABOVE, cards below start at BELOW
+
+  // One day = 4,540 Ma, so 1 Ma = 86,400 s / 4,540 ≈ 19 s.
+  const clock = (ma) => (ma * 86400) / 4540;
+  const hhmm = (ma) => {
+    const t = Math.round(86400 - clock(ma)), p2 = (n) => String(n).padStart(2, "0");
+    const hm = `${Math.floor(t / 3600)}:${p2(Math.floor(t / 60) % 60)}`;
+    return clock(ma) < 60 ? `${hm}:${p2(t % 60)}` : hm;
+  };
+  const ERAS = [
+    { name: "Hadean", from: 4540, to: 4000, c: C.accent3, step: 0 },
+    { name: "Archean", from: 4000, to: 2500, c: C.accent, step: 1 },
+    { name: "Proterozoic", from: 2500, to: 539, c: C.accent2, step: 2 },
+    { name: "Phanerozoic", from: 539, to: 0, c: C.text, step: 3 },
+  ];
+  const EVENTS = [
+    { ma: 4540, when: "4.54 Ga", name: "Earth forms", text: "Molten rock, no oceans yet.", up: true, step: 0 },
+    { ma: 3700, when: "≥ 3.7 Ga", name: "First life", text: "Single cells in the sea.", up: false, step: 1 },
+    { ma: 2400, when: "c. 2.4 Ga", name: "Oxygen rises", text: "Microbes make the air breathable.", up: true, step: 2 },
+    { ma: 600, when: "c. 600 Ma", name: "First animals", text: "Soft bodies on the seafloor.", chip: `day clock: ${hhmm(600)}`, up: false, step: 2 },
+    { ma: 539, when: "539 Ma", name: "Cambrian burst", text: "Shells, eyes and legs appear.", up: true, step: 3 },
+    { ma: 66, when: "66 Ma", name: "Dinosaurs end", text: "An asteroid clears the stage.", up: false, step: 3 },
+    { ma: 0.3, when: "0.3 Ma", name: "Homo sapiens", text: "Us, at the very end.", chip: `day clock: ${hhmm(0.3)}`, up: true, step: 3 },
+  ];
+
+  const bands = el.querySelector(".bands");
+  for (const e of ERAS) {
+    e.el = document.createElement("div");
+    e.el.className = "band";
+    e.el.style.setProperty("--c", e.c);
+    e.el.style.left = `${X(e.from)}px`;
+    e.el.style.width = `${X(e.to) - X(e.from)}px`;
+    e.el.innerHTML = `<span>${e.name}</span>`;
+    bands.append(e.el);
+  }
+  const axis = el.querySelector(".axis");
+  for (const ma of [4000, 3000, 2000, 1000, 500, 250, 0]) {
+    const t = document.createElement("i");
+    t.className = "tick";
+    t.style.left = `${X(ma) - 1}px`;
+    t.innerHTML = `<em>${ma ? (ma >= 1000 ? `${ma / 1000} Ga` : `${ma} Ma`) : "today"}</em>`;
+    axis.append(t);
+  }
+  const gap = document.createElement("i");
+  gap.className = "gap";
+  gap.style.left = "1053px";
+  gap.textContent = "≈";
+  axis.append(gap);
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".leaders"), layer = el.querySelector(".events");
+  for (const ev of EVENTS) {
+    const x = X(ev.ma);
+    ev.card = document.createElement("article");
+    ev.card.className = "ev";
+    ev.card.innerHTML = `<time>${ev.when}</time><h3>${ev.name}</h3><p>${ev.text}</p>${ev.chip ? `<b>${ev.chip}</b>` : ""}`;
+    ev.card.style.left = `${Math.min(1816 - 240, Math.max(128, x - 40))}px`;
+    layer.append(ev.card);
+    // cards above hang from their bottom edge, cards below from their top edge
+    if (ev.up) ev.card.style.bottom = `${1080 - (ABOVE - 34)}px`;
+    else ev.card.style.top = `${BELOW + 34}px`;
+    ev.line = document.createElementNS(NS, "line");
+    ev.line.setAttribute("x1", x); ev.line.setAttribute("x2", x);
+    ev.line.setAttribute("y1", AXIS_Y); ev.line.setAttribute("y2", ev.up ? ABOVE - 34 : BELOW + 34);
+    ev.dot = document.createElementNS(NS, "circle");
+    ev.dot.setAttribute("cx", x); ev.dot.setAttribute("cy", AXIS_Y); ev.dot.setAttribute("r", 8);
+    svg.append(ev.line, ev.dot);
+  }
+  const coda = el.querySelector(".coda");
+
+  let drawn = false;
+  return {
+    steps: 4,
+    enter() {
+      if (drawn) return;
+      drawn = true;
+      gsap.from(el.querySelector(".axis .line"), { scaleX: 0, duration: 1.4, ease: "power3.inOut" });
+    },
+    step(i) {
+      for (const e of ERAS) {
+        e.el.classList.toggle("cur", e.step === i);
+        gsap.to(e.el, { opacity: i >= e.step ? 1 : 0.25, duration: 0.6, overwrite: true });
+      }
+      for (const ev of EVENTS) {
+        const on = i >= ev.step;
+        const k = EVENTS.filter((e) => e.step === ev.step).indexOf(ev);
+        gsap.to([ev.card, ev.line, ev.dot], { opacity: on ? 1 : 0, y: on ? 0 : ev.up ? -14 : 14, duration: 0.6, ease: "power2.out", overwrite: true, delay: on ? k * 0.12 : 0 });
+      }
+      gsap.to(coda, { opacity: i === 3 ? 1 : 0, duration: 0.6, overwrite: true });
+    },
+  };
+});
+</script>

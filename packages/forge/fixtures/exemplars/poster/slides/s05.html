@@ -1,0 +1,179 @@
+<section class="df-slide" id="s05">
+  <header class="head">
+    <p class="df-eyebrow">Geography · Where Australians live</p>
+    <h2 class="title">Most Australians live on a thin coastal rim</h2>
+  </header>
+  <p class="caption"></p>
+  <svg class="map" viewBox="0 0 1920 1080" aria-hidden="true">
+    <defs>
+      <pattern id="s05-hatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="14" height="14" class="hatch-bg"/><line x1="0" y1="0" x2="0" y2="14" class="hatch-line"/></pattern>
+      <clipPath id="s05-land"></clipPath>
+    </defs>
+    <g class="land"></g>
+    <g class="arid" clip-path="url(#s05-land)"></g>
+    <g class="band" clip-path="url(#s05-land)"></g>
+    <g class="outline"></g>
+    <g class="cities"></g>
+    <g class="leaders"></g>
+  </svg>
+  <div class="tags"></div>
+  <div class="df-legend legend">
+    <span class="df-key k-arid"><i></i>Arid or semi-arid, ≈ 70% of land</span>
+    <span class="df-key k-city"><i></i>Capital city, area ∝ population</span>
+    <span class="df-key k-band"><i></i>Within 50 km of the coast</span>
+  </div>
+  <div class="stat">
+    <span class="big">85%</span>
+    <span class="txt">of Australians live within 50 km of the coast</span>
+  </div>
+  <p class="foot">Equirectangular projection, simplified coastline, arid zone stylised. Populations: ABS capital city areas, 2023, rounded; coastal share: ABS, 2001.</p>
+  <aside class="df-notes">
+    <p>Start with the outline: a continent the size of the mainland United States.</p>
+    <p>Then the dry heart, then the five big cities, then the rim. The interior is mostly empty because it is mostly dry.</p>
+  </aside>
+</section>
+
+<style>
+  #s05 .head { position: absolute; left: 128px; top: 92px; width: 1300px; }
+  #s05 .head .df-eyebrow { margin: 0 0 18px; }
+  #s05 .title { margin: 0; font: 700 58px/1.05 var(--df-font-display); letter-spacing: -.03em; }
+  #s05 .caption { position: absolute; left: 128px; top: 790px; width: 560px; margin: 0; font: 400 30px/1.35 var(--df-font-body); color: var(--df-text); }
+  #s05 .map { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: visible; }
+  #s05 .land path { fill: color-mix(in oklab, var(--df-text) 13%, var(--df-bg)); }
+  #s05 .outline path { fill: none; stroke: var(--df-text); stroke-width: 3; stroke-linejoin: round; }
+  #s05 .hatch-bg { fill: color-mix(in oklab, var(--df-accent-3) 22%, var(--df-bg)); }
+  #s05 .hatch-line { stroke: var(--df-accent-3); stroke-width: 5; }
+  #s05 .band path { fill: none; stroke: var(--df-accent-2); stroke-width: 22; stroke-linejoin: round; }
+  #s05 .cities circle { fill: var(--df-accent); stroke: var(--df-bg); stroke-width: 3; }
+  #s05 .leaders line { stroke: var(--df-text); stroke-width: 2; }
+  #s05 .tags { position: absolute; inset: 0; pointer-events: none; }
+  #s05 .tags .df-tag { position: absolute; font-size: 24px; }
+  #s05 .tags .df-tag em { font: 500 20px/1 var(--df-font-mono); font-style: normal; color: var(--df-muted); }
+  #s05 .legend { position: absolute; left: 1400px; top: 250px; width: 392px; flex-direction: column; gap: 18px; color: var(--df-text); }
+  #s05 .legend .df-key { transition: opacity .5s; }
+  #s05 .legend .df-key.off { opacity: .25; }
+  #s05 .k-arid > i { border-radius: 0; box-shadow: none; background: repeating-linear-gradient(45deg, var(--df-accent-3) 0 4px, color-mix(in oklab, var(--df-accent-3) 22%, var(--df-bg)) 4px 8px); width: 22px; height: 22px; }
+  #s05 .k-city > i { --c: var(--df-accent); width: 20px; height: 20px; box-shadow: none; }
+  #s05 .k-band > i { border-radius: 0; box-shadow: none; background: var(--df-accent-2); width: 22px; height: 10px; }
+  #s05 .stat { position: absolute; left: 128px; top: 260px; width: 360px; display: flex; flex-direction: column; gap: 10px; }
+  #s05 .big { font: 700 150px/.9 var(--df-font-display); letter-spacing: -.05em; color: var(--df-accent-2); }
+  #s05 .txt { font: 500 30px/1.25 var(--df-font-body); }
+  #s05 .foot { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 19px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s05", (api) => {
+  const { el, gsap } = api;
+  const quick = api.reducedMotion ? 0 : 1;
+
+  // Equirectangular projection fitted to the slide: lon/lat degrees -> slide px (east right, south down).
+  const LON0 = 113, LAT0 = -10.7, KX = 20.4, KY = 22.5;
+  const P = ([lon, lat]) => [520 + (lon - LON0) * KX, 230 + (LAT0 - lat) * KY];
+  const pathOf = (pts) => `M${pts.map((p) => P(p).map((v) => v.toFixed(1)).join(",")).join("L")}Z`;
+  const NS = "http://www.w3.org/2000/svg";
+  const add = (g, tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    el.querySelector(g).append(n);
+    return n;
+  };
+
+  // ---------- data: simplified coastline (lon, lat), clockwise from Cape York; Tasmania; arid zone; cities
+  const MAINLAND = [
+    [142.5, -10.7], [141.9, -12.6], [141.6, -13.5], [141.5, -15.4], [140.9, -17.4], [139.6, -17.6], [138.6, -16.8],
+    [137.5, -16.2], [136.3, -15.6], [135.4, -14.9], [135.9, -13.6], [136.1, -12.4], [136.9, -12.2], [136.6, -11.9],
+    [135.6, -12.2], [134.2, -11.9], [132.6, -11.5], [132.1, -11.3], [131.1, -12.2], [130.6, -12.4], [129.8, -13.6],
+    [129.4, -14.9], [128.2, -15.5], [127.6, -14.2], [126.6, -13.8], [125.3, -14.4], [124.1, -15.4], [122.9, -16.4],
+    [122.2, -17.9], [121.1, -19.5], [119.6, -20.1], [118.4, -20.4], [116.8, -20.6], [115.3, -21.5], [114.1, -21.8],
+    [113.6, -23.6], [113.5, -24.9], [113.3, -26.1], [114.2, -27.7], [114.6, -28.8], [115.0, -30.3], [115.7, -31.9],
+    [115.7, -32.6], [115.1, -33.5], [115.1, -34.4], [116.6, -35.0], [117.9, -35.1], [119.9, -34.0], [121.9, -33.9],
+    [123.6, -33.9], [124.3, -33.0], [126.2, -32.3], [128.9, -31.7], [131.1, -31.5], [132.9, -32.0], [134.2, -32.8],
+    [135.2, -34.0], [135.9, -34.8], [136.9, -33.6], [137.8, -32.5], [138.0, -33.7], [137.4, -34.7], [137.0, -35.2],
+    [137.8, -35.0], [138.4, -34.6], [138.5, -35.1], [138.1, -35.6], [138.9, -35.6], [139.6, -36.9], [140.6, -38.0],
+    [141.6, -38.4], [142.7, -38.5], [143.5, -38.8], [144.4, -38.3], [144.9, -37.9], [145.2, -38.4], [146.4, -39.1],
+    [147.2, -38.6], [148.4, -37.8], [149.9, -37.5], [150.1, -36.3], [150.8, -34.8], [151.2, -33.9], [151.8, -32.9],
+    [152.9, -31.4], [153.1, -30.0], [153.6, -28.6], [153.4, -27.4], [153.1, -25.9], [153.3, -25.0], [152.4, -24.8],
+    [151.3, -23.9], [150.8, -22.6], [149.4, -21.4], [148.6, -20.3], [146.8, -19.3], [146.0, -17.8], [145.8, -16.9],
+    [145.3, -15.5], [144.5, -14.2], [143.8, -14.4], [143.5, -12.9], [143.2, -12.0], [142.5, -10.7],
+  ];
+  const TASMANIA = [[144.7, -40.7], [146.4, -41.1], [148.3, -40.9], [148.3, -42.2], [147.9, -43.2], [146.9, -43.6], [146.0, -43.5], [145.2, -42.2], [144.6, -41.0]];
+  const ARID = [
+    [114.2, -22.5], [116.5, -21.2], [120, -20.2], [123, -19], [126, -18.6], [129, -17.4], [132, -17.2], [135, -17.9], [138, -19.2],
+    [141, -20.2], [143.6, -22], [145.4, -25], [146.3, -28], [146.2, -31], [144.6, -33.6], [141.5, -34.4], [139.6, -33.6],
+    [138.4, -32.4], [136.4, -32.3], [133.2, -31.4], [129, -31], [124.5, -32.1], [121, -32], [118.6, -31], [116.6, -29.4], [115, -27], [114, -24.6],
+  ];
+  const CITIES = [
+    { name: "Sydney", at: [151.21, -33.87], pop: 5.4, dx: 70, dy: 0 },
+    { name: "Melbourne", at: [144.96, -37.81], pop: 5.2, dx: 100, dy: 40 },
+    { name: "Brisbane", at: [153.03, -27.47], pop: 2.7, dx: 70, dy: 0 },
+    { name: "Perth", at: [115.86, -31.95], pop: 2.3, dx: -70, dy: 0 },
+    { name: "Adelaide", at: [138.6, -34.93], pop: 1.4, dx: -60, dy: 110 },
+  ];
+
+  const clip = el.querySelector("#s05-land");
+  for (const shape of [MAINLAND, TASMANIA]) {
+    const d = pathOf(shape);
+    add(".land", "path", { d });
+    add(".outline", "path", { d });
+    add(".band", "path", { d });
+    const c = document.createElementNS(NS, "path");
+    c.setAttribute("d", d);
+    clip.append(c);
+  }
+  const arid = add(".arid", "path", { d: pathOf(ARID), fill: "url(#s05-hatch)" });
+
+  // cities: circle area proportional to population; tags sit in the sea on short leader lines
+  const tags = el.querySelector(".tags");
+  for (const c of CITIES) {
+    const [x, y] = P(c.at);
+    c.dot = add(".cities", "circle", { cx: x, cy: y, r: (12 * Math.sqrt(c.pop)).toFixed(1) });
+    c.line = add(".leaders", "line", { x1: x, y1: y, x2: x + c.dx, y2: y + c.dy });
+    c.tag = document.createElement("span");
+    c.tag.className = "df-tag";
+    c.tag.innerHTML = `${c.name} <em>${c.pop.toFixed(1)} M</em>`;
+    tags.append(c.tag);
+    c.xy = [x + c.dx, y + c.dy];
+  }
+  function placeTags() {
+    for (const c of CITIES) {
+      const w = c.tag.offsetWidth, h = c.tag.offsetHeight;
+      const left = c.dx < 0 ? c.xy[0] - w : c.dx > 0 ? c.xy[0] : c.xy[0] - w / 2;
+      c.tag.style.left = `${left}px`;
+      c.tag.style.top = `${c.dy > 0 ? c.xy[1] : c.xy[1] - h / 2}px`;
+    }
+  }
+
+  const band = el.querySelector(".band");
+  const keys = { arid: el.querySelector(".k-arid"), city: el.querySelector(".k-city"), band: el.querySelector(".k-band") };
+  const stat = el.querySelector(".stat");
+  const caption = el.querySelector(".caption");
+  const CAPS = [
+    "A continent about as big as the mainland United States.",
+    "Most of it is desert or dry scrub, too dry for farms or cities.",
+    "Five capitals hold two in three Australians, all on the coast.",
+    "Draw a 50 km rim around the coast and almost everyone is inside it.",
+  ];
+
+  return {
+    steps: 4,
+    enter() {
+      placeTags();
+    },
+    step(i) {
+      const d = 0.8 * quick;
+      gsap.to(arid, { opacity: i >= 1 ? 1 : 0, duration: d, overwrite: true });
+      CITIES.forEach((c, k) => {
+        const on = i >= 2;
+        gsap.to(c.dot, { attr: { r: on ? 12 * Math.sqrt(c.pop) : 0 }, duration: d, delay: on ? 0.08 * k * quick : 0, ease: "back.out(2)", overwrite: true });
+        gsap.to([c.tag, c.line], { opacity: on ? 1 : 0, duration: d * 0.7, delay: on ? (0.3 + 0.08 * k) * quick : 0, overwrite: true });
+      });
+      gsap.to(band, { opacity: i >= 3 ? 1 : 0, duration: d, overwrite: true });
+      gsap.to(stat, { opacity: i >= 3 ? 1 : 0, y: i >= 3 ? 0 : 20, duration: d, ease: "power2.out", overwrite: true });
+      keys.arid.classList.toggle("off", i < 1);
+      keys.city.classList.toggle("off", i < 2);
+      keys.band.classList.toggle("off", i < 3);
+      caption.textContent = CAPS[i];
+    },
+  };
+});
+</script>

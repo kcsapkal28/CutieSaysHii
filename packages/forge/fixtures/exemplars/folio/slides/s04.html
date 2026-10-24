@@ -1,0 +1,146 @@
+<section class="df-slide" id="s04">
+  <header class="head">
+    <p class="df-eyebrow">Law · UK Parliament</p>
+    <h2 class="title">A Bill becomes law only when both Houses agree</h2>
+  </header>
+  <nav class="tabs" aria-label="Stages of a Bill"></nav>
+  <div class="grid"></div>
+  <svg class="links" viewBox="0 0 1920 1080" aria-hidden="true"><path class="zig" d=""/></svg>
+  <div class="state">
+    <div class="df-stat"><span class="df-stat-label">House</span><span class="df-stat-value v-house"></span></div>
+    <div class="df-stat"><span class="df-stat-label">Stage</span><span class="df-stat-value v-stage"></span></div>
+    <div class="df-stat"><span class="df-stat-label">Amendments</span><span class="df-stat-value v-amend"></span></div>
+  </div>
+  <p class="caption"></p>
+  <p class="foot">Simplified: a public Bill starting in the Commons; amendment counts illustrative. Parliament Acts 1911, 1949.</p>
+  <aside class="df-notes">
+    <p>Click the tabs or use the arrow keys. The grid fills left to right: each House runs the same five stages.</p>
+    <p>Ping-pong is the exception: amendments bounce between the Houses until the text is identical. Only then can the Crown sign it.</p>
+  </aside>
+</section>
+
+<style>
+  #s04 .head { position: absolute; left: 128px; top: 76px; }
+  #s04 .head .df-eyebrow { margin: 0 0 16px; }
+  #s04 .title { margin: 0; font: 500 62px/1.05 var(--df-font-display); letter-spacing: -.015em; }
+  #s04 .tabs { position: absolute; left: 128px; top: 236px; width: 1664px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  #s04 .tab { all: unset; box-sizing: border-box; cursor: pointer; padding: 14px 18px 16px; border: 1px solid var(--df-line); background: var(--df-surface); }
+  #s04 .tab small { display: block; font: 500 18px/1 var(--df-font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--df-muted); }
+  #s04 .tab span { display: block; margin-top: 8px; font: 600 23px/1.1 var(--df-font-body); color: var(--df-text); }
+  #s04 .tab[aria-current="step"] { background: var(--df-text); border-color: var(--df-text); }
+  #s04 .tab[aria-current="step"] small { color: var(--df-line); }
+  #s04 .tab[aria-current="step"] span { color: var(--df-bg); }
+  #s04 .tab:focus-visible { outline: 3px solid var(--df-accent); outline-offset: 3px; }
+  #s04 .grid { position: absolute; inset: 0; pointer-events: none; }
+  #s04 .lane { position: absolute; left: 128px; width: 222px; height: 140px; display: flex; flex-direction: column; justify-content: center; border-left: 6px solid var(--c); padding-left: 20px; }
+  #s04 .lane b { font: 500 34px/1.05 var(--df-font-display); color: var(--df-text); }
+  #s04 .lane small { margin-top: 8px; font: 500 18px/1 var(--df-font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--c); }
+  #s04 .cell { position: absolute; height: 140px; display: flex; align-items: flex-end; padding: 0 16px 16px; border: 1.5px solid var(--df-line); background: color-mix(in oklab, var(--df-surface) 70%, transparent); font: 500 23px/1.15 var(--df-font-body); color: var(--df-muted); }
+  #s04 .cell i { position: absolute; left: 16px; top: 14px; font: 500 18px/1 var(--df-font-mono); font-style: normal; color: var(--df-muted); }
+  #s04 .cell.done { background: color-mix(in oklab, var(--c) 16%, var(--df-surface)); border-color: color-mix(in oklab, var(--c) 45%, transparent); color: var(--df-text); }
+  #s04 .cell.done i { color: color-mix(in oklab, var(--c) 80%, var(--df-text)); }
+  #s04 .cell.now { background: var(--c); border-color: var(--df-text); outline: 3px solid var(--df-text); outline-offset: 3px; color: var(--df-surface); }
+  #s04 .cell.now i { color: var(--df-surface); }
+  #s04 .cell.wide { height: 300px; align-items: flex-end; }
+  #s04 .cell.pong.done, #s04 .cell.pong.now { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--df-accent-3) 22%, var(--df-surface)) 0 10px, var(--df-surface) 10px 20px); border: 2px dashed var(--df-accent-3); outline-color: var(--df-accent-3); color: var(--df-text); }
+  #s04 .cell.pong.done i, #s04 .cell.pong.now i { color: var(--df-accent-3); }
+  #s04 .seal { position: absolute; left: 50%; top: 44%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 3px dashed var(--df-line); display: grid; place-items: center; font: 600 24px/1 var(--df-font-mono); letter-spacing: .12em; color: var(--df-muted); }
+  #s04 .cell.now .seal { background: var(--df-accent-3); border: 3px solid var(--df-surface); color: var(--df-surface); }
+  #s04 .links { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; }
+  #s04 .zig { fill: none; stroke: var(--df-accent-3); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+  #s04 .state { position: absolute; left: 128px; top: 750px; width: 900px; display: grid; grid-template-columns: 240px 300px 300px; gap: 30px; padding-top: 26px; border-top: 2px solid var(--df-text); }
+  #s04 .state .df-stat-value { font: 500 42px/1.1 var(--df-font-display); font-variant-numeric: lining-nums; letter-spacing: -.01em; }
+  #s04 .caption { position: absolute; left: 1100px; top: 776px; width: 692px; margin: 0; font: 400 31px/1.4 var(--df-font-body); }
+  #s04 .foot { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s04", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const STAGES = ["1st reading", "2nd reading", "Committee", "Report", "3rd reading"];
+  const LANES = [{ name: "Commons", sub: "650 MPs", c: C.accent2 }, { name: "Lords", sub: "~800 peers", c: C.accent }];
+  const X0 = 372, CW = 170, GAP = 12, Y0 = 380, LH = 140, LGAP = 20;
+
+  // One row per step: which cells are done, which one is current, and what the state panel says.
+  // Cell ids: "c0".."c4" (Commons), "l0".."l4" (Lords), "pong", "assent".
+  const STEPS = [
+    { tab: "Commons", name: "Readings", now: "c1", done: ["c0"], house: "Commons", stage: "2nd reading", amend: "none yet",
+      text: "The title is read out, then MPs debate the Bill's main idea and vote on whether it should go on." },
+    { tab: "Commons", name: "Committee", now: "c3", done: ["c0", "c1", "c2"], house: "Commons", stage: "Report", amend: "14 made",
+      text: "A committee goes through it line by line and amends it; the whole House then reviews the changes." },
+    { tab: "Commons", name: "3rd reading", now: "c4", done: ["c0", "c1", "c2", "c3"], house: "Commons", stage: "3rd reading", amend: "14 made",
+      text: "A final vote on the Bill as amended. No new changes now. It passes and is sent to the Lords." },
+    { tab: "Lords", name: "All stages", now: "l4", done: ["c0", "c1", "c2", "c3", "c4", "l0", "l1", "l2", "l3"], house: "Lords", stage: "3rd reading", amend: "+17 by Lords",
+      text: "The Lords repeat the same five stages, and they amend the Bill too: the two texts now differ." },
+    { tab: "Both Houses", name: "Ping-pong", now: "pong", done: ["c0", "c1", "c2", "c3", "c4", "l0", "l1", "l2", "l3", "l4"], house: "Both", stage: "Ping-pong", amend: "3 disputed",
+      text: "Amendments bounce between the Houses until both have agreed to exactly the same words." },
+    { tab: "The Crown", name: "Royal Assent", now: "assent", done: ["c0", "c1", "c2", "c3", "c4", "l0", "l1", "l2", "l3", "l4", "pong"], house: "Crown", stage: "Royal Assent", amend: "all agreed",
+      text: "The monarch's assent, a formality since 1708, turns the agreed Bill into an Act of Parliament." },
+  ];
+
+  // ---------- build the grid: lane labels, five stage cells per House, then the ping-pong and assent columns
+  const grid = el.querySelector(".grid");
+  const cells = {};
+  const add = (cls, html, x, y, w, c) => {
+    const d = document.createElement("div");
+    d.className = cls;
+    d.innerHTML = html;
+    Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
+    d.style.setProperty("--c", c);
+    grid.append(d);
+    return d;
+  };
+  LANES.forEach((lane, r) => {
+    const y = Y0 + r * (LH + LGAP);
+    add("lane", `<b>${lane.name}</b><small>${lane.sub}</small>`, 128, y, 222, lane.c);
+    STAGES.forEach((s, k) => (cells[`${"cl"[r]}${k}`] = add("cell", `<i>0${k + 1}</i>${s}`, X0 + k * (CW + GAP), y, CW, lane.c)));
+  });
+  const XP = X0 + 5 * (CW + GAP) + 8, WP = 230, XA = XP + WP + GAP;
+  cells.pong = add("cell wide pong", "<i>06</i>Ping-pong", XP, Y0, WP, C.accent3);
+  cells.assent = add("cell wide", `<i>07</i>Royal Assent<span class="seal">ACT</span>`, XA, Y0, 1792 - XA, C.accent3);
+
+  // ping-pong: a zig-zag between the two lanes inside its column
+  const pong = el.querySelector(".links .zig");
+  const zx = [XP + 46, XP + 92, XP + 138, XP + 184], top = Y0 + 64, bot = Y0 + LH + LGAP + 60;
+  pong.setAttribute("d", `M${zx[0]},${top} L${zx[1]},${bot} L${zx[2]},${top} L${zx[3]},${bot}`);
+  const len = pong.getTotalLength();
+  pong.style.strokeDasharray = `${len}`;
+
+  // tabs drive the deck's step, so clicks and arrow keys stay in sync
+  const tabs = el.querySelector(".tabs");
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "tab";
+    b.innerHTML = `<small>${s.tab}</small><span>${s.name}</span>`;
+    b.addEventListener("click", () => api.setStep(i));
+    tabs.append(b);
+  });
+  const out = { house: el.querySelector(".v-house"), stage: el.querySelector(".v-stage"), amend: el.querySelector(".v-amend") };
+  const caption = el.querySelector(".caption");
+  const dur = api.reducedMotion ? 0 : 1;
+
+  function render(i) {
+    const st = STEPS[i];
+    [...tabs.children].forEach((b, k) => (k === i ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current")));
+    for (const [id, cell] of Object.entries(cells)) {
+      const was = cell.classList.contains("now");
+      cell.classList.toggle("done", st.done.includes(id));
+      cell.classList.toggle("now", st.now === id);
+      if (st.now === id && !was) gsap.fromTo(cell, { scale: 0.94 }, { scale: 1, duration: 0.45 * dur, ease: "back.out(2.4)" });
+    }
+    gsap.to(pong, { strokeDashoffset: i >= 4 ? 0 : len, opacity: i >= 4 ? 1 : 0, duration: 1.1 * dur, ease: "power2.inOut", overwrite: true });
+    out.house.textContent = st.house;
+    out.stage.textContent = st.stage;
+    out.amend.textContent = st.amend;
+    out.house.style.color = st.house === "Lords" ? C.accent : st.house === "Commons" ? C.accent2 : C.accent3;
+    caption.textContent = st.text;
+    gsap.fromTo([caption, ...Object.values(out)], { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 * dur, stagger: 0.04 });
+  }
+
+  return {
+    steps: STEPS.length,
+    step: render,
+  };
+});
+</script>

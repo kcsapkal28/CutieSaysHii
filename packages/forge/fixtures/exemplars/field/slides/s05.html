@@ -1,0 +1,101 @@
+<section class="df-slide" id="s05">
+  <header class="head">
+    <p class="df-eyebrow">Sleep science · What to remember</p>
+    <h2 class="df-h2 title">Protect seven hours, in step with your body clock</h2>
+  </header>
+  <div class="cards"></div>
+  <svg class="night" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="axis"></div>
+  <p class="coda">Same bedtime, morning light, no late coffee: the cheapest health habit there is.</p>
+  <aside class="df-notes">
+    <p>Four numbers to take home: 7–9 hours, 90-minute cycles, a 5-hour caffeine half-life and a 24.2-hour clock.</p>
+    <p>The strip at the bottom is one typical night: deep sleep comes early, REM grows towards morning.</p>
+  </aside>
+</section>
+
+<style>
+  #s05 .head { position: absolute; left: 128px; top: 84px; }
+  #s05 .head .df-eyebrow { margin: 0 0 18px; }
+  #s05 .title { font-weight: 650; font-size: 64px; letter-spacing: -.025em; }
+  #s05 .cards { position: absolute; left: 128px; top: 286px; width: 1664px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; }
+  #s05 .card { position: relative; height: 430px; padding: 34px 34px 30px; display: flex; flex-direction: column; border-top: 6px solid var(--c); }
+  #s05 .card .n { font: 600 44px/1 var(--df-font-mono); color: var(--c); }
+  #s05 .card h3 { margin: 26px 0 14px; font: 650 34px/1.1 var(--df-font-display); letter-spacing: -.015em; white-space: nowrap; }
+  #s05 .card p { margin: 0; font: 400 24px/1.42 var(--df-font-body); color: var(--df-text); }
+  #s05 .card footer { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--df-line); font: 500 20px/1.3 var(--df-font-mono); color: var(--df-muted); }
+  #s05 .night { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; }
+  #s05 .night .grid { stroke: var(--df-line); stroke-width: 1; }
+  #s05 .night .hyp { fill: none; stroke: var(--df-text); stroke-width: 3; stroke-linejoin: round; }
+  #s05 .night .rem { fill: none; stroke: var(--df-accent-3); stroke-width: 8; stroke-linecap: round; }
+  #s05 .night .deep { fill: color-mix(in oklab, var(--df-accent-2) 30%, transparent); }
+  #s05 .night .cyc { fill: none; stroke: var(--df-accent-2); stroke-width: 2; }
+  #s05 .axis { position: absolute; inset: 0; pointer-events: none; }
+  #s05 .axis span { position: absolute; font: 500 18px/1 var(--df-font-mono); color: var(--df-muted); white-space: nowrap; transform: translateY(-50%); }
+  #s05 .axis .t { transform: translateX(-50%); }
+  #s05 .axis .lab { color: var(--df-accent-2); font-weight: 600; transform: translate(-50%, -100%); }
+  #s05 .axis .remlab { color: var(--df-text); }
+  #s05 .coda { position: absolute; left: 128px; top: 972px; margin: 0; font: 500 30px/1.2 var(--df-font-display); letter-spacing: -.01em; }
+</style>
+
+<script>
+DF.slide("s05", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  // Four equal cards: number, one-line title, short body, footer fact (with its source).
+  const CARDS = [
+    { n: "01", c: C.accent, t: "Seven to nine", b: "Adults need at least seven hours most nights. Less, night after night, raises heart and accident risk.", f: "AASM & SRS consensus, 2015" },
+    { n: "02", c: C.accent2, t: "90-minute cycles", b: "Each night runs in cycles of light, deep and REM sleep. Deep comes early, REM near morning.", f: "4–6 cycles a night" },
+    { n: "03", c: C.accent3, t: "Caffeine lingers", b: "Caffeine's half-life is about five hours: half of a 4 pm coffee is still in your blood at 9 pm.", f: "Half-life ≈ 5 h (2–10 h)" },
+    { n: "04", c: C.text, t: "A 24.2-hour clock", b: "Your inner clock runs a little longer than 24 hours. Morning daylight nudges it back each day.", f: "Czeisler et al., 1999" },
+  ];
+  const cardsEl = el.querySelector(".cards");
+  for (const k of CARDS) {
+    const d = document.createElement("article");
+    d.className = "card df-panel";
+    d.style.setProperty("--c", k.c);
+    d.innerHTML = `<span class="n">${k.n}</span><h3>${k.t}</h3><p>${k.b}</p><footer>${k.f}</footer>`;
+    cardsEl.append(d);
+  }
+
+  // ---------- generative background: one typical night as a hypnogram (stage per 10-minute slot)
+  const X0 = 300, X1 = 1792, ROW = { wake: 0, rem: 1, light: 2, deep: 3 }, Y0 = 806, DY = 32;
+  const night = [];
+  // five cycles of about 90 minutes: deep sleep shrinks and REM grows through the night
+  for (let c = 0; c < 5; c++) {
+    const deep = [3, 3, 1, 0, 0][c], rem = [1, 2, 2, 3, 3][c];
+    night.push("light", "light", ...Array(deep).fill("deep"), ...Array(7 - deep - rem).fill("light"), ...Array(rem).fill("rem"));
+    if (c === 2 || c === 4) night.push("wake");
+  }
+  const SLOT = (X1 - X0) / night.length;
+  const sy = (s) => Y0 + ROW[s] * DY;
+  const svg = el.querySelector(".night"), axis = el.querySelector(".axis");
+  let d = "", deepRects = "", rems = "";
+  night.forEach((s, i) => {
+    const x = X0 + i * SLOT;
+    d += `${i ? "L" : "M"}${x},${sy(s)}L${x + SLOT},${sy(s)}`;
+    if (s === "deep") deepRects += `<rect class="deep" x="${x}" y="${sy(s) - 8}" width="${SLOT}" height="16"/>`;
+    if (s === "rem") rems += `<path class="rem" d="M${x + 4},${sy(s)}L${x + SLOT - 4},${sy(s)}"/>`;
+  });
+  const cyc = 9 * SLOT; // the first cycle, bracketed and named
+  svg.innerHTML =
+    Object.keys(ROW).map((r) => `<path class="grid" d="M${X0},${sy(r)}H${X1}"/>`).join("") + deepRects +
+    `<path class="hyp" d="${d}"/>` + rems +
+    `<path class="cyc" d="M${X0},${Y0 - 22}v-10H${X0 + cyc}v10"/>`;
+  axis.innerHTML =
+    ["Wake", "REM", "Light", "Deep"].map((n, k) => `<span class="${k === 1 ? "remlab" : ""}" style="left:128px;top:${Y0 + k * DY}px">${n}</span>`).join("") +
+    ["23:00", "01:00", "03:00", "05:00", "07:00"].map((t, k) => `<span class="t" style="left:${X0 + (k * (X1 - X0)) / 4 + (k === 4 ? -30 : k === 0 ? 30 : 0)}px;top:${Y0 + 3 * DY + 22}px">${t}</span>`).join("") +
+    `<span class="lab" style="left:${X0 + cyc / 2}px;top:${Y0 - 38}px">1 cycle ≈ 90 min</span>`;
+
+  const path = svg.querySelector(".hyp");
+  const len = path.getTotalLength();
+  return {
+    steps: 1,
+    enter() {
+      gsap.from(el.querySelectorAll(".card"), { y: 40, opacity: 0, duration: 0.8, stagger: 0.12, ease: "power3.out" });
+      gsap.fromTo(path, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 2.2, delay: 0.4, ease: "power2.inOut" });
+      gsap.from(svg.querySelectorAll(".rem, .deep, .cyc"), { opacity: 0, duration: 0.6, stagger: 0.03, delay: 1.6 });
+      gsap.from(el.querySelector(".coda"), { opacity: 0, y: 12, duration: 0.8, delay: 1.2, ease: "power2.out" });
+    },
+  };
+});
+</script>

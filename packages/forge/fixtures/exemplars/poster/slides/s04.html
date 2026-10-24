@@ -1,0 +1,212 @@
+<section class="df-slide" id="s04">
+  <div class="stage3d"></div>
+  <svg class="leaders" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="tags"></div>
+  <header class="head">
+    <p class="df-eyebrow">Civil engineering · Flexible pavement</p>
+    <h2 class="title">Five layers spread every wheel's weight</h2>
+  </header>
+  <div class="df-panel card">
+    <p class="k"></p>
+    <h3 class="name"></h3>
+    <p class="mm"></p>
+    <p class="mat"></p>
+    <p class="job"></p>
+  </div>
+  <p class="foot">Typical UK build-up for a light-traffic road; thicknesses vary with traffic. Layer heights exaggerated, not to scale.</p>
+  <aside class="df-notes">
+    <p>Start with the whole stack: what you drive on is only the top 40 mm.</p>
+    <p>Then peel it from the top. Each layer is coarser and thicker than the one above, so a wheel's load is spread wider and wider before it reaches the soil.</p>
+  </aside>
+</section>
+
+<style>
+  #s04 .stage3d { position: absolute; inset: 0; }
+  #s04 .leaders { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; overflow: visible; }
+  #s04 .leaders line { stroke: var(--df-text); stroke-width: 2; }
+  #s04 .leaders circle { fill: var(--df-accent); stroke: var(--df-bg); stroke-width: 3; }
+  #s04 .tags { position: absolute; inset: 0; pointer-events: none; }
+  #s04 .tags .df-tag { position: absolute; left: 128px; top: 0; font-size: 24px; transition: background .3s, color .3s; }
+  #s04 .tags .df-tag.on { background: var(--df-accent); color: var(--df-bg); }
+  #s04 .tags .df-tag.on b { color: var(--df-bg); }
+  #s04 .head { position: absolute; left: 128px; top: 92px; }
+  #s04 .head .df-eyebrow { margin: 0 0 18px; }
+  #s04 .title { margin: 0; font: 700 64px/1.05 var(--df-font-display); letter-spacing: -.03em; }
+  #s04 .card { position: absolute; left: 1392px; top: 300px; width: 400px; padding: 32px 34px 36px; }
+  #s04 .card p, #s04 .card h3 { margin: 0; }
+  #s04 .k { font: 500 20px/1 var(--df-font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--df-accent); }
+  #s04 .name { margin-top: 14px !important; font: 700 44px/1.05 var(--df-font-display); letter-spacing: -.02em; }
+  #s04 .mm { margin-top: 22px !important; font: 600 88px/1 var(--df-font-mono); letter-spacing: -.04em; color: var(--df-accent); }
+  #s04 .mm u { text-decoration: none; font: 500 32px/1 var(--df-font-body); margin-left: 8px; color: var(--df-text); }
+  #s04 .mat { margin-top: 18px !important; font: 500 24px/1.3 var(--df-font-mono); color: var(--df-muted); }
+  #s04 .job { margin-top: 22px !important; padding-top: 20px; border-top: 3px solid var(--df-line); font: 400 27px/1.4 var(--df-font-body); }
+  #s04 .foot { position: absolute; left: 128px; bottom: 50px; margin: 0; font: 400 19px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s04", (api) => {
+  const { THREE, gsap, el } = api;
+  const C = api.theme.colors;
+  const kit = api.three(el.querySelector(".stage3d"), { fov: 28, environment: false, exposure: 1.05 });
+  const { scene, camera } = kit;
+  const W = 4.4, D = 2.6, GAP = 0.05;
+
+  // The stack: each layer is a slab with a lift (opens a gap above it) and a dim (fades the context).
+  // Step a highlights layer a-1: everything above it lifts away, the active slab rises a little and gets
+  // an accent outline, the rest dim. onFrame applies the tweened values and re-pins the labels.
+
+  function slab(L) {
+    const base = speckle(L);
+    const face = (rx, ry) => {
+      const t = base.clone();
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(rx, ry);
+      t.needsUpdate = true;
+      return new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 });
+    };
+    const side = face(W / 1.6, L.h / 1.6), end = face(D / 1.6, L.h / 1.6), cap = face(W / 1.6, D / 1.6);
+    const mats = [end, end, cap, cap, side, side];
+    const mesh = new THREE.Mesh(new THREE.RoundedBoxGeometry(W, L.h, D, 2, 0.025), mats);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W + 0.02, L.h + 0.02, D + 0.02)), new THREE.LineBasicMaterial({ color: new THREE.Color(C.accent), transparent: true, opacity: 0 }));
+    mesh.add(edges);
+    Object.assign(L, { mesh, mats: [side, end, cap], edges });
+    scene.add(mesh);
+  }
+
+  const LAYERS = [
+    { num: "01", name: "Surface course", mm: 40, h: 0.3, color: "#2b2b2f", dots: ["#6d6d72", "#9a978f"], size: 2, mat: "Stone mastic asphalt", job: "Waterproof, quiet and grippy: the only layer tyres touch." },
+    { num: "02", name: "Binder course", mm: 60, h: 0.4, color: "#36353a", dots: ["#77746c", "#a39f94"], size: 3.5, mat: "Asphalt concrete, 20 mm stone", job: "Bonds the surface down and starts spreading the load." },
+    { num: "03", name: "Base", mm: 150, h: 0.62, color: "#3f3b36", dots: ["#857f73", "#b3ab9a"], size: 5, mat: "Dense bitumen macadam", job: "The main structural layer: it carries most of the bending." },
+    { num: "04", name: "Sub-base", mm: 200, h: 0.72, color: "#8e877a", dots: ["#6a645a", "#c2baa8"], size: 9, mat: "Type 1 crushed stone", job: "A drained, compacted platform that keeps water away." },
+    { num: "05", name: "Subgrade", mm: 0, h: 0.9, color: "#6e4f35", dots: ["#5a3f29", "#8f6a48"], size: 4, mat: "Native soil, compacted", job: "The ground itself. It feels only a fraction of the wheel load." },
+  ];
+  let top = LAYERS.reduce((s, L) => s + L.h + GAP, 0) / 2;
+  for (const L of LAYERS) {
+    L.y0 = top - L.h / 2;
+    top -= L.h + GAP;
+    L.lift = 0; L.dim = 0; L.hi = 0;
+  }
+
+  // ---------- surface detail: seeded aggregate speckle painted into a CanvasTexture
+  function rng(seed) {
+    let s = seed >>> 0;
+    return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  }
+  function speckle(L) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const g = c.getContext("2d");
+    g.fillStyle = L.color;
+    g.fillRect(0, 0, 256, 256);
+    const r = rng(L.mm * 7 + L.h * 1000);
+    for (let i = 0; i < 2600 / L.size; i++) {
+      g.fillStyle = L.dots[i % 2];
+      g.globalAlpha = 0.45 + r() * 0.5;
+      g.beginPath();
+      g.ellipse(r() * 256, r() * 256, L.size * (0.4 + r()), L.size * (0.3 + r() * 0.7), r() * 3, 0, 7);
+      g.fill();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  LAYERS.forEach(slab);
+
+  // lights: key, accent rim from behind, soft fill; plus a floating contact shadow
+  const key = new THREE.DirectionalLight(0xffffff, 1.6);
+  key.position.set(4, 7, 6);
+  const rim = new THREE.DirectionalLight(new THREE.Color(C.accent), 0.35);
+  rim.position.set(-5, 3, -6);
+  scene.add(key, rim, new THREE.HemisphereLight(0xffffff, 0x334477, 1.1));
+  const sc = document.createElement("canvas");
+  sc.width = sc.height = 128;
+  const sg = sc.getContext("2d");
+  const grad = sg.createRadialGradient(64, 64, 4, 64, 64, 64);
+  grad.addColorStop(0, "rgba(0,0,30,.55)");
+  grad.addColorStop(1, "rgba(0,0,30,0)");
+  sg.fillStyle = grad;
+  sg.fillRect(0, 0, 128, 128);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.7, D * 1.9), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = top - 0.12;
+  scene.add(shadow);
+  camera.position.set(6.6, 4.9, 12.2);
+  camera.lookAt(0.5, 0.35, 0);
+
+  const card = el.querySelector(".card");
+  const set = (sel, html) => (card.querySelector(sel).innerHTML = html);
+  function fill(a) {
+    if (a < 0) {
+      set(".k", "The whole stack");
+      set(".name", "Four built layers on soil");
+      set(".mm", `450<u>mm</u>`);
+      set(".mat", "of engineered material in all");
+      set(".job", "Each layer is coarser and thicker than the one above it, so the load spreads wider on the way down.");
+      return;
+    }
+    const L = LAYERS[a];
+    set(".k", `Layer ${L.num} of 05`);
+    set(".name", L.name);
+    set(".mm", L.mm ? `${L.mm}<u>mm</u>` : `soil<u>as found</u>`);
+    set(".mat", L.mat);
+    set(".job", L.job);
+  }
+
+  // ---------- labels: left column, pinned to each slab's front-left edge, pushed apart so they never collide
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".leaders");
+  const tagsEl = el.querySelector(".tags");
+  for (const L of LAYERS) {
+    L.tag = document.createElement("span");
+    L.tag.className = "df-tag";
+    L.tag.innerHTML = `<b>${L.num}</b>${L.name}`;
+    tagsEl.append(L.tag);
+    L.line = document.createElementNS(NS, "line");
+    L.dot = document.createElementNS(NS, "circle");
+    L.dot.setAttribute("r", 7);
+    svg.append(L.line, L.dot);
+  }
+  const v = new THREE.Vector3();
+  const WHITE = new THREE.Color(0xffffff), DIM = new THREE.Color(C.bg).lerp(WHITE, 0.25);
+  api.onFrame((t) => {
+    for (const L of LAYERS) {
+      L.mesh.position.y = L.y0 + L.lift;
+      for (const m of L.mats) m.color.copy(WHITE).lerp(DIM, L.dim);
+      L.edges.material.opacity = L.hi;
+    }
+    scene.rotation.y = api.reducedMotion || api.shot ? 0 : Math.sin(t * 0.3) * 0.04;
+    scene.updateMatrixWorld(true);
+    kit.render();
+    let prev = -1e9;
+    const anchors = LAYERS.map((L) => {
+      v.set(-W / 2, L.mesh.position.y, D / 2);
+      return kit.toSlide(v.applyMatrix4(scene.matrixWorld));
+    });
+    LAYERS.forEach((L, k) => {
+      const a = anchors[k], h = L.tag.offsetHeight, w = L.tag.offsetWidth;
+      const y = Math.min(Math.max(a.y - h / 2, prev + 14, 250), 900 - (LAYERS.length - 1 - k) * (h + 14));
+      prev = y + h;
+      L.tag.style.transform = `translateY(${y}px)`;
+      L.line.setAttribute("x1", 128 + w); L.line.setAttribute("y1", y + h / 2);
+      L.line.setAttribute("x2", a.x); L.line.setAttribute("y2", a.y);
+      L.dot.setAttribute("cx", a.x); L.dot.setAttribute("cy", a.y);
+      L.line.style.opacity = L.dot.style.opacity = 1 - 0.5 * L.dim;
+    });
+  });
+
+  return {
+    steps: 6,
+    step(i) {
+      const a = i - 1, d = api.reducedMotion ? 0 : 1.1;
+      LAYERS.forEach((L, k) => {
+        const lift = a < 0 ? 0 : k < a ? 0.6 : k === a ? 0.15 : -0.35;
+        const dim = a < 0 || k === a ? 0 : k < a ? 0.8 : 0.45;
+        gsap.to(L, { lift, dim, hi: k === a ? 1 : 0, duration: d, ease: "expo.inOut", overwrite: true });
+        L.tag.classList.toggle("on", k === a);
+      });
+      fill(a);
+      gsap.fromTo(card.children, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: d * 0.5, stagger: 0.05, ease: "power2.out", overwrite: true });
+    },
+  };
+});
+</script>

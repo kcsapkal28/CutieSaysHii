@@ -1,0 +1,33 @@
+{
+  "title": "Folio: essays in how things work",
+  "style": {
+    "look": "editorial, pale sage paper, Playfair display over Source Serif, ink-blue and vermilion",
+    "theme": {
+      "colors": {
+        "bg": "#eef0ea",
+        "surface": "#f8f9f5",
+        "text": "#1c2220",
+        "muted": "#555e59",
+        "line": "#c9cfc6",
+        "accent": "#b3412a",
+        "accent2": "#25557e",
+        "accent3": "#80620f"
+      },
+      "fonts": { "display": "playfair-display", "body": "source-serif-4", "mono": "ibm-plex-mono" },
+      "backdrop": "radial-gradient(1500px 1000px at 50% 40%, #f3f5ef 0%, #ebeee6 70%, #e2e6dc 100%)"
+    },
+    "motion": "subtle",
+    "use3d": true,
+    "interactivity": 1,
+    "density": "airy",
+    "surface": { "radius": "sharp", "border": "hairline", "depth": "flat", "texture": "grain" },
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "The planet's energy budget", "section": "Climate", "budgetSec": 150 },
+    { "id": "s02", "title": "The map that stopped an epidemic", "section": "Public health", "budgetSec": 150 },
+    { "id": "s03", "title": "Seven parts and a capillary", "section": "Craft", "budgetSec": 120 },
+    { "id": "s04", "title": "How a bill becomes an Act", "section": "Law", "budgetSec": 150 },
+    { "id": "s05", "title": "Feed, rise, peak, fall", "section": "Kitchen", "budgetSec": 90 }
+  ]
+}

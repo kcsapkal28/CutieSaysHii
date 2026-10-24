@@ -1,0 +1,34 @@
+{
+  "title": "Poster: big numbers, hard edges",
+  "style": {
+    "look": "bold poster: saturated cobalt ground, white heavy grotesk, sun-yellow highlight, hard offset shadows",
+    "theme": {
+      "colors": {
+        "bg": "#1636c4",
+        "surface": "#2245d8",
+        "text": "#ffffff",
+        "muted": "#c6d0f8",
+        "line": "#4563e0",
+        "accent": "#ffd84d",
+        "accent2": "#7ff0c8",
+        "accent3": "#ffb3a1"
+      },
+      "fonts": { "display": "space-grotesk", "body": "work-sans", "mono": "ibm-plex-mono" },
+      "backdrop": ""
+    },
+    "motion": "rich",
+    "use3d": true,
+    "interactivity": 1,
+    "density": "balanced",
+    "surface": { "radius": "sharp", "border": "bold", "depth": "hard", "texture": "none" },
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "Half the world's languages may fall silent", "section": "Language", "budgetSec": 60 },
+    { "id": "s02", "title": "A million, a billion, a trillion", "section": "Money", "budgetSec": 120 },
+    { "id": "s03", "title": "Heat pump versus gas boiler", "section": "Energy", "budgetSec": 90 },
+    { "id": "s04", "title": "A road is five roads stacked", "section": "Roads", "budgetSec": 120 },
+    { "id": "s05", "title": "Australia lives on its rim", "section": "Geography", "budgetSec": 120 },
+    { "id": "s06", "title": "Build, measure, learn", "section": "Product", "budgetSec": 90 }
+  ]
+}

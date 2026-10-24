@@ -1,0 +1,180 @@
+<section class="df-slide" id="s05">
+  <header class="head">
+    <p class="df-eyebrow">Kitchen · Sourdough starter at about 24 °C</p>
+    <h2 class="title">A starter is a loop you keep feeding</h2>
+  </header>
+  <svg class="loop" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="labels"></div>
+  <div class="mid"><p class="k">The loop's job</p><p class="why">Keep the yeast strong for baking day</p></div>
+  <div class="df-legend jarkey">
+    <span class="df-key band"><i></i>Band: level after feeding</span>
+    <span class="df-key peak"><i></i>Peak mark</span>
+  </div>
+  <div class="side">
+    <div class="df-stat"><span class="df-stat-label">Since feeding</span><span class="df-stat-value v-time">0 h</span></div>
+    <div class="df-stat"><span class="df-stat-label">Volume</span><span class="df-stat-value v-vol">×1.0</span></div>
+  </div>
+  <p class="caption"></p>
+  <p class="foot">Times are typical for a 1 : 1 : 1 feed (starter : flour : water) at 24 °C; cooler kitchens run slower.</p>
+  <aside class="df-notes">
+    <p>Walk the loop once. The jar on the right is the evidence: the band marks the level just after feeding.</p>
+    <p>Bake at the peak. Miss it and the starter falls, sours, and needs feeding again: that is the whole routine.</p>
+  </aside>
+</section>
+
+<style>
+  #s05 .head { position: absolute; left: 128px; top: 76px; }
+  #s05 .head .df-eyebrow { margin: 0 0 16px; }
+  #s05 .title { margin: 0; font: 500 64px/1.05 var(--df-font-display); letter-spacing: -.015em; }
+  #s05 .loop { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #s05 .loop .num { font: 600 26px var(--df-font-mono); fill: var(--df-text); }
+  #s05 .loop .num.on { fill: var(--df-surface); }
+  #s05 .labels { position: absolute; inset: 0; pointer-events: none; }
+  #s05 .lab { position: absolute; width: 230px; transform: translateY(-50%); }
+  #s05 .lab.left { text-align: right; }
+  #s05 .lab b { display: block; font: 500 40px/1.05 var(--df-font-display); color: var(--df-text); }
+  #s05 .lab span { display: inline-block; margin-top: 8px; font: 500 20px/1 var(--df-font-mono); letter-spacing: .06em; color: var(--df-muted); }
+  #s05 .lab.on b { color: var(--df-accent); }
+  #s05 .lab.on span { color: var(--df-text); }
+  #s05 .mid { position: absolute; left: 470px; top: 600px; width: 380px; text-align: center; transform: translateY(-50%); }
+  #s05 .mid .k { margin: 0 0 12px; font: 500 19px/1 var(--df-font-mono); letter-spacing: .18em; text-transform: uppercase; color: var(--df-accent); }
+  #s05 .mid .why { margin: 0; font: italic 400 34px/1.25 var(--df-font-display); color: var(--df-text); }
+  #s05 .jarkey { position: absolute; left: 1180px; top: 928px; flex-direction: column; gap: 12px; font-size: 20px; color: var(--df-text); }
+  #s05 .jarkey .df-key > i { width: 28px; height: 6px; border-radius: 2px; box-shadow: none; background: var(--df-accent-2); }
+  #s05 .jarkey .peak > i { height: 0; background: none; border-top: 3px dashed var(--df-accent-3); }
+  #s05 .side { position: absolute; left: 1500px; top: 420px; width: 292px; display: grid; gap: 40px; }
+  #s05 .side .df-stat-value { font-size: 64px; }
+  #s05 .side .v-vol { color: var(--df-accent); }
+  #s05 .caption { position: absolute; left: 1500px; top: 720px; width: 292px; margin: 0; font: 400 26px/1.4 var(--df-font-body); }
+  #s05 .foot { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s05", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".loop");
+  const O = { x: 660, y: 600, r: 270 }, NODE = 54, GAP = 17; // loop centre/radius, node radius, arc gap (deg)
+  const rad = (d) => (d * Math.PI) / 180;
+  const at = (deg, r = O.r) => [O.x + Math.cos(rad(deg)) * r, O.y + Math.sin(rad(deg)) * r];
+
+  // Four stages clockwise from top-left. `vol` = starter volume relative to just after feeding.
+  const STAGES = [
+    { name: "Feed", hours: "0 h", deg: -135, vol: 1, time: "0 h", text: "Discard most of it, then stir in equal weights of fresh flour and water." },
+    { name: "Rise", hours: "2–4 h", deg: -45, vol: 1.5, time: "3 h", text: "Yeast eat the new flour and breathe out CO₂; bubbles lift the starter." },
+    { name: "Peak", hours: "4–8 h", deg: 45, vol: 2, time: "6 h", text: "Doubled, domed and full of bubbles: the moment to mix your dough." },
+    { name: "Fall", hours: "8–12 h", deg: 135, vol: 1.6, time: "10 h", text: "The food runs out, the dome collapses and it turns sour. Feed again." },
+  ];
+
+  // The token rides the active arc (from stage i to stage i+1), on the path and clear of every label.
+  const token = { phase: 0.5, active: 0 };
+  function placeToken(t) {
+    const phase = api.shot || api.reducedMotion ? 0.5 : (t * 0.3) % 1;
+    const a = STAGES[token.active].deg + GAP + phase * (90 - 2 * GAP);
+    const [x, y] = at(a);
+    tokenG.setAttribute("transform", `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+  }
+
+  const make = (tag, attrs, parent = svg) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    parent.append(n);
+    return n;
+  };
+  // ---------- loop: faint full ring, four arrowed arcs, stage nodes, the token
+  const defs = make("defs", {});
+  for (const [id, c] of [["m", C.muted], ["a", C.accent]]) {
+    const m = make("marker", { id: `s05-${id}`, viewBox: "0 0 10 10", refX: 6, refY: 5, markerWidth: 4.5, markerHeight: 4.5, orient: "auto" }, defs);
+    make("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+  }
+  make("circle", { cx: O.x, cy: O.y, r: O.r + 46, fill: C.surface, "fill-opacity": 0.55, stroke: C.line, "stroke-width": 1.5 });
+  make("circle", { cx: O.x, cy: O.y, r: O.r - 46, fill: "none", stroke: C.line, "stroke-width": 1.5, "stroke-dasharray": "2 8" });
+  const arcs = STAGES.map((s) => {
+    const [x0, y0] = at(s.deg + GAP), [x1, y1] = at(s.deg + 90 - GAP);
+    return make("path", { d: `M${x0},${y0} A${O.r},${O.r} 0 0 1 ${x1},${y1}`, fill: "none", stroke: C.muted, "stroke-width": 4, "stroke-linecap": "round", "marker-end": "url(#s05-m)" });
+  });
+  const tokenG = make("g", {});
+  make("circle", { r: 26, fill: C.accent, "fill-opacity": 0.18 }, tokenG);
+  make("circle", { r: 13, fill: C.accent, stroke: C.surface, "stroke-width": 3 }, tokenG);
+  const nodes = STAGES.map((s, k) => {
+    const [x, y] = at(s.deg);
+    const g = make("g", { transform: `translate(${x},${y})` });
+    const disc = make("circle", { r: NODE, fill: C.surface, stroke: C.text, "stroke-width": 2.5 }, g);
+    const num = make("text", { class: "num", "text-anchor": "middle", "dominant-baseline": "central" }, g);
+    num.textContent = `0${k + 1}`;
+    return { disc, num };
+  });
+  const labs = STAGES.map((s) => {
+    const [x, y] = at(s.deg);
+    const left = x < O.x;
+    const d = document.createElement("div");
+    d.className = `lab ${left ? "left" : ""}`;
+    d.style.left = `${left ? x - NODE - 22 - 230 : x + NODE + 22}px`;
+    d.style.top = `${y}px`;
+    d.innerHTML = `<b>${s.name}</b><span>${s.hours}</span>`;
+    el.querySelector(".labels").append(d);
+    return d;
+  });
+
+  // ---------- the jar: starter level, bubbles, the band marking the fed level, the high-water mark
+  const J = { x: 1190, w: 220, bottom: 900, top: 400, base: 150 };
+  const clip = make("clipPath", { id: "s05-jar" }, defs);
+  make("rect", { x: J.x, y: J.top, width: J.w, height: J.bottom - J.top, rx: 26 }, clip);
+  const inside = make("g", { "clip-path": "url(#s05-jar)" });
+  const fill = make("rect", { x: J.x, y: J.bottom - J.base, width: J.w, height: J.base + 40, fill: C.accent3, "fill-opacity": 0.28 }, inside);
+  const dome = make("path", { d: "", fill: C.accent3, "fill-opacity": 0.28 }, inside);
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const bubbles = Array.from({ length: 46 }, () => ({ u: rand(), v: rand(), r: 3 + rand() * 7 }));
+  const bubbleEls = bubbles.map((b) => make("circle", { r: b.r, fill: "none", stroke: C.accent3, "stroke-width": 2, opacity: 0 }, inside));
+  const mark = make("line", { x1: J.x + 8, x2: J.x + J.w - 8, stroke: C.accent3, "stroke-width": 3, "stroke-dasharray": "6 6", opacity: 0 });
+  make("rect", { x: J.x, y: J.top, width: J.w, height: J.bottom - J.top, rx: 26, fill: "none", stroke: C.text, "stroke-width": 3 });
+  make("rect", { x: J.x - 10, y: J.top - 34, width: J.w + 20, height: 34, rx: 6, fill: C.text });
+  make("rect", { x: J.x - 4, y: J.bottom - J.base - 7, width: J.w + 8, height: 10, rx: 3, fill: C.accent2 });
+  const level = { vol: 1, fizz: 0, peak: 0 };
+  function drawJar() {
+    const h = J.base * level.vol, y = J.bottom - h, bulge = 26 * level.fizz;
+    fill.setAttribute("y", y);
+    fill.setAttribute("height", J.bottom - y);
+    dome.setAttribute("d", `M${J.x},${y} Q${J.x + J.w / 2},${y - bulge * 2} ${J.x + J.w},${y} Z`);
+    bubbles.forEach((b, k) => {
+      bubbleEls[k].setAttribute("cx", J.x + 14 + b.u * (J.w - 28));
+      bubbleEls[k].setAttribute("cy", J.bottom - 10 - b.v * (h - 20));
+      bubbleEls[k].setAttribute("opacity", b.v < level.fizz ? 0.85 : 0);
+    });
+    mark.setAttribute("y1", J.bottom - J.base * 2);
+    mark.setAttribute("y2", J.bottom - J.base * 2);
+    mark.setAttribute("opacity", level.peak);
+  }
+
+  api.onFrame(placeToken);
+  const vTime = el.querySelector(".v-time"), vVol = el.querySelector(".v-vol"), caption = el.querySelector(".caption");
+  const dur = api.reducedMotion ? 0 : 1;
+
+  return {
+    steps: STAGES.length,
+    step(i) {
+      const st = STAGES[i];
+      token.active = i;
+      placeToken(0);
+      STAGES.forEach((s, k) => {
+        const on = k === i;
+        nodes[k].disc.setAttribute("fill", on ? C.accent : C.surface);
+        nodes[k].disc.setAttribute("stroke", on ? C.accent : C.text);
+        nodes[k].num.classList.toggle("on", on);
+        labs[k].classList.toggle("on", on);
+        arcs[k].setAttribute("stroke", on ? C.accent : C.muted);
+        arcs[k].setAttribute("stroke-width", on ? 6 : 4);
+        arcs[k].setAttribute("marker-end", `url(#s05-${on ? "a" : "m"})`);
+      });
+      gsap.to(level, { vol: st.vol, fizz: [0.1, 0.55, 1, 0.3][i], peak: i === 3 ? 1 : 0, duration: 1.2 * dur, ease: "power2.inOut", overwrite: true, onUpdate: drawJar });
+      drawJar();
+      vTime.textContent = st.time;
+      vVol.textContent = `×${st.vol.toFixed(1)}`;
+      caption.textContent = st.text;
+      gsap.fromTo([caption, vTime, vVol], { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5 * dur, stagger: 0.05 });
+    },
+  };
+});
+</script>

@@ -1,10 +1,10 @@
 // The one LLM client every agent goes through: tool-forced structured output (Zod-validated) and plain text,
 // via the local claude-openai proxy (Anthropic Messages passthrough). Ported and simplified from feat/harness.
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic, { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from "@anthropic-ai/sdk";
-import type { z } from "zod";
+import { z } from "zod";
 import { toJsonSchema } from "./agents/json-schema.ts";
 
 export const MODELS = { opus: "claude-opus-5-5", sonnet: "claude-sonnet-5-5" } as const;
@@ -52,7 +52,15 @@ export type ToolCallOpts<S extends z.ZodTypeAny> = CallBase & {
   validationRetries?: number;
 };
 
-export type CallRecord = { label: string; model: string; ms: number; usage: Usage; attempts: number };
+export type CallRecord = {
+  label: string;
+  model: string;
+  ms: number;
+  usage: Usage;
+  attempts: number;
+  /** Why each earlier round of this call was rejected (schema/check problems fed back to the model), when any. */
+  problems?: string[];
+};
 export type ToolResult<T> = CallRecord & { data: T };
 export type TextResult = CallRecord & { text: string };
 
@@ -229,6 +237,8 @@ export function createLlm(o: LlmOptions): Llm {
       const messages: WireMessage[] = [{ role: "user", content: userContent(c.user) }];
       let usage = ZERO_USAGE;
       let attempts = 0;
+      const problems: string[] = [];
+      const rec = (): CallRecord => ({ label: c.label, model: c.model, ms: Date.now() - started, usage, attempts, ...(problems.length ? { problems } : {}) });
       // Retries (one by default) with the validation error fed back as a tool_result.
       const rounds = 1 + (c.validationRetries ?? 1);
       for (let round = 1; round <= rounds; round++) {
@@ -252,15 +262,17 @@ export function createLlm(o: LlmOptions): Llm {
           : res.stop_reason === "max_tokens"
             ? `output was cut off at max_tokens (${req.max_tokens}); be more concise`
             : undefined;
-        const parsed = call && !problem ? c.tool.schema.safeParse(call.input) : undefined;
+        const parsed = call && !problem ? parseLenient(c.tool.schema, call.input) : undefined;
         if (parsed?.success) {
-          const rec = { label: c.label, model: c.model, ms: Date.now() - started, usage, attempts };
-          o.onCall?.(rec);
-          return { ...rec, data: parsed.data };
+          const r = rec();
+          o.onCall?.(r);
+          return { ...r, data: parsed.data };
         }
         const why = problem ?? formatZodError(parsed!.error);
+        problems.push(why.slice(0, 400) + (parsed ? snippets(parsed.error, call!.input) : ""));
+        dumpInvalid(c.label, round, call?.input);
         if (round === rounds) {
-          o.onCall?.({ label: c.label, model: c.model, ms: Date.now() - started, usage, attempts });
+          o.onCall?.(rec());
           throw new LlmError(`${c.label}: invalid ${c.tool.name} output after ${rounds - 1 === 1 ? "a retry" : `${rounds - 1} retries`}: ${why}`);
         }
         if (call) {
@@ -330,6 +342,156 @@ function toUsage(res: WireResponse): Usage {
     cacheRead: res.usage.cache_read_input_tokens ?? 0,
     cacheWrite: res.usage.cache_creation_input_tokens ?? 0,
   };
+}
+
+// A parameter runs to its closing tag, the next parameter, or the end of the text (models often drop the last closing tag).
+const PARAM = /<parameter\s+name="([^"]+)">([\s\S]*?)(?=<\/parameter>|<parameter\s+name=|$)/g;
+
+/**
+ * An object that arrived as text: JSON, or the `<parameter name="k">v</parameter>` form some models fall back to for
+ * nested objects (values are JSON when they look like it, nested parameters, numbers, booleans, else the text).
+ */
+export function parseStringObject(text: string): unknown {
+  const t = text.trim();
+  if (t.startsWith("{") || t.startsWith("[")) {
+    try {
+      return JSON.parse(t);
+    } catch {
+      /* fall through */
+    }
+  }
+  if (!/<parameter\s+name=/.test(t)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const m of t.matchAll(PARAM)) out[m[1]!] = parseParamValue(m[2]!);
+  return Object.keys(out).length ? out : undefined;
+}
+
+function parseParamValue(raw: string): unknown {
+  const v = raw.trim();
+  if (/<parameter\s+name=/.test(v)) return parseStringObject(v) ?? v;
+  if (v.startsWith("{") || v.startsWith("[")) {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  if (v === "true" || v === "false") return v === "true";
+  if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  return v;
+}
+
+/**
+ * Validates a tool call's input. Models sometimes return a nested object as text (JSON, or `<parameter>` tags); when
+ * that is the only kind of problem, the strings are parsed in place and validation runs once more, with no model call.
+ */
+export function parseLenient<S extends z.ZodTypeAny>(schema: S, input: unknown): z.SafeParseReturnType<unknown, z.infer<S>> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return schema.safeParse(input);
+  const copy = structuredClone(input) as Record<string, unknown>;
+  let result = schema.safeParse(copy);
+  // Even a passing parse may have dropped hoisted fields as unknown keys, so the repair loop runs at least once.
+  // Each pass parses objects that arrived as text and pulls hoisted fields back in (a non-recursive tool-call parser,
+  // like the proxy's, leaves a nested object's later fields at an enclosing level); it stops when nothing changes.
+  for (let pass = 0; pass < 6; pass++) {
+    if (pass > 0) result = schema.safeParse(copy);
+    let changed = false;
+    for (const issue of result.success ? [] : result.error.issues) {
+      if (issue.code !== "invalid_type" || issue.path.length === 0) continue;
+      const key = issue.path.at(-1)!;
+      const parent = at(copy, issue.path.slice(0, -1)) as Record<string | number, unknown> | undefined;
+      if (!parent || typeof parent !== "object") continue;
+      if (issue.expected === "object" && issue.received === "string") {
+        const parsed = parseStringObject(parent[key] as string);
+        if (parsed !== undefined) {
+          parent[key] = parsed;
+          changed = true;
+        }
+      } else if (issue.received === "undefined" && issue.path.length >= 2) {
+        for (let depth = issue.path.length - 2; depth >= 0; depth--) {
+          const level = at(copy, issue.path.slice(0, depth)) as Record<string | number, unknown> | undefined;
+          if (level && typeof level === "object" && key in level) {
+            parent[key] = level[key];
+            delete level[key];
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    // Fields a non-recursive parser hoisted to the top level that only a nested object's shape knows: move them in.
+    for (const [key, value] of Object.entries(copy)) {
+      if (topKeys(schema).has(key)) continue;
+      const home = nestedHome(schema, key);
+      if (!home) continue;
+      const target = at(copy, home) as Record<string, unknown> | undefined;
+      if (target && typeof target === "object" && !(key in target)) {
+        target[key] = value;
+        delete copy[key];
+        changed = true;
+      }
+    }
+    if (!changed) return result;
+  }
+  return schema.safeParse(copy);
+}
+
+/** The object schema under effects/optional/default wrappers, or undefined. */
+function objectOf(schema: z.ZodTypeAny): z.ZodObject<z.ZodRawShape> | undefined {
+  let s: z.ZodTypeAny = schema;
+  for (let i = 0; i < 6; i++) {
+    if (s instanceof z.ZodObject) return s as z.ZodObject<z.ZodRawShape>;
+    const inner = (s as { _def?: { schema?: z.ZodTypeAny; innerType?: z.ZodTypeAny } })._def;
+    const next = inner?.schema ?? inner?.innerType;
+    if (!next) return undefined;
+    s = next;
+  }
+  return undefined;
+}
+
+const topKeys = (schema: z.ZodTypeAny): Set<string> => new Set(Object.keys(objectOf(schema)?.shape ?? {}));
+
+/** The path of the first nested object field (depth ≤ 3) whose shape has `key`. */
+function nestedHome(schema: z.ZodTypeAny, key: string, path: string[] = [], depth = 0): string[] | undefined {
+  const obj = objectOf(schema);
+  if (!obj || depth > 3) return undefined;
+  for (const [field, sub] of Object.entries(obj.shape)) {
+    const subObj = objectOf(sub as z.ZodTypeAny);
+    if (!subObj) continue;
+    if (key in subObj.shape) return [...path, field];
+    const deeper = nestedHome(sub as z.ZodTypeAny, key, [...path, field], depth + 1);
+    if (deeper) return deeper;
+  }
+  return undefined;
+}
+
+function at(root: unknown, path: (string | number)[]): unknown {
+  let node = root;
+  for (const key of path) node = (node as Record<string | number, unknown> | undefined)?.[key];
+  return node;
+}
+
+/** DF_DUMP_INVALID=<dir>: every rejected tool input is written there as JSON, for diagnosing a model's output shape. */
+function dumpInvalid(label: string, round: number, input: unknown): void {
+  const dir = process.env.DF_DUMP_INVALID;
+  if (!dir || input === undefined) return;
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${label.replace(/[^\w.-]+/g, "_")}-r${round}.json`), JSON.stringify(input, null, 2));
+  } catch {
+    /* diagnostics only */
+  }
+}
+
+/** For the journal: the start of each value that arrived with the wrong type, so a recurring shape problem can be seen. */
+function snippets(err: z.ZodError, input: unknown): string {
+  const out: string[] = [];
+  for (const i of err.issues.slice(0, 3)) {
+    if (i.code !== "invalid_type") continue;
+    let node: unknown = input;
+    for (const key of i.path) node = (node as Record<string | number, unknown> | undefined)?.[key];
+    if (node !== undefined) out.push(`${i.path.join(".")}=${JSON.stringify(node).slice(0, 160)}`);
+  }
+  return out.length ? ` [got: ${out.join("; ")}]` : "";
 }
 
 export function formatZodError(err: z.ZodError): string {

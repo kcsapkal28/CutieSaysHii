@@ -15,7 +15,7 @@ export type ForgeEvent =
   /** A stage failed; its outputs were not written. The error is also thrown to the caller. */
   | { type: "stage:error"; stage: Stage; error: string }
   /** One LLM call completed (`label` is the agent, e.g. "storyboarder" or "builder:s03"). */
-  | { type: "usage"; stage: Stage | "revise"; label: string; model: string; ms: number; usage: Usage }
+  | { type: "usage"; stage: Stage | "revise"; label: string; model: string; ms: number; usage: Usage; problems?: string[] }
   /** Outline, first pass: the arc is planned (slide ids and points); the cards are written next. */
   | { type: "outline:arc"; title: string; sections: number; slides: { id: string; point: string }[] }
   /** Outline, second pass: one slide's card is written (`done` of `total`; cards finish in any order). */
@@ -67,7 +67,7 @@ export function meteredLlm(llm: Llm, stage: Stage | "revise", onEvent: OnEvent):
   const record = (r: CallRecord) => {
     usage = addUsage(usage, r.usage);
     calls++;
-    onEvent({ type: "usage", stage, label: r.label, model: r.model, ms: r.ms, usage: r.usage });
+    onEvent({ type: "usage", stage, label: r.label, model: r.model, ms: r.ms, usage: r.usage, ...(r.problems ? { problems: r.problems } : {}) });
   };
   return {
     llm: {

@@ -70,3 +70,14 @@ describe("per-card context", () => {
     expect(slim.size).toBeLessThan(13_000);
   });
 });
+
+describe("parseSteps", () => {
+  it("turns 'beat — motion' lines into step objects", async () => {
+    const { parseSteps } = await import("../src/agents/outliner.ts");
+    expect(parseSteps("1. Tokens reach the gate — slide right, 0.8 s\n- All gates lit | none\nPlain beat")).toEqual([
+      { beat: "Tokens reach the gate", motion: "slide right, 0.8 s" },
+      { beat: "All gates lit", motion: "none" },
+      { beat: "Plain beat", motion: "none" },
+    ]);
+  });
+});

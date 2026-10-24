@@ -134,3 +134,70 @@ describe("toJsonSchema", () => {
     });
   });
 });
+
+describe("parseLenient", () => {
+  const schema = z.object({ title: z.string(), visual: z.object({ concept: z.string(), interaction: z.object({ kind: z.string() }) }) });
+  it("parses a nested object that arrived as a JSON string, once, without a model call", async () => {
+    const { parseLenient } = await import("../src/llm.ts");
+    const r = parseLenient(schema, { title: "t", visual: JSON.stringify({ concept: "c", interaction: { kind: "none" } }) });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.visual.interaction.kind).toBe("none");
+    // Nested one level deeper too.
+    const r2 = parseLenient(schema, { title: "t", visual: { concept: "c", interaction: JSON.stringify({ kind: "drag" }) } });
+    expect(r2.success && r2.data.visual.interaction.kind).toBe("drag");
+    // A string that isn't JSON, or other problems, still fail with the original error.
+    expect(parseLenient(schema, { title: "t", visual: "not json" }).success).toBe(false);
+    expect(parseLenient(schema, { visual: JSON.stringify({ concept: "c", interaction: { kind: "none" } }) }).success).toBe(false);
+  });
+});
+
+describe("parseStringObject", () => {
+  it("reads the <parameter> form models fall back to for nested objects", async () => {
+    const { parseLenient, parseStringObject } = await import("../src/llm.ts");
+    const text = '\n<parameter name="concept">A big number.</parameter>\n<parameter name="interaction">{"kind":"none","description":""}</parameter>\n<parameter name="steps">[{"beat":"Count up","motion":"tween"}]</parameter>\n<parameter name="count">3</parameter>\n<parameter name="live">true</parameter>';
+    expect(parseStringObject(text)).toEqual({ concept: "A big number.", interaction: { kind: "none", description: "" }, steps: [{ beat: "Count up", motion: "tween" }], count: 3, live: true });
+    const schema = z.object({ visual: z.object({ concept: z.string(), interaction: z.object({ kind: z.string() }) }) });
+    const r = parseLenient(schema, { visual: text });
+    expect(r.success && r.data.visual.interaction.kind).toBe("none");
+    expect(parseStringObject("plain prose")).toBeUndefined();
+  });
+});
+
+describe("parseStringObject without closing tags", () => {
+  it("reads parameters that run to the next parameter or the end", async () => {
+    const { parseStringObject } = await import("../src/llm.ts");
+    expect(parseStringObject('<parameter name="a">one\n<parameter name="b">{"k":1}')).toEqual({ a: "one", b: { k: 1 } });
+  });
+});
+
+describe("parseLenient repairs a flattened nested object", () => {
+  it("pulls the nested object's hoisted fields back in (the proxy's non-recursive parameter parsing)", async () => {
+    const { parseLenient } = await import("../src/llm.ts");
+    const schema = z.object({
+      title: z.string(),
+      visual: z.object({ concept: z.string(), layout: z.string(), interaction: z.object({ kind: z.string(), description: z.string() }), steps: z.array(z.object({ beat: z.string() })) }),
+    });
+    const input = {
+      title: "t",
+      visual: '\n<parameter name="concept">A route map.',
+      layout: "Title left, map right.",
+      interaction: '\n<parameter name="kind">none',
+      description: "",
+      steps: [{ beat: "Draw the route" }],
+    };
+    const r = parseLenient(schema, input);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual({ title: "t", visual: { concept: "A route map.", layout: "Title left, map right.", interaction: { kind: "none", description: "" }, steps: [{ beat: "Draw the route" }] } });
+    // A truly missing field still fails.
+    expect(parseLenient(schema, { ...input, layout: undefined }).success).toBe(false);
+  });
+});
+
+describe("parseLenient moves hoisted optional fields home", () => {
+  it("puts a top-level field that only a nested shape knows back into that object", async () => {
+    const { parseLenient } = await import("../src/llm.ts");
+    const schema = z.object({ title: z.string(), visual: z.object({ concept: z.string(), data: z.string().optional(), simulation: z.object({ model: z.string(), controls: z.array(z.string()) }).optional() }) });
+    const r = parseLenient(schema, { title: "t", visual: { concept: "c" }, data: "A: 1; B: 2", simulation: '\n<parameter name="model">x = y + 1', controls: ["phase"] });
+    expect(r.success && r.data.visual).toEqual({ concept: "c", data: "A: 1; B: 2", simulation: { model: "x = y + 1", controls: ["phase"] } });
+  });
+});

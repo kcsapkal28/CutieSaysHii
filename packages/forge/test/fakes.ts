@@ -154,10 +154,7 @@ export const cardOut = (id = "s01", visual: Record<string, unknown> = {}) => ({
     why: "Shows cancellation directly.",
     layout: "Wave centre, title top-left.",
     interaction: { kind: "slider", description: "Drag phase." },
-    steps: [
-      { beat: "Noise wave", motion: "draw" },
-      { beat: "Anti-noise added", motion: "fade" },
-    ],
+    steps: "Noise wave — draw\nAnti-noise added — fade",
     simulation: { model: "sum of two sines", controls: ["phase"], readouts: ["residual dB"] },
     reducedMotion: "Both waves and the flat sum.",
     entry: "The noise wave alone.",

@@ -12,6 +12,7 @@ import type { Style } from "../contract.ts";
 import { designBrief, designStyle } from "../design-styles.ts";
 import { LlmError, MODELS, type Llm } from "../llm.ts";
 import { OUTLINE_DEFAULTS } from "../pipeline/config.ts";
+import { EXPLAINER_TECHNIQUES } from "./exemplars.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
 import { Explainer, Object3d, Outline, ROLES, ScriptSlide, Storyboard, StoryboardSlide, Visual, type Brief, type OutlineSlide } from "./schemas.ts";
 
@@ -181,8 +182,26 @@ export function arcProblems(slides: (Omit<ArcSlide, "facts"> & { id: string })[]
 export const arcSlides = (arc: ArcDraft) =>
   arc.sections.flatMap((s, sectionIndex) => s.slides.map((sl) => ({ ...sl, section: s.name, sectionIndex }))).map((s, i) => ({ ...s, id: slideId(i + 1) }));
 
+/** An explainer name written where a catalogue id belongs ("animated-diagram") becomes that explainer's usual technique. */
+export function aliasTechniques(arc: ArcDraft): ArcDraft {
+  return {
+    ...arc,
+    sections: arc.sections.map((sec) => ({
+      ...sec,
+      slides: sec.slides.map((s) => ({
+        ...s,
+        technique: s.technique
+          .split(/[\s,+/]+/)
+          .filter(Boolean)
+          .map((t) => (t in EXPLAINER_TECHNIQUES ? EXPLAINER_TECHNIQUES[t as keyof typeof EXPLAINER_TECHNIQUES][0]! : t))
+          .join(", "),
+      })),
+    })),
+  };
+}
+
 export function arcSchema(style: Style, techniqueIds: string[] = []) {
-  return ArcDraft.superRefine((arc, ctx) => {
+  return ArcDraft.transform(aliasTechniques).superRefine((arc, ctx) => {
     for (const message of arcProblems(arcSlides(arc), style, techniqueIds)) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
   });
 }
@@ -191,6 +210,18 @@ export function arcSchema(style: Style, techniqueIds: string[] = []) {
 
 /** Hard caps on a card's fields, generous next to the guidance in the descriptions: past them the card is sent back. */
 export const CARD_LIMITS = { titleChars: 90, calloutChars: 60, callouts: 10, notesWords: 220, conceptChars: 1000, beatChars: 300 };
+
+/** "beat — motion" lines (also "–", "|" or "::" as the separator; a line without one has motion "none") → step objects. */
+export function parseSteps(text: string): { beat: string; motion: string }[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = /^(.*?)\s+(?:—|–|\||::)\s+(.*)$/.exec(l);
+      return m ? { beat: m[1]!.trim(), motion: m[2]!.trim() || "none" } : { beat: l, motion: "none" };
+    });
+}
 
 const oneSentence = (what: string) => z.string().describe(`${what}, in one sentence.`);
 
@@ -207,16 +238,13 @@ const CardVisual = Visual.omit({ explainer: true, technique: true }).extend({
     kind: StoryboardSlide.shape.interaction.shape.kind,
     description: z.string().describe("One sentence: what the viewer does and what visibly changes. Empty when kind is none."),
   }),
+  // Text, not an array of objects: nested object arrays get flattened on the way back from the model.
   steps: z
-    .array(
-      z.object({
-        beat: z.string().describe("The on-screen state at this step, as one short phrase (under about 140 characters)."),
-        motion: z.string().describe('A few words, e.g. "tokens slide right, 0.8 s" or "none".'),
-      }),
+    .string()
+    .describe(
+      '1–6 presenter clicks, ONE PER LINE, each as "beat — motion": the beat is the on-screen state at that step as one short phrase (under about 140 characters, reachable in any order), the motion a few words, e.g. "Tokens reach the gate — tokens slide right, 0.8 s" or "All five gates lit — none".',
     )
-    .min(1)
-    .max(6)
-    .describe("1–6 presenter clicks; each a state reachable in any order."),
+    .transform(parseSteps),
   object3d: Object3d.optional().describe("For 3d-object slides: 4–10 parts, every field a short phrase."),
   simulation: z
     .object({
@@ -258,6 +286,7 @@ export function cardProblems(slide: { id: string; explainer: string }, card: Car
   const words = card.notes.trim().split(/\s+/).filter(Boolean).length;
   if (words > L.notesWords) problems.push(`${id}: the notes are ${words} words; keep them to 160 at most`);
   if (v.concept.length > L.conceptChars) problems.push(`${id}: visual.concept is ${v.concept.length} characters; keep it to 2–4 sentences (about 600 characters)`);
+  if (v.steps.length < 1 || v.steps.length > 6) problems.push(`${id}: visual.steps has ${v.steps.length} lines; give 1–6 steps, one per line`);
   v.steps.forEach((s, i) => {
     if (s.beat.length > L.beatChars) problems.push(`${id}: visual.steps.${i}.beat is ${s.beat.length} characters; make each beat one short phrase`);
   });

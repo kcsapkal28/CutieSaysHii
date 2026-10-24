@@ -46,7 +46,7 @@ describe("run journal", () => {
     expect(new Set(lines.map((l) => l.run)).size).toBe(1);
     expect(lines.every((l) => !Number.isNaN(Date.parse(l.at)) && l.at.endsWith("Z"))).toBe(true);
     expect(new Set(lines.map((l) => l.type))).toEqual(
-      new Set(["stage:start", "stage:done", "usage", "outline:arc", "outline:card", "slide:round", "slide:shots", "slide:verdict", "slide:done", "deck:done"]),
+      new Set(["stage:start", "stage:done", "usage", "outline:arc", "outline:card", "slide:precheck", "slide:round", "slide:shots", "slide:verdict", "slide:done", "deck:done"]),
     );
     const usage = lines.find((l) => l.type === "usage" && String(l.label).startsWith("builder"))!;
     expect(usage).toMatchObject({ stage: "build", label: "builder:s01", model: MODELS.sonnet, usage: { input: 100, output: 10, cacheRead: 0, cacheWrite: 0 } });

@@ -273,7 +273,7 @@ describe("build fix loop", () => {
     await runAll(project, { auto: true, ...opts() });
     const build = JSON.parse(readFileSync(join(project.dir, "build.json"), "utf8"));
     expect(build.slides[0].rounds.map((r: { verdict?: string; precheck?: { kinds: string[] } }) => r.verdict ?? r.precheck?.kinds)).toEqual([["console-error"], "pass"]);
-    expect(llm.requests.filter((r) => toolOf(r) === "review_slide")).toHaveLength(IDS.length);
+    expect(llm.requests.filter((r) => toolOf(r) === "review_slide")).toHaveLength(2);
   });
 
   it("uses a placeholder when every round fails to build", async () => {
@@ -308,7 +308,7 @@ const criticCalls = (id = "s01") => llm.requests.filter((r) => toolOf(r) === "re
 
 describe("deterministic pre-check in the build loop", () => {
   it("skips the critic on a measured failure and sends the measured facts to the builder", async () => {
-    await upToStoryboard();
+    await upToOutline();
     engine = fakeEngine({ findings: (f) => (f.includes("/s01/r1/") ? [clipped, tiny] : []) });
     const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
 
@@ -337,7 +337,7 @@ describe("deterministic pre-check in the build loop", () => {
   });
 
   it("does not use up a critic round, and caps the extra attempts", async () => {
-    await upToStoryboard();
+    await upToOutline();
     engine = fakeEngine({ findings: () => [clipped] });
     const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
 
@@ -361,7 +361,7 @@ describe("deterministic pre-check in the build loop", () => {
   });
 
   it("ranks any critic-reviewed attempt above a pre-check failure", async () => {
-    await upToStoryboard();
+    await upToOutline();
     engine = fakeEngine({ findings: (f) => (f.includes("/s01/r1/") || f.includes("/s01/r3/") ? [clipped] : []) });
     llm = fakeLlm(
       handlers({
@@ -378,7 +378,7 @@ describe("deterministic pre-check in the build loop", () => {
   });
 
   it("passes a clean slide to the critic as before, with warnings as measured context", async () => {
-    await upToStoryboard();
+    await upToOutline();
     engine = fakeEngine({ findings: () => [tiny] });
     const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
 

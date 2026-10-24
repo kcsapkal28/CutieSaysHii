@@ -23,6 +23,11 @@ const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const PHASE_TEXT = { build: "builder is writing the slide", bundle: "bundling a one-slide preview", shoot: "taking screenshots of every step", critic: "critic is reviewing the screenshots" } as const;
 
+/** One LLM call's forge usage as the Studio shows it (cache tokens count as input). */
+export function studioUsage(model: string, u: ForgeUsage): Usage {
+  return { inputTokens: u.input + u.cacheRead + u.cacheWrite, outputTokens: u.output, costUsd: cost(model, u) };
+}
+
 const isStage = (s: string): s is StageName => (STAGES as readonly string[]).includes(s);
 
 /**

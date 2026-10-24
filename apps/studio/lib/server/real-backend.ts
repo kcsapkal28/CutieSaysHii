@@ -10,13 +10,15 @@ import type { ForgeEvent, Outline as FOutline, Script as FScript, Storyboard as 
 import type { Style } from "@deckforge/forge";
 import { NotFound, type DeckRef, type RunOptions, type StudioBackend } from "../backend";
 import type { PipelineEvent } from "../events";
-import { createForgeEventAdapter } from "../pipeline-adapter";
+import { createForgeEventAdapter, studioUsage } from "../pipeline-adapter";
 import {
   STAGES,
   type Brief,
   type Outline,
   type Project,
   type ProjectSummary,
+  type ResearchRefineRequest,
+  type ResearchRefineResult,
   type Script,
   type SlideBuildState,
   type StageFileName,
@@ -345,6 +347,17 @@ export class RealBackend implements StudioBackend {
       return { style, rationale };
     } catch (e) {
       throw new Error(friendly((e as Error).message));
+    }
+  }
+
+  async refineResearch(id: string, req: ResearchRefineRequest): Promise<ResearchRefineResult> {
+    const project = this.fp(id);
+    const f = await pipeline();
+    try {
+      const r = await f.refineResearch(f.createProxyLlm(), { brief: f.loadBrief(project), ...req }, { model: f.DEFAULT_MODELS.researcher });
+      return { answer: r.answer, passage: r.passage, replacement: r.replacement, changed: r.changed, model: r.model, usage: studioUsage(r.model, r.usage) };
+    } catch (e) {
+      throw new Error(friendly((e as Error).message), { cause: e });
     }
   }
 

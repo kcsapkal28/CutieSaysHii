@@ -2,6 +2,7 @@ export { builderSchema, builderSystem, builderUser, runBuilder, type BuildFix, t
 export * from "./contrast.ts";
 export * from "./critic.ts";
 export * from "./exemplars.ts";
+export * from "./research-refiner.ts";
 export * from "./researcher.ts";
 export * from "./schemas.ts";
 export * from "./scriptwriter.ts";

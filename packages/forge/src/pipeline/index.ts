@@ -20,6 +20,8 @@ export type { AgentName } from "./config.ts";
 export { createSharedEngine } from "./shared-engine.ts";
 export { deckConfig } from "./build.ts";
 export { runStylist } from "../agents/stylist.ts";
+export { refineResearch, researchSection } from "../agents/research-refiner.ts";
+export type { RefineInput, RefineResult } from "../agents/research-refiner.ts";
 export { createLlm, createProxyLlm, loadLlmEnv, MODELS, LlmError } from "../llm.ts";
 export type { Llm, Usage, CallRecord, Transport } from "../llm.ts";
 export type { StylePrefs, Brief, Outline, Script, Storyboard } from "../agents/schemas.ts";

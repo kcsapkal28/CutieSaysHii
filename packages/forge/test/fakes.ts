@@ -1,6 +1,6 @@
 // Test doubles: a scripted LLM transport (routes by tool name) and an in-memory Engine.
 import { writeFileSync } from "node:fs";
-import type { Engine, ShootResult } from "../src/contract.ts";
+import type { Engine, Finding, ShootResult } from "../src/contract.ts";
 import { createLlm, type Llm, type WireRequest, type WireResponse } from "../src/llm.ts";
 
 export type Handler = (req: WireRequest, call: number) => unknown;
@@ -37,7 +37,13 @@ export const PNG = Buffer.from(
 export type FakeEngine = Engine & { bundles: { outFile: string; ids: string[] }[]; shoots: string[] };
 
 export function fakeEngine(
-  opts: { steps?: number; errors?: (deckFile: string) => string[]; bundleError?: (outFile: string) => Error | undefined } = {},
+  opts: {
+    steps?: number;
+    errors?: (deckFile: string) => string[];
+    bundleError?: (outFile: string) => Error | undefined;
+    /** Pre-check findings per shoot (for every slide shot); none by default. */
+    findings?: (deckFile: string) => Finding[];
+  } = {},
 ): FakeEngine {
   const bundles: FakeEngine["bundles"] = [];
   const shoots: string[] = [];
@@ -59,6 +65,7 @@ export function fakeEngine(
         steps: Object.fromEntries(ids.map((id) => [id, steps])),
         errors: Object.fromEntries(ids.map((id) => [id, opts.errors?.(deckFile) ?? []])),
         externalRequests: [],
+        ...(opts.findings ? { findings: Object.fromEntries(ids.map((id) => [id, opts.findings!(deckFile)])) } : {}),
       };
     },
   };

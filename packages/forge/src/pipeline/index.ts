@@ -21,6 +21,7 @@ export { DEFAULT_MODELS, BUILD_DEFAULTS, OUTLINE_DEFAULTS } from "./config.ts";
 export { migrateProject, mergeLegacy } from "./migrate.ts";
 export type { Migration } from "./migrate.ts";
 export { toScript, toStoryboard, outlineSlides } from "../agents/schemas.ts";
+export type { PrecheckKind } from "./precheck.ts";
 export type { AgentName } from "./config.ts";
 export { createSharedEngine } from "./shared-engine.ts";
 export { deckConfig } from "./build.ts";

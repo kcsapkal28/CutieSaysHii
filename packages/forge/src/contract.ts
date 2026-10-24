@@ -84,6 +84,25 @@ export type DeckConfig = z.infer<typeof DeckConfig>;
 /** One step's screenshot from shot mode. */
 export type Shot = { slideId: string; step: number; png: Buffer };
 
+export type FindingKind = "clipped-text" | "off-canvas" | "text-overlap" | "tiny-text" | "low-contrast" | "blank-render" | "dead-canvas" | "dead-step";
+
+/**
+ * One measured problem from the deterministic pre-check (measure.ts), found in the rendered page or its screenshot.
+ * `error` findings block the vision critic; `warn` findings are passed to it as measured context.
+ */
+export type Finding = {
+  kind: FindingKind;
+  severity: "error" | "warn";
+  /** Step index (0-based) where it was first seen. */
+  step: number;
+  /** A CSS selector for the element ("#s03 .legend > span:nth-of-type(2)"), or the slide id for whole-render findings. */
+  selector: string;
+  /** One sentence for the builder, with the measured numbers. */
+  detail: string;
+  /** The raw numbers behind `detail` (JSON-serialisable). */
+  measured: Record<string, number | string | boolean>;
+};
+
 /** Result of shooting a deck in a real browser. */
 export type ShootResult = {
   shots: Shot[];
@@ -93,6 +112,8 @@ export type ShootResult = {
   errors: Record<string, string[]>;
   /** Any request that left file:/data:/about: — must be empty for a self-contained deck. */
   externalRequests: string[];
+  /** Deterministic pre-check findings per slide id (missing = none measured). */
+  findings?: Record<string, Finding[]>;
 };
 
 /** Engine ports the agent pipeline depends on (implemented in bundle.ts / shoot.ts). */

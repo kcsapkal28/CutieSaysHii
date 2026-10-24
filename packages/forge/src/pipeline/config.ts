@@ -23,6 +23,11 @@ export const BUILD_DEFAULTS = {
   /** Escalate the last fix attempt to `builderEscalation` when the final critique has a high-severity issue. */
   escalate: true,
   /**
+   * Extra builder attempts per slide for rounds whose deterministic pre-check finds hard failures (the critic is
+   * skipped for those). They don't use up one of the `maxRounds`; once spent, a failing pre-check uses a round.
+   */
+  precheckRetries: 2,
+  /**
    * Builder thinking on draft/fix rounds. "off" measured 50 s / 9k output tokens for a slide that took 3–7 min and
    * 30–60k tokens with the model's adaptive thinking (often hitting max_tokens). The escalated Opus round thinks.
    */

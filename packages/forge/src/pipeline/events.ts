@@ -2,6 +2,7 @@
 // Every event is a plain JSON-serialisable object discriminated by `type`.
 import type { CallRecord, Llm, Usage } from "../llm.ts";
 import { addUsage, ZERO_USAGE } from "../llm.ts";
+import type { PrecheckKind } from "./precheck.ts";
 import type { Stage } from "./project.ts";
 
 export type Verdict = "pass" | "fix";
@@ -26,6 +27,12 @@ export type ForgeEvent =
   | { type: "slide:round"; id: string; round: number; phase: "build" | "bundle" | "shoot" | "critic"; model?: string; escalated?: boolean }
   /** Screenshots of a round are on disk (`files` are absolute PNG paths, one per step). */
   | { type: "slide:shots"; id: string; round: number; files: string[] }
+  /**
+   * The deterministic pre-check of a round's screenshots (after shoot, before the critic). `errors` counts hard
+   * failures (measured layout errors, console/page errors, external requests): when > 0 the critic is skipped and the
+   * findings go straight back to the builder. `kinds` names the hard failures' kinds, or the warnings' when none.
+   */
+  | { type: "slide:precheck"; id: string; round: number; errors: number; warnings: number; kinds: PrecheckKind[] }
   /** The critic's verdict on a round. `score` is 0–10 against the reference decks. */
   | { type: "slide:verdict"; id: string; round: number; verdict: Verdict; score: number; issues: number; errors: number }
   /** A round failed before review (builder output invalid, contract error at bundle time, a crash). The loop continues. */

@@ -10,7 +10,11 @@ export type ShellConfig = {
   slides: { id: string; title: string; section?: string; budgetSec?: number }[];
 };
 
-/** Called every animation frame while the slide is the visible one. `t` = seconds since enter, `dt` = seconds since last frame. */
+/**
+ * Called every animation frame while the slide is the visible one. `t` = seconds since enter, `dt` = seconds since last
+ * frame. In shot mode it runs instead in one burst per settled step: up to 120 ticks of dt = 1/60 s (fewer when a tick
+ * is slow to draw), `t` counting those ticks; then not again until the next step.
+ */
 export type FrameCallback = (t: number, dt: number) => void;
 
 export type ThreeOptions = {
@@ -55,7 +59,7 @@ export type SlideApi = {
   motion: MotionLevel;
   /** True when motion is "none" or the OS asks for reduced motion. */
   reducedMotion: boolean;
-  /** True when the deck is being screenshotted (shot mode). Show a representative, settled state. */
+  /** True when the deck is being screenshotted (shot mode). Show a representative, settled state (see FrameCallback). */
   shot: boolean;
   onFrame(cb: FrameCallback): () => void;
   /** Called with the stage scale whenever the viewport changes. */

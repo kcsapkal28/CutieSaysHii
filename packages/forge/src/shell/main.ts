@@ -24,6 +24,19 @@ const H = 1080;
 const DOCK_H = 72;
 const KEEP_ALIVE = 2; // slides further than this from the current one are disposed
 
+// Shot mode settles each step within a time budget, so a slide whose frames are slow under software rendering still
+// costs about a second per step. Every wait ends on the earlier of a few frames or a deadline, and onFrame callbacks
+// are not run on display frames: once a step has settled the shell runs them in one burst of fixed-dt ticks (cut short
+// when the burst's time budget is spent), then leaves them alone until the next step. The screenshot shows the state
+// the loop reached, rendered once.
+const SHOT_TRANSITION_MS = 250; // a step's transition, before its finite tweens are fast-forwarded
+const SHOT_STABLE_MS = 300; // late tweens (delayed calls, chains) get this long to start before the last settle
+const SHOT_PAINT_MS = 100; // the settled state's paint
+const SHOT_TICKS = 120; // onFrame ticks per step (2 s of slide time)…
+const SHOT_DT = 1 / 60; // …of this fixed dt…
+const SHOT_BURST_MS = 400; // …stopping early once a burst has taken this long
+const SHOT_LIVE_MS = 1500; // after a user interaction in shot mode, onFrame runs live for this long
+
 type Rec = {
   id: string;
   index: number;
@@ -40,6 +53,8 @@ type Rec = {
   ctx?: AnyObj;
   paused: AnyObj[];
   t0: number;
+  /** Shot mode's clock for onFrame: seconds of slide time its ticks have advanced since enter. */
+  vt: number;
 };
 
 // ---------------------------------------------------------------- errors & shot-mode globals
@@ -58,6 +73,23 @@ let booted = false;
 const params = new URLSearchParams(location.search);
 const shotId = params.get("df-shot");
 const shot = shotId !== null;
+
+// Shot mode records every canvas context the page creates: WebGL (and GPU-backed 2D) drawing is queued to the GPU
+// process and runs later, so a burst of onFrame ticks waits for each tick's drawing to finish before it checks its
+// time budget. Otherwise 120 ticks of a SwiftShader scene return at once and the screenshot pays for all of them.
+const contexts: { canvas: HTMLCanvasElement; ctx: AnyObj }[] = [];
+if (shot) {
+  const seen = new WeakSet<object>();
+  const getContext = HTMLCanvasElement.prototype.getContext as (...args: AnyObj[]) => AnyObj;
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: AnyObj[]) {
+    const ctx = getContext.apply(this, args);
+    if (ctx && !seen.has(ctx)) {
+      seen.add(ctx);
+      contexts.push({ canvas: this, ctx });
+    }
+    return ctx;
+  } as typeof HTMLCanvasElement.prototype.getContext;
+}
 
 function message(err: unknown): string {
   if (err instanceof Error) return `${err.name}: ${err.message}${err.stack ? `\n${err.stack.split("\n").slice(1, 4).join("\n")}` : ""}`;
@@ -86,10 +118,23 @@ function h(tag: string, cls = "", html = ""): HTMLElement {
   if (html) e.innerHTML = html;
   return e;
 }
-const frames = (n: number) =>
+/** Resolves after `n` animation frames or `ms` milliseconds, whichever comes first (a slow frame can't stall it). */
+const frames = (n: number, ms: number) =>
   new Promise<void>((resolve) => {
     let k = 0;
-    const tick = () => (++k >= n ? resolve() : requestAnimationFrame(tick));
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, ms);
+    const tick = () => {
+      if (done) return;
+      if (++k >= n) finish();
+      else requestAnimationFrame(tick);
+    };
     requestAnimationFrame(tick);
   });
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -102,8 +147,12 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const reducedMotion = () =>
   config.motion === "none" || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-/** Forces finite GSAP tweens and CSS/Web animations to their end state. Infinite (ambient) ones keep running. */
-function settle(): void {
+/**
+ * Forces finite GSAP tweens and CSS/Web animations to their end state. Infinite (ambient) ones keep running.
+ * Returns whether anything moved.
+ */
+function settle(): boolean {
+  let moved = false;
   const g = window.gsap;
   if (g) {
     for (let pass = 0; pass < 6; pass++) {
@@ -116,17 +165,22 @@ function settle(): void {
         }
       }
       if (!changed) break;
+      moved = true;
     }
   }
   if (typeof document.getAnimations === "function") {
     for (const a of document.getAnimations()) {
       try {
-        if (a.effect?.getComputedTiming().iterations !== Infinity && a.playState !== "finished") a.finish();
+        if (a.effect?.getComputedTiming().iterations !== Infinity && a.playState !== "finished") {
+          a.finish();
+          moved = true;
+        }
       } catch {
         /* an animation that cannot finish (e.g. zero duration, infinite) is left alone */
       }
     }
   }
+  return moved;
 }
 
 /** Runs slide code inside the slide's GSAP context so its tweens can be paused and killed with it. */
@@ -327,6 +381,7 @@ function go(index: number, step: number | "last" = 0): void {
   if (!rec.inst) create(rec);
   else resumeTweens(rec);
   rec.t0 = performance.now();
+  rec.vt = 0;
   slideStart = performance.now();
   rec.el.classList.add("df-active");
   rec.el.removeAttribute("aria-hidden");
@@ -349,24 +404,64 @@ function prev(): void {
 }
 
 // ---------------------------------------------------------------- frame loop & fit
+function runFrames(rec: Rec, t: number, dt: number): void {
+  for (const cb of rec.frames) {
+    try {
+      cb(t, dt);
+    } catch (e) {
+      report(rec.id, e);
+      rec.frames.delete(cb);
+    }
+  }
+}
+
 let last = performance.now();
+let liveUntil = 0;
 function loop(now: number): void {
   requestAnimationFrame(loop);
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   const rec = active;
   if (rec?.inst) {
-    const t = (now - rec.t0) / 1000;
-    for (const cb of rec.frames) {
-      try {
-        cb(t, dt);
-      } catch (e) {
-        report(rec.id, e);
-        rec.frames.delete(cb);
-      }
-    }
+    if (!shot) runFrames(rec, (now - rec.t0) / 1000, dt);
+    else if (now < liveUntil) runFrames(rec, (rec.vt += dt), dt);
   }
   if (timerStarted) tickTimer();
+}
+
+/**
+ * Shot mode: advances the slide's onFrame callbacks by `ticks` fixed-dt ticks in one go, stopping early once
+ * SHOT_BURST_MS have passed (at least one tick always runs), so the screenshot shows the state the loop reaches
+ * without the page rendering every intermediate frame.
+ */
+function burst(rec: Rec, ticks = SHOT_TICKS): void {
+  const start = performance.now();
+  for (let i = 0; i < ticks && rec.frames.size; i++) {
+    runFrames(rec, (rec.vt += SHOT_DT), SHOT_DT);
+    drain(rec);
+    if (performance.now() - start > SHOT_BURST_MS) break;
+  }
+}
+
+/**
+ * Blocks until the drawing queued on the slide's canvases has run: a 1-pixel read needs the finished pixels (gl.finish
+ * does not wait for SwiftShader). WebGL is read only when nothing would make the read an error: the default
+ * framebuffer bound and, in WebGL2, no pixel-pack buffer.
+ */
+const pixel = new Uint8Array(4);
+function drain(rec: Rec): void {
+  for (const { canvas, ctx } of contexts) {
+    if (!rec.el.contains(canvas)) continue;
+    try {
+      if (typeof ctx.readPixels === "function") {
+        if (ctx.isContextLost() || ctx.getParameter(ctx.FRAMEBUFFER_BINDING)) continue;
+        if (ctx.PIXEL_PACK_BUFFER_BINDING !== undefined && ctx.getParameter(ctx.PIXEL_PACK_BUFFER_BINDING)) continue;
+        ctx.readPixels(0, 0, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixel);
+      } else if (typeof ctx.getImageData === "function") ctx.getImageData(0, 0, 1, 1);
+    } catch {
+      /* a tainted canvas: nothing to wait for */
+    }
+  }
 }
 
 let hasDock = false;
@@ -617,31 +712,34 @@ async function bootShot(): Promise<void> {
     /* fonts are inlined; a failure here only affects metrics */
   }
   const want = Math.max(0, Number(params.get("step") ?? 0) || 0);
-  go(index, 0);
   const rec = recs[index]!;
-  await frames(2);
-  settle();
-  for (let i = 1; i <= Math.min(want, rec.steps - 1); i++) {
+  // One step: let its transition start, fast-forward it, then run the onFrame loop forward in one burst.
+  const enterStep = async (i: number) => {
     go(index, i);
-    await frames(2);
+    await frames(2, SHOT_TRANSITION_MS);
     settle();
-  }
-  await frames(6);
-  settle();
-  await frames(4);
+    burst(rec);
+  };
+  // Before a screenshot: tweens that start late are settled too (re-rendering onFrame scenes if anything moved).
+  const stabilise = async () => {
+    await frames(6, SHOT_STABLE_MS);
+    if (settle()) burst(rec, 1);
+    await frames(2, SHOT_PAINT_MS);
+  };
+  await enterStep(0);
+  for (let i = 1; i <= Math.min(want, rec.steps - 1); i++) await enterStep(i);
+  await stabilise();
   window.__dfSteps = rec.steps;
   window.__dfGoto = async (n: number) => {
     const target = clamp(n, 0, rec.steps - 1);
-    if (target <= rec.step) go(index, target);
-    for (let i = rec.step + 1; i <= target; i++) {
-      go(index, i);
-      await frames(2);
-      settle();
-    }
-    await frames(6);
-    settle();
-    await frames(4);
+    if (target <= rec.step) await enterStep(target);
+    for (let i = rec.step + 1; i <= target; i++) await enterStep(i);
+    await stabilise();
   };
+  // Interacting with a shot-mode page (a studio preview, a test driving a control) runs onFrame live for a moment.
+  for (const type of ["pointerdown", "input", "change", "keydown", "wheel"]) {
+    addEventListener(type, () => (liveUntil = performance.now() + SHOT_LIVE_MS), { capture: true, passive: true });
+  }
   resolveReady();
 }
 
@@ -662,7 +760,7 @@ function boot(): void {
     notesEl?.remove();
     el.setAttribute("aria-hidden", "true");
     const meta = config.slides?.find((s) => s.id === el.id) ?? { id: el.id, title: el.id };
-    return { id: el.id, index, el, html: el.innerHTML, notes, meta, steps: 1, step: 0, frames: new Set(), resizes: new Set(), cleanups: [], paused: [], t0: 0 };
+    return { id: el.id, index, el, html: el.innerHTML, notes, meta, steps: 1, step: 0, frames: new Set(), resizes: new Set(), cleanups: [], paused: [], t0: 0, vt: 0 };
   });
   for (const id of factories.keys()) {
     if (!recs.some((r) => r.id === id)) report("deck", new Error(`DF.slide("${id}") has no matching <section class="df-slide" id="${id}">`));

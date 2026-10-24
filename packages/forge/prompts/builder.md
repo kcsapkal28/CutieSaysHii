@@ -24,7 +24,7 @@ DF.slide("<id>", (api) => {
 - `api.THREE`: Three.js (with `RoundedBoxGeometry` and `RoomEnvironment` attached). `api.gsap`: GSAP. Use these; there are no other libraries, and nothing may be fetched.
 - `api.theme`: the resolved tokens, `{ colors: { bg, surface, text, muted, line, accent, accent2, accent3 }, fonts: {…}, backdrop }`. Colours are hex strings: use them for Three.js materials, canvas drawing and SVG attributes set from JS.
 - `api.motion`: `"none" | "subtle" | "rich"`; `api.reducedMotion`: true when motion is "none" or the OS asks for less motion. Then show still end states: no continuous animation, durations 0.
-- `api.shot`: true while the deck is being screenshotted. Show a representative, settled state (e.g. particles already spread along their paths, the 3D object at its best angle, a simulation already run long enough to show its point).
+- `api.shot`: true while the deck is being screenshotted. Show a representative, settled state (e.g. particles already spread along their paths, the 3D object at its best angle, a simulation already run long enough to show its point). In shot mode `onFrame` does not run every display frame: after each step settles the shell runs it in one burst of ticks with a fixed `dt` of 1/60 s (up to 120, fewer when each tick is slow to draw), then not again until the next step. A simulation that needs more than about 2 s of simulated time to show its point should run itself forward in `step(i)` when `api.shot` is true.
 - `api.onFrame((t, dt) => …)`: shared animation loop (seconds since enter, seconds since last frame), paused while the slide is hidden. Returns an unsubscribe function.
 - `api.onResize((scale) => …)`: called when the stage scale changes.
 - `api.on(target, type, fn)`: addEventListener that is removed on dispose (for window/document listeners).
@@ -33,7 +33,7 @@ DF.slide("<id>", (api) => {
 
 Lifecycle:
 - `steps`: how many steps the slide has (match the storyboard). Arrow keys/space walk the steps before moving to the next slide.
-- `step(i)` sets **state i** (0 … steps−1) from any prior state, including going backwards. Make it declarative: compute the target state for i and tween to it. Step 0 is the first thing the audience sees; the last step shows the whole picture. Tweens created through `api.gsap` are fast-forwarded in shot mode; infinite (`repeat: -1`) tweens and `onFrame` loops keep running.
+- `step(i)` sets **state i** (0 … steps−1) from any prior state, including going backwards. Make it declarative: compute the target state for i and tween to it. Step 0 is the first thing the audience sees; the last step shows the whole picture. Tweens created through `api.gsap` are fast-forwarded in shot mode; infinite (`repeat: -1`) tweens keep running, and `onFrame` loops run in the per-step burst described under `api.shot`.
 - `enter()` / `leave()`: the slide became visible / hidden. `dispose()`: free anything not created through `api`.
 
 Theme and type:

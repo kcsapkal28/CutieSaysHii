@@ -63,6 +63,12 @@ export const MEASURE = {
   canvasDeadPx: 100,
   /** …or it covers at least half its box in what is one flat colour (1st–99th percentile channel spread ≤ this). */
   canvasFlatSpread: 6,
+  /** Each step re-shoots (with its canvases hidden) only the region of at most this many unproven canvases, largest first… */
+  canvasMaxPerStep: 4,
+  /** …and a canvas still not drawing after this many checked steps is checked again only at the last step. */
+  canvasMaxChecks: 2,
+  /** The hidden-canvas re-shot gets this long (ms); if it can't finish, the step's canvases go unjudged. */
+  canvasShotTimeoutMs: 3000,
   /** At most this many findings of one kind per slide. */
   maxPerKind: 6,
 } as const;
@@ -98,11 +104,16 @@ function probeScript(): Promise<string> {
 /** What one settled step measured: findings so far, plus per-canvas liveness for the slide-level verdict. */
 export type StepMeasure = { step: number; findings: Finding[]; canvases: { selector: string; w: number; h: number; changed: number; share: number; flat: boolean }[] };
 
+/** What one slide's steps have learnt about its canvases: the ones seen drawing, and how often the others were checked. */
+export type CanvasMemo = { alive: Set<string>; checks: Map<string, number> };
+export const canvasMemo = (): CanvasMemo => ({ alive: new Set(), checks: new Map() });
+
 /**
- * Measures the current (settled) step of slide `id`; `png` is the screenshot just taken of it. `alive` holds the
- * selectors of canvases already seen drawing at an earlier step: they are not checked again (and gain new ones).
+ * Measures the current (settled) step of slide `id`; `png` is the screenshot just taken of it. Canvases in
+ * `memo.alive` were already seen drawing at an earlier step and are not checked again; the others are checked at most
+ * MEASURE.canvasMaxChecks times plus at the `last` step, so a canvas that never draws doesn't cost a re-shot per step.
  */
-export async function measureStep(page: Page, id: string, step: number, png: Buffer, alive = new Set<string>()): Promise<StepMeasure> {
+export async function measureStep(page: Page, id: string, step: number, png: Buffer, memo = canvasMemo(), last = true): Promise<StepMeasure> {
   const code = await probeScript();
   const p = (await page.evaluate(`${code};__dfMeasure.probe(${JSON.stringify(id)}, ${JSON.stringify(THRESHOLDS)})`)) as Probe;
   const findings: Finding[] = p.findings.map((f) => ({ ...f, severity: SEVERITY[f.kind], step }));
@@ -122,7 +133,10 @@ export async function measureStep(page: Page, id: string, step: number, png: Buf
   findings.push(...contrastFindings(img, p, step));
 
   const canvases: StepMeasure["canvases"] = [];
-  const unproven = p.canvases.filter((c) => !alive.has(c.selector));
+  const unproven = p.canvases
+    .filter((c) => !memo.alive.has(c.selector) && (last || (memo.checks.get(c.selector) ?? 0) < MEASURE.canvasMaxChecks))
+    .sort((a, b) => b.box.w * b.box.h - a.box.w * a.box.h)
+    .slice(0, MEASURE.canvasMaxPerStep);
   if (unproven.length) {
     const idx = unproven.map((c) => c.index);
     await page.evaluate(`${code};__dfMeasure.toggleCanvases(${JSON.stringify(id)}, ${JSON.stringify(idx)}, true)`);
@@ -130,16 +144,20 @@ export async function measureStep(page: Page, id: string, step: number, png: Buf
     const x = Math.min(...unproven.map((c) => c.box.x));
     const y = Math.min(...unproven.map((c) => c.box.y));
     const clip = { x, y, width: Math.max(...unproven.map((c) => c.box.x + c.box.w)) - x, height: Math.max(...unproven.map((c) => c.box.y + c.box.h)) - y };
-    let without: Pixels;
+    let without: Pixels | undefined;
     try {
-      without = decodePng(await page.screenshot({ type: "png", clip }));
+      without = decodePng(await page.screenshot({ type: "png", clip, timeout: MEASURE.canvasShotTimeoutMs }));
+    } catch {
+      /* the re-shot didn't finish in time: this step's canvases go unjudged */
     } finally {
       await page.evaluate(`${code};__dfMeasure.toggleCanvases(${JSON.stringify(id)}, ${JSON.stringify(idx)}, false)`);
     }
     for (const c of unproven) {
+      if (!without) break;
       const change = canvasChange(img, without, c.box, clip);
       canvases.push({ selector: c.selector, w: c.box.w, h: c.box.h, ...change });
-      if (change.changed >= MEASURE.canvasDeadPx && !change.flat) alive.add(c.selector);
+      memo.checks.set(c.selector, (memo.checks.get(c.selector) ?? 0) + 1);
+      if (change.changed >= MEASURE.canvasDeadPx && !change.flat) memo.alive.add(c.selector);
     }
   }
   return { step, findings, canvases };

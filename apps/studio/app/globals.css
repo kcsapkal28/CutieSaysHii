@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* DeckForge Studio — graphite chrome, ember for live/forging moments, Fraunces for titles. The deck is the colour. */
+@theme {
+  --color-bg: #121318;
+  --color-panel: #17181e;
+  --color-raised: #1d1f26;
+  --color-hover: #252831;
+  --color-line: #272a33;
+  --color-line-strong: #363a46;
+  --color-fg: #ededf2;
+  --color-sub: #a3a7b5;
+  --color-dim: #6f7383;
+  --color-ember: #ff9f5a;
+  --color-ember-deep: #f07a3a;
+  --color-ok: #5fd0a0;
+  --color-review: #aab3ff;
+  --color-bad: #f2737b;
+
+  --font-sans: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-rise: rise 0.35s var(--ease-out-soft) both;
+  --animate-pulse-dot: pulse-dot 1.4s ease-in-out infinite;
+
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.8); }
+  }
+}
+
+@layer base {
+  html { color-scheme: dark; background: var(--color-bg); }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection { background: color-mix(in oklab, var(--color-ember) 35%, transparent); }
+  :focus-visible { outline: 2px solid var(--color-ember); outline-offset: 2px; border-radius: 6px; }
+  input, textarea, select, button { font: inherit; color: inherit; }
+  * { scrollbar-width: thin; scrollbar-color: var(--color-line-strong) transparent; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-lg border border-line bg-panel px-3 py-2 text-[14px] text-fg placeholder:text-dim transition-colors;
+    @apply hover:border-line-strong focus:border-ember/70 focus:outline-none;
+  }
+  .label { @apply block text-[12px] font-medium text-sub; }
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-raised) 0%, var(--color-hover) 50%, var(--color-raised) 100%);
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+  .stage-grid {
+    background-color: #0d0e12;
+    background-image: radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.06) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+}

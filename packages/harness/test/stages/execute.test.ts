@@ -624,6 +624,20 @@ describe("executeStage", () => {
       expect(upsert.mock.calls.map(([row]) => row.status)).toEqual(["running"]);
       expect(types(r.events)).toEqual(["stage:start"]);
     });
+
+    it("a throwing stage:done emit never turns a persisted success into a failure", async () => {
+      const r = await rig();
+      const emit = r.env.emit;
+      r.env.emit = (e) => {
+        emit(e);
+        if (e.type === "stage:done") throw new Error("listener blew up");
+      };
+
+      await exec(r, echoStage());
+
+      expect(types(r.events)).toEqual(["stage:start", "stage:done"]);
+      expect((await rowOf(r))?.status).toBe("succeeded");
+    });
   });
 
   describe("failures", () => {

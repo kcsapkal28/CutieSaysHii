@@ -160,16 +160,21 @@ export async function executeStage<I, O>(def: StageDef<I, O>, req: StageRequest,
 
   if (outcome.ok) {
     const { output, summary } = outcome;
+    let persistError: HarnessError | null = null;
     try {
       const artifactPath = await persist(def.name, () => session.writeArtifact({ ...artifact, output, error: null }));
       await persist(def.name, () =>
         session.upsertStage(row({ status: "succeeded", artifactPath, finishedAt, durationMs, summary })),
       );
+    } catch (e) {
+      persistError = toHarnessError(e);
+    }
+    // Emitted outside the try: once the success is persisted, nothing may turn it into a failure.
+    if (persistError === null) {
       env.emit({ type: "stage:done", ...key, at: finishedAt, durationMs, backoffMs, usage, inputHash, summary });
       return output;
-    } catch (e) {
-      outcome = { ok: false, error: toHarnessError(e) };
     }
+    outcome = { ok: false, error: persistError };
   }
 
   const { error } = outcome;

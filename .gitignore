@@ -13,3 +13,4 @@ playwright-report/
 /projects/
 screenshots/
 .logs/
+/.eval/

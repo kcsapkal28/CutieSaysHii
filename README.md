@@ -76,7 +76,12 @@ Without the Studio, from `packages/forge`:
 ```bash
 pnpm forge bundle <projectDir>                            # writes <projectDir>/versions/<n>/deck.html
 pnpm forge shoot <deck.html> [--slides s01,s03] --out <dir>   # screenshot every step of the slides
+pnpm forge journal <projectDir> [--last]                  # time, calls, tokens and $ per stage, agent and slide
+pnpm forge eval --label before --yes                      # build the 4 topics in eval/topics.json (real LLM, ~$54)
+pnpm forge eval compare before after                      # before/after table of two eval runs
 ```
+
+Every run appends one JSON line per event (each LLM call, slide round, verdict, stage) to `<projectDir>/log.jsonl`. `forge eval` builds in a scratch root under `.eval/<label>/work/` and writes `.eval/<label>/results.json` and `results.md`; `--only <topicId>`, `--slides <n>` and `--topics <file>` narrow it. Without `--yes` it only prints the cost estimate.
 
 ## Development
 

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "db-index",
+    "topic": "How a database index turns a full table scan into a handful of page reads",
+    "audience": "backend developers who write SQL daily but have never looked inside a B-tree",
+    "minutes": 5,
+    "slides": 3
+  },
+  {
+    "id": "printing-press",
+    "topic": "Why the printing press spread across Europe in just fifty years",
+    "audience": "secondary-school history students",
+    "minutes": 5,
+    "slides": 3
+  },
+  {
+    "id": "unit-economics",
+    "topic": "How customer acquisition cost and lifetime value decide whether a subscription business survives",
+    "audience": "first-time founders preparing for a seed round",
+    "minutes": 5,
+    "slides": 3
+  },
+  {
+    "id": "immune-memory",
+    "topic": "How the immune system remembers a pathogen after a vaccine",
+    "audience": "curious adults with no biology background",
+    "minutes": 5,
+    "slides": 3
+  }
+]

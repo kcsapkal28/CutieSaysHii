@@ -1,6 +1,6 @@
 // Stage runner: each stage reads the earlier stages' files and writes its own; re-running (or editing) one
 // invalidates the later ones.
-import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Style, type Engine } from "../contract.ts";
 import { createProxyLlm, type Llm } from "../llm.ts";
@@ -13,11 +13,14 @@ import { runStylist } from "../agents/stylist.ts";
 import { runBuild, type BuildOptions, type BuildSummary } from "./build.ts";
 import { DEFAULT_MODELS, type AgentName } from "./config.ts";
 import { meteredLlm, type OnEvent } from "./events.ts";
+import { journaled, journalFile, newRunId } from "./journal.ts";
 import { invalidateAfter, isStageDone, readJson, STAGES, writeJson, type Project, type Stage } from "./project.ts";
 import { createSharedEngine, type ClosableEngine } from "./shared-engine.ts";
 
 export type PipelineOptions = {
   onEvent?: OnEvent;
+  /** Run id on every journal line (projects/<id>/log.jsonl); runAll shares one across its stages. Default: a new id. */
+  runId?: string;
   /** Defaults to the proxy client (LLM_BASE_URL / LLM_API_KEY). */
   llm?: Llm;
   /** Defaults to the real engine with one shared Chromium, closed when the stage ends. */
@@ -86,7 +89,7 @@ export async function withEngine<T>(engine: Engine | undefined, fn: (e: Engine) 
 
 /** Runs one stage. Earlier stages must be done; every later stage's outputs are deleted first. */
 export async function runStage(project: Project, stage: Stage, opts: PipelineOptions = {}): Promise<BuildSummary | void> {
-  const onEvent = opts.onEvent ?? (() => {});
+  const { onEvent } = journaled(journalFile(project), opts.onEvent, opts.runId);
   const missing = STAGES.slice(0, STAGES.indexOf(stage)).filter((s) => !isStageDone(project, s));
   if (missing.length) throw new StageError(`cannot run ${stage}: run ${missing.join(", ")} first`);
 
@@ -96,9 +99,7 @@ export async function runStage(project: Project, stage: Stage, opts: PipelineOpt
   const { llm, total } = meteredLlm(opts.llm ?? createProxyLlm(), stage, onEvent);
   try {
     const result = await execute(project, stage, opts, llm, onEvent);
-    const done = { type: "stage:done" as const, stage, ms: Date.now() - started, ...total() };
-    appendFileSync(file(project, "log.jsonl"), `${JSON.stringify({ ...done, at: new Date().toISOString() })}\n`);
-    onEvent(done);
+    onEvent({ type: "stage:done", stage, ms: Date.now() - started, ...total() });
     return result;
   } catch (e) {
     onEvent({ type: "stage:error", stage, error: e instanceof Error ? e.message : String(e) });
@@ -188,10 +189,11 @@ export async function runAll(project: Project, opts: RunAllOptions): Promise<{ r
   if (!from) return { ran: [] };
   const to = STAGES.indexOf(opts.to ?? "build");
   const llm = opts.llm ?? createProxyLlm();
+  const runId = opts.runId ?? newRunId();
   const ran: Stage[] = [];
   let build: BuildSummary | undefined;
   for (const stage of STAGES.slice(STAGES.indexOf(from), to + 1)) {
-    const result = await runStage(project, stage, { ...opts, llm });
+    const result = await runStage(project, stage, { ...opts, llm, runId });
     if (result) build = result;
     ran.push(stage);
     if (!opts.auto && opts.approve && stage !== STAGES[to] && !(await opts.approve(stage, project))) break;

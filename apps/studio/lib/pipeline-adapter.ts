@@ -2,21 +2,12 @@
 // PipelineEvent stream (lib/events.ts). RealBackend feeds every `onEvent` callback through this and streams the results
 // from runStage / reviseSlide.
 import type { ForgeEvent, Usage as ForgeUsage } from "@deckforge/forge/pipeline";
+import { costUsd } from "@deckforge/forge/pricing";
 import type { PipelineEvent } from "./events";
 import { STAGES, type StageName, type Usage } from "./types";
 
-/** USD per million tokens [input, output]; cache reads at 10% of input, writes at 125%. Unknown models cost 0. */
-const PRICE: [RegExp, number, number][] = [
-  [/opus/i, 15, 75],
-  [/sonnet/i, 3, 15],
-  [/haiku/i, 1, 5],
-];
-
-function cost(model: string, u: ForgeUsage): number {
-  const p = PRICE.find(([re]) => re.test(model));
-  if (!p) return 0;
-  return (u.input * p[1] + u.cacheRead * p[1] * 0.1 + u.cacheWrite * p[1] * 1.25 + u.output * p[2]) / 1e6;
-}
+// The price table lives in the engine so the journal summary and `forge eval` use the same one.
+const cost = costUsd;
 
 const modelName = (model: string) => (/opus/i.test(model) ? "Opus" : /sonnet/i.test(model) ? "Sonnet" : /haiku/i.test(model) ? "Haiku" : model);
 const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));

@@ -27,7 +27,7 @@ import {
   type Usage,
   type VersionInfo,
 } from "../types";
-import { engine, pipeline } from "./engine";
+import { engine, pipeline, studioModels } from "./engine";
 import { upgradeStudioState, type StageRecord } from "./legacy";
 import { activeRun, startRun, subscribe } from "./runs";
 
@@ -337,13 +337,18 @@ export class RealBackend implements StudioBackend {
   async recommendStyle(brief: Brief): Promise<{ style: Style; rationale: string }> {
     const { runStylist, createProxyLlm } = await pipeline();
     try {
-      const { style, rationale } = await runStylist(createProxyLlm(), {
-        topic: brief.topic,
-        audience: brief.audience || "a general audience",
-        minutes: brief.minutes || 10,
-        prefs: brief.notes ? { notes: brief.notes } : {},
-        createdAt: now(),
-      });
+      const models = await studioModels();
+      const { style, rationale } = await runStylist(
+        createProxyLlm(),
+        {
+          topic: brief.topic,
+          audience: brief.audience || "a general audience",
+          minutes: brief.minutes || 10,
+          prefs: brief.notes ? { notes: brief.notes } : {},
+          createdAt: now(),
+        },
+        models.stylist ? { model: models.stylist } : {},
+      );
       return { style, rationale };
     } catch (e) {
       throw new Error(friendly((e as Error).message));
@@ -354,7 +359,7 @@ export class RealBackend implements StudioBackend {
     const project = this.fp(id);
     const f = await pipeline();
     try {
-      const r = await f.refineResearch(f.createProxyLlm(), { brief: f.loadBrief(project), ...req }, { model: f.DEFAULT_MODELS.researcher });
+      const r = await f.refineResearch(f.createProxyLlm(), { brief: f.loadBrief(project), ...req }, { model: (await studioModels()).researcher ?? f.DEFAULT_MODELS.researcher });
       return { answer: r.answer, passage: r.passage, replacement: r.replacement, changed: r.changed, model: r.model, usage: studioUsage(r.model, r.usage) };
     } catch (e) {
       throw new Error(friendly((e as Error).message), { cause: e });
@@ -428,7 +433,7 @@ export class RealBackend implements StudioBackend {
         const sink = this.forgeSink(dir, stage, emit);
         try {
           const f = await pipeline();
-          await f.runStage(project, stage, { onEvent: sink.onEvent });
+          await f.runStage(project, stage, { onEvent: sink.onEvent, models: await studioModels() });
         } catch (e) {
           if (!sink.errored()) sink.out({ type: "error", stage, message: (e as Error).message, retryable: true });
         } finally {
@@ -469,7 +474,7 @@ export class RealBackend implements StudioBackend {
       try {
         emit({ type: "progress", stage: "build", slideId, message: `Reading ${slideId} and your note`, at: now() });
         const f = await pipeline();
-        const r = await f.reviseSlide(project, slideId, instruction, { onEvent: sink.onEvent });
+        const r = await f.reviseSlide(project, slideId, instruction, { onEvent: sink.onEvent, models: await studioModels() });
         if (r.build.verdict === "failed") sink.out({ type: "error", slideId, message: `Couldn’t rebuild ${slideId}: every round failed. The deck is unchanged.`, retryable: true });
       } catch (e) {
         if (!sink.errored()) sink.out({ type: "error", slideId, message: (e as Error).message, retryable: true });

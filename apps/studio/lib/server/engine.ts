@@ -19,3 +19,13 @@ export function pipeline(): Promise<Pipeline> {
   pipe ??= import(/* turbopackIgnore: true */ /* webpackIgnore: true */ "@deckforge/forge/pipeline") as Promise<Pipeline>;
   return pipe;
 }
+
+/**
+ * The models the Studio runs every agent on. STUDIO_MODELS=opus (the default) puts every agent on Opus for the best
+ * output; STUDIO_MODELS=default keeps the engine's cost-tuned defaults (Sonnet for most agents).
+ */
+export async function studioModels(): Promise<Partial<Record<import("@deckforge/forge/pipeline").AgentName, string>>> {
+  const f = await pipeline();
+  if ((process.env.STUDIO_MODELS ?? "opus") === "default") return {};
+  return Object.fromEntries(Object.keys(f.DEFAULT_MODELS).map((agent) => [agent, f.MODELS.opus]));
+}

@@ -1,0 +1,216 @@
+<section class="df-slide" id="s03">
+  <header class="head">
+    <p class="df-eyebrow kicker">Sport physics · A long kick</p>
+    <h2 class="df-h2 title">With air drag, the longest kick is flatter than 45°</h2>
+  </header>
+  <canvas class="plot" width="1220" height="700"></canvas>
+  <div class="df-legend legend">
+    <span class="df-key" style="--c: var(--df-accent)"><i></i>Your kick</span>
+    <span class="df-key" style="--c: var(--df-accent-3)"><i></i>Best angle</span>
+    <span class="df-key ghost"><i></i>Every 5°, 10° to 80°</span>
+  </div>
+  <div class="ctrl">
+    <div class="df-toggle air" role="group" aria-label="Air">
+      <button class="df-btn" data-air="0">Vacuum</button><button class="df-btn" data-air="1">With air</button>
+    </div>
+    <label class="row"><span class="df-stat-label">Launch angle</span><output class="val ang-out">45°</output></label>
+    <input class="df-range ang" type="range" min="10" max="80" step="1" value="45" aria-label="Launch angle">
+    <label class="row"><span class="df-stat-label">Kick speed</span><output class="val spd-out">30 m/s</output></label>
+    <input class="df-range spd" type="range" min="15" max="35" step="1" value="30" aria-label="Kick speed">
+    <div class="stats">
+      <div class="df-stat"><span class="df-stat-label">Range</span><span class="df-stat-value"><b class="range">0</b><u>m</u></span></div>
+      <div class="df-stat"><span class="df-stat-label">Apex</span><span class="df-stat-value"><b class="apex">0</b><u>m</u></span></div>
+      <div class="df-stat"><span class="df-stat-label">Flight time</span><span class="df-stat-value"><b class="time">0</b><u>s</u></span></div>
+      <div class="df-stat"><span class="df-stat-label">Best angle</span><span class="df-stat-value best-v"><b class="best">0</b><u>°</u></span></div>
+    </div>
+    <p class="verdict"></p>
+  </div>
+  <p class="foot">m·dv/dt = −m·g − ½·ρ·C<sub>d</sub>·A·|v|·v · ball 0.43 kg, Ø 22 cm, C<sub>d</sub> 0.25, ρ 1.2 kg/m³, no spin, no wind</p>
+  <aside class="df-notes">
+    <p>Start in a vacuum: the textbook 45°. Then switch the air on and watch the whole fan shrink and the orange best-angle line tip over.</p>
+    <p>Drag the speed up: the faster the kick, the more drag matters and the lower the best angle.</p>
+  </aside>
+</section>
+
+<style>
+  #s03 .head { position: absolute; left: 128px; top: 84px; }
+  #s03 .kicker { margin: 0 0 18px; }
+  #s03 .title { font-weight: 650; font-size: 60px; letter-spacing: -.025em; }
+  #s03 .plot { position: absolute; left: 110px; top: 258px; width: 1220px; height: 700px; }
+  #s03 .legend { position: absolute; left: 990px; top: 290px; flex-direction: column; gap: 14px; font-size: 22px; color: var(--df-text); }
+  #s03 .legend .ghost > i { --c: var(--df-muted); box-shadow: none; opacity: .5; }
+  #s03 .ctrl { position: absolute; left: 1384px; top: 272px; width: 408px; }
+  #s03 .air .df-btn { font-size: 22px; padding: 14px 26px; }
+  #s03 .row { display: flex; justify-content: space-between; align-items: baseline; margin: 38px 0 18px; }
+  #s03 .val { font: 600 28px/1 var(--df-font-mono); color: var(--df-accent); font-variant-numeric: tabular-nums; }
+  #s03 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 20px; margin-top: 44px; padding-top: 28px; border-top: 1px solid var(--df-line); }
+  #s03 .stats .df-stat { gap: 8px; }
+  #s03 .stats .df-stat-value { font-size: 54px; }
+  #s03 .stats b { font-weight: 500; }
+  #s03 .stats u { text-decoration: none; font-size: 26px; margin-left: 6px; color: var(--df-muted); }
+  #s03 .best-v b { color: var(--df-accent-3); font-weight: 600; }
+  #s03 .verdict { margin: 30px 0 0; padding-top: 22px; border-top: 1px solid var(--df-line); font: 400 25px/1.4 var(--df-font-body); min-height: 4.2em; }
+  #s03 .foot { position: absolute; left: 128px; top: 990px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+  #s03 .foot sub { font-size: 18px; vertical-align: baseline; }
+</style>
+
+<script>
+DF.slide("s03", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  // The model: a kicked ball with quadratic air drag, integrated with a fixed time step.
+  const G = 9.81, MASS = 0.43, AREA = Math.PI * 0.11 * 0.11, CD = 0.25, RHO = 1.2, DT = 0.004;
+  const K = (0.5 * RHO * CD * AREA) / MASS; // drag per metre: a = −K·|v|·v
+  function simulate(deg, speed, air) {
+    const a = (deg * Math.PI) / 180;
+    let x = 0, y = 0, vx = speed * Math.cos(a), vy = speed * Math.sin(a), t = 0, apex = 0;
+    const pts = [[0, 0, 0]];
+    while (t < 20) {
+      const v = Math.hypot(vx, vy), k = air ? K * v : 0;
+      vx -= k * vx * DT;
+      vy -= (G + k * vy) * DT;
+      const nx = x + vx * DT, ny = y + vy * DT;
+      t += DT;
+      if (ny < 0) { const f = y / (y - ny); x += (nx - x) * f; pts.push([x, 0, t - DT + f * DT]); break; }
+      x = nx; y = ny; apex = Math.max(apex, y);
+      if (Math.round(t / DT) % 5 === 0) pts.push([x, y, t]);
+    }
+    return { pts, range: x, apex, time: pts[pts.length - 1][2] };
+  }
+  const bestAngle = (speed, air) => {
+    let best = { deg: 45, range: 0 };
+    for (let d = 10; d <= 80; d += 0.5) { const r = simulate(d, speed, air).range; if (r > best.range) best = { deg: d, range: r }; }
+    return best;
+  };
+
+  // ---------- plot geometry: equal scale on both axes, 0–100 m across, 0–56 m up
+  const cv = el.querySelector(".plot"), ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height, L = 92, B = H - 64, PX = (W - L - 28) / 100;
+  const sx = (m) => L + m * PX, sy = (m) => B - m * PX;
+  const mono = getComputedStyle(el).getPropertyValue("--df-font-mono");
+  const state = { deg: 45, speed: 30, air: 0, ball: 1 };
+  let cur, fan, best, vac;
+
+  function path(pts, color, width, dash = []) {
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(sx(x), sy(y)) : ctx.moveTo(sx(x), sy(y))));
+    ctx.setLineDash(dash); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.stroke(); ctx.setLineDash([]);
+  }
+  function chip(text, x, y, color, align) {
+    ctx.font = `600 22px ${mono}`;
+    const w = ctx.measureText(text).width + 24, h = 36, left = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+    ctx.fillStyle = C.surface; ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(left, y - h / 2, w, h, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.text; ctx.textBaseline = "middle"; ctx.fillText(text, left + 12, y + 1); ctx.textBaseline = "alphabetic";
+  }
+  function leader(x1, y1, x2, y2, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x1, y1, 6, 0, 7); ctx.fill();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // grid and axes
+    ctx.font = `500 20px ${mono}`; ctx.fillStyle = C.muted; ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+    for (let m = 0; m <= 100; m += 10) {
+      ctx.beginPath(); ctx.moveTo(sx(m), sy(0)); ctx.lineTo(sx(m), sy(56)); ctx.stroke();
+      ctx.textAlign = "center"; ctx.fillText(m === 100 ? "100 m" : String(m), Math.min(sx(m), W - 40), B + 34);
+    }
+    for (let m = 10; m <= 50; m += 10) {
+      ctx.beginPath(); ctx.moveTo(sx(0), sy(m)); ctx.lineTo(sx(100), sy(m)); ctx.stroke();
+      ctx.textAlign = "right"; ctx.fillText(`${m} m`, L - 14, sy(m) + 7);
+    }
+    ctx.textAlign = "start";
+    ctx.strokeStyle = C.text; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx(0), B); ctx.lineTo(sx(100), B); ctx.stroke();
+    // the fan, the vacuum ghost of your kick, the best angle, then your kick
+    ctx.globalAlpha = 0.4;
+    for (const f of fan) path(f.pts, C.muted, 2);
+    ctx.globalAlpha = 1;
+    if (state.air) path(vac.pts, C.muted, 2, [8, 8]);
+    path(best.sim.pts, C.accent3, 4, [14, 10]);
+    path(cur.pts, C.accent, 6);
+    // labels with leaders that end on the curve
+    const land = [sx(cur.range), B], top = cur.pts.reduce((a, p) => (p[1] > a[1] ? p : a));
+    // landing chip sits at ground level, on the side with room (below the descending curve)
+    const right = land[0] + 290 < W;
+    leader(land[0], land[1], land[0] + (right ? 30 : -30), B - 30, C.accent);
+    chip(`lands ${cur.range.toFixed(1)} m`, land[0] + (right ? 30 : -30), B - 30, C.accent, right ? "left" : "right");
+    leader(sx(top[0]), sy(top[1]), sx(top[0]) + 60, sy(top[1]) - 46, C.accent);
+    chip(`apex ${cur.apex.toFixed(1)} m`, sx(top[0]) + 60, sy(top[1]) - 46, C.accent, "left");
+    const bp = best.sim.pts[Math.floor(best.sim.pts.length * 0.22)];
+    leader(sx(bp[0]), sy(bp[1]), sx(bp[0]) - 70, sy(bp[1]) - 70, C.accent3);
+    chip(`best ${best.deg}°`, sx(bp[0]) - 70, sy(bp[1]) - 70, C.accent3, "right");
+    if (state.air) {
+      leader(sx(vac.range), B, sx(vac.range), B - 130, C.muted);
+      chip(`no air ${vac.range.toFixed(0)} m`, sx(vac.range), B - 148, C.muted, "center");
+      // what drag cost: a bracket between the two landings
+      const a = sx(cur.range), b = sx(vac.range), y = B - 62;
+      if (b - a > 120) {
+        ctx.strokeStyle = C.accent3; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(a, y - 10); ctx.lineTo(a, y); ctx.lineTo(b, y); ctx.lineTo(b, y - 10); ctx.stroke();
+        ctx.font = `600 22px ${mono}`; ctx.fillStyle = C.text; ctx.textAlign = "center";
+        ctx.fillText(`drag costs ${(vac.range - cur.range).toFixed(0)} m`, (a + b) / 2, y - 18); ctx.textAlign = "start";
+      }
+    }
+    // the ball, riding the current path
+    const p = cur.pts[Math.min(cur.pts.length - 1, Math.floor((cur.pts.length - 1) * state.ball))];
+    ctx.fillStyle = C.surface; ctx.strokeStyle = C.text; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(sx(p[0]), sy(p[1]), 13, 0, 7); ctx.fill(); ctx.stroke();
+  }
+
+  // ---------- controls and readouts
+  const angIn = el.querySelector(".ang"), spdIn = el.querySelector(".spd");
+  const btns = [...el.querySelectorAll(".air .df-btn")];
+  const out = (s) => el.querySelector(s);
+  function update() {
+    state.deg = Number(angIn.value);
+    state.speed = Number(spdIn.value);
+    angIn.style.setProperty("--fill", `${((state.deg - 10) / 70) * 100}%`);
+    spdIn.style.setProperty("--fill", `${((state.speed - 15) / 20) * 100}%`);
+    out(".ang-out").textContent = `${state.deg}°`;
+    out(".spd-out").textContent = `${state.speed} m/s`;
+    btns.forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.air) === state.air)));
+    cur = simulate(state.deg, state.speed, state.air);
+    vac = simulate(state.deg, state.speed, 0);
+    fan = [];
+    for (let d = 10; d <= 80; d += 5) fan.push(simulate(d, state.speed, state.air));
+    best = bestAngle(state.speed, state.air);
+    best.deg = Math.round(best.deg);
+    best.sim = simulate(best.deg, state.speed, state.air);
+    out(".range").textContent = cur.range.toFixed(1);
+    out(".apex").textContent = cur.apex.toFixed(1);
+    out(".time").textContent = cur.time.toFixed(2);
+    out(".best").textContent = String(best.deg);
+    const lost = Math.round((1 - cur.range / vac.range) * 100);
+    out(".verdict").textContent = state.air
+      ? `Drag costs this kick ${lost}% of its range. Aim at ${best.deg}°, not 45°, to reach ${best.sim.range.toFixed(0)} m.`
+      : `In a vacuum the best angle is exactly 45°, and ${best.sim.range.toFixed(0)} m is the most this kick can reach.`;
+    draw();
+  }
+  angIn.addEventListener("input", update);
+  spdIn.addEventListener("input", update);
+  btns.forEach((b) => b.addEventListener("click", () => api.setStep(Number(b.dataset.air))));
+
+  // the ball flies along the path, rests at the landing, then flies again (shot: whole path, ball near the end)
+  let clock = 0;
+  api.onFrame((t, dt) => {
+    if (api.shot || api.reducedMotion) { state.ball = 0.35; return draw(); }
+    clock = (clock + dt) % (cur.time + 1.2);
+    state.ball = Math.min(1, clock / cur.time);
+    draw();
+  });
+
+  const KICK = ["Vacuum · the textbook answer", "With air · the real answer"];
+  const kicker = el.querySelector(".kicker");
+  return {
+    steps: 2,
+    step(i) {
+      state.air = i;
+      clock = 0;
+      kicker.textContent = `Sport physics · ${KICK[i]}`;
+      update();
+      gsap.fromTo(cv, { opacity: 0.4 }, { opacity: 1, duration: 0.6, ease: "power2.out" });
+    },
+  };
+});
+</script>

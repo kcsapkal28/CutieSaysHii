@@ -1,0 +1,210 @@
+<section class="df-slide" id="s02">
+  <header class="head">
+    <p class="df-eyebrow">Operations · Queues</p>
+    <h2 class="df-h2 title">One shared line halves the worst wait</h2>
+  </header>
+  <div class="store">
+    <div class="door"><span>Door</span></div>
+    <svg class="fork" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+    <div class="lanes"></div>
+    <div class="chips"></div>
+    <p class="bl">Wait per shopper,<br>in order of arrival</p>
+    <div class="bars"></div>
+  </div>
+  <div class="side">
+    <div class="df-toggle mode" role="group" aria-label="Queue layout">
+      <button class="df-btn" data-mode="0">Four lines</button><button class="df-btn" data-mode="1">One shared line</button>
+    </div>
+    <p class="clock">Store clock <b>09:00</b></p>
+    <div class="stats">
+      <div class="df-stat"><span class="df-stat-label">Average wait</span><span class="df-stat-value"><span class="avg">0.0</span><u>min</u></span></div>
+      <div class="df-stat"><span class="df-stat-label">Longest wait</span><span class="df-stat-value"><span class="max">0.0</span><u>min</u></span></div>
+    </div>
+    <p class="vs"></p>
+    <div class="df-legend legend">
+      <span class="df-key" style="--c: var(--df-accent)"><i></i>Waited under 1.5 min</span>
+      <span class="df-key" style="--c: var(--df-accent-2)"><i></i>1.5 to 3 min</span>
+      <span class="df-key" style="--c: var(--df-accent-3)"><i></i>Over 3 min</span>
+      <span class="df-key slowkey"><i></i>Full trolley, 8 min at the till</span>
+    </div>
+  </div>
+  <p class="caption"></p>
+  <p class="foot">Illustrative run: 24 shoppers arriving about every 0.5 min, 1.5–2.5 min each at the till, one 8-minute trolley.</p>
+  <aside class="df-notes">
+    <p>Watch shopper 03, the full trolley. With four lines, everyone who picked that till is stuck behind it and turns orange.</p>
+    <p>With one shared line, the next free till takes the next person, so one slow shopper costs everyone a little instead of a few people a lot.</p>
+  </aside>
+</section>
+
+<style>
+  #s02 .head { position: absolute; left: 128px; top: 84px; }
+  #s02 .head .df-eyebrow { margin: 0 0 18px; }
+  #s02 .title { font-weight: 650; font-size: 64px; letter-spacing: -.025em; }
+  #s02 .store { position: absolute; inset: 0; pointer-events: none; }
+  #s02 .door { position: absolute; left: 128px; top: 375px; width: 120px; height: 220px; border: 2px solid var(--df-text); border-right-width: 8px; border-radius: var(--df-radius-sm); background: var(--df-surface); }
+  #s02 .door span { position: absolute; left: 0; right: 0; top: 16px; text-align: center; font: 500 20px/1 var(--df-font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--df-muted); }
+  #s02 .fork { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #s02 .fork path { fill: none; stroke: var(--df-muted); stroke-width: 2; stroke-dasharray: 6 8; }
+  #s02 .lane { position: absolute; height: 68px; margin-top: -34px; border: 1.5px dashed color-mix(in oklab, var(--df-muted) 60%, transparent); border-radius: 40px; background: color-mix(in oklab, var(--df-line) 30%, transparent); }
+  #s02 .till { position: absolute; left: 1100px; width: 190px; height: 96px; margin-top: -48px; border-radius: var(--df-radius-sm); border: 2px solid var(--df-text); background: var(--df-surface); box-shadow: var(--df-shadow-sm); }
+  #s02 .till span { position: absolute; left: 16px; top: 10px; font: 500 20px/1 var(--df-font-mono); color: var(--df-muted); text-transform: uppercase; letter-spacing: .08em; }
+  #s02 .chip { position: absolute; left: 0; top: 0; width: 56px; height: 44px; margin: -22px 0 0 -28px; border-radius: 22px; display: grid; place-items: center; font: 700 20px/1 var(--df-font-mono); color: #fff; background: var(--c); will-change: transform; }
+  #s02 .chip.slow { width: 84px; margin-left: -42px; background: var(--df-text); box-shadow: inset 0 0 0 4px var(--c); }
+  #s02 .side { position: absolute; left: 1370px; top: 296px; width: 422px; }
+  #s02 .mode .df-btn { font-size: 21px; padding: 14px 20px; }
+  #s02 .clock { margin: 40px 0 0; font: 500 22px/1 var(--df-font-mono); color: var(--df-muted); }
+  #s02 .clock b { color: var(--df-text); font-weight: 600; margin-left: 10px; font-variant-numeric: tabular-nums; }
+  #s02 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--df-line); }
+  #s02 .stats .df-stat-value { font-size: 76px; color: var(--df-text); }
+  #s02 .stats .max { color: var(--df-accent-3); }
+  #s02 .stats u { text-decoration: none; font-size: 26px; margin-left: 8px; color: var(--df-muted); letter-spacing: 0; }
+  #s02 .vs { margin: 22px 0 0; font: 400 22px/1.4 var(--df-font-mono); color: var(--df-muted); }
+  #s02 .vs b { color: var(--df-text); font-weight: 600; }
+  #s02 .legend { margin-top: 40px; flex-direction: column; gap: 16px; font-size: 21px; color: var(--df-text); }
+  #s02 .slowkey > i { --c: var(--df-text); border-radius: 4px; width: 22px; box-shadow: none; }
+  #s02 .bl { position: absolute; left: 128px; top: 770px; margin: 0; font: 500 18px/1.35 var(--df-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--df-muted); }
+  #s02 .bars { position: absolute; left: 300px; top: 720px; width: 990px; height: 130px; border-bottom: 2px solid var(--df-text); }
+  #s02 .bar { position: absolute; bottom: 0; width: 34px; border-radius: 4px 4px 0 0; background: var(--c); }
+  #s02 .bar.wait { background: color-mix(in oklab, var(--c) 22%, transparent); border: 2px dashed var(--c); border-bottom: 0; }
+  #s02 .bar em { position: absolute; left: 50%; bottom: 100%; margin-bottom: 8px; transform: translateX(-50%); font: 700 20px/1 var(--df-font-mono); font-style: normal; color: var(--df-text); white-space: nowrap; }
+  #s02 .caption { position: absolute; left: 128px; top: 880px; width: 1180px; margin: 0; font: 400 30px/1.35 var(--df-font-body); text-wrap: pretty; }
+  #s02 .foot { position: absolute; left: 128px; top: 982px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const LANE_Y = [320, 430, 540, 650], SHARED_Y = 485, DOOR = [188, 485];
+  const HEAD_X = [1040, 940], GAP = 64, TILL_X = 1195, WALK = 0.35;
+
+  // Where shopper r is at minute t (a pure function of the schedule): walking in, queueing (slot n), at the till.
+  function place(run, mode, r, t) {
+    if (t < r.arr || t >= r.end) return null;
+    if (t >= r.start) return { x: TILL_X, y: LANE_Y[r.till] + 12, o: 1 };
+    const ahead = run.filter((o) => o.arr < r.arr && o.start > t && (mode || o.till === r.till)).length;
+    const qx = HEAD_X[mode] - ahead * GAP, qy = mode ? SHARED_Y : LANE_Y[r.till];
+    const k = Math.min(1, (t - r.arr) / WALK);
+    return { x: DOOR[0] + (qx - DOOR[0]) * k, y: DOOR[1] + (qy - DOOR[1]) * k, o: 1 };
+  }
+  const colour = (w) => (w < 1.5 ? C.accent : w < 3 ? C.accent2 : C.accent3);
+
+  // The model: a deterministic schedule per layout. Four lines: join the shortest line on arrival, first come first
+  // served within it. One line: the head of the shared line takes whichever till frees first.
+  const SHOP = Array.from({ length: 24 }, (_, k) => ({
+    k, arr: 0.2 + 0.5 * k + 0.12 * Math.sin(k * 1.7), s: k === 2 ? 8 : 2 + 0.5 * Math.sin(k * 2.3), // 03: full trolley
+  }));
+  function schedule(shared) {
+    const free = [0, 0, 0, 0], out = [];
+    for (const r of SHOP) {
+      const counts = free.map((_, l) => out.filter((o) => o.till === l && o.end > r.arr).length);
+      const till = shared ? free.indexOf(Math.min(...free)) : counts.indexOf(Math.min(...counts));
+      const start = Math.max(r.arr, free[till]);
+      free[till] = start + r.s;
+      out.push({ ...r, till, start, end: start + r.s, wait: start - r.arr });
+    }
+    return out;
+  }
+  const RUNS = [schedule(false), schedule(true)];
+  const summary = (run) => ({ avg: run.reduce((a, r) => a + r.wait, 0) / run.length, max: Math.max(...run.map((r) => r.wait)) });
+  const SUM = RUNS.map(summary);
+
+  // ---------- static scene: lanes, tills, the shared line and its fork to every till
+  const lanes = el.querySelector(".lanes"), chipsEl = el.querySelector(".chips");
+  const laneEls = LANE_Y.map((y, i) => {
+    const d = document.createElement("div");
+    d.className = "lane";
+    Object.assign(d.style, { left: "300px", width: "780px", top: `${y}px` });
+    const till = document.createElement("div");
+    till.className = "till";
+    till.style.top = `${y}px`;
+    till.innerHTML = `<span>Till ${i + 1}</span>`;
+    lanes.append(d, till);
+    return d;
+  });
+  const shared = document.createElement("div");
+  shared.className = "lane";
+  Object.assign(shared.style, { left: "300px", width: "690px", top: `${SHARED_Y}px` });
+  lanes.append(shared);
+  const fork = el.querySelector(".fork");
+  fork.innerHTML = LANE_Y.map((y) => `<path d="M990,${SHARED_Y} C1050,${SHARED_Y} 1040,${y} 1100,${y}"/>`).join("");
+
+  const chips = SHOP.map((r) => {
+    const c = document.createElement("div");
+    c.className = `chip${r.s > 5 ? " slow" : ""}`;
+    c.textContent = String(r.k + 1).padStart(2, "0");
+    chipsEl.append(c);
+    return c;
+  });
+  // a bar per shopper, drawn once they reach a till: the spread of waits is the argument
+  const barsEl = el.querySelector(".bars");
+  const bars = SHOP.map((r) => {
+    const b = document.createElement("div");
+    b.className = "bar";
+    b.style.left = `${r.k * 41.3}px`;
+    barsEl.append(b);
+    return b;
+  });
+
+  // ---------- the clock: live it loops the run; in shot mode it freezes at a telling minute
+  const T_END = 17, T_SHOT = 9, SPEED = api.reducedMotion ? 0 : 0.9;
+  let mode = 0, simT = api.shot || api.reducedMotion ? T_SHOT : 0;
+  const clock = el.querySelector(".clock b");
+  function render() {
+    const run = RUNS[mode];
+    run.forEach((r, i) => {
+      const p = place(run, mode, r, simT), c = chips[i];
+      if (!p) { c.style.opacity = 0; return; }
+      c.style.opacity = p.o;
+      c.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      c.style.setProperty("--c", colour(Math.min(simT, r.start) - r.arr));
+    });
+    // wait so far (dashed while still queueing); the tallest bar carries its value
+    const waits = run.map((r) => (r.arr > simT ? -1 : Math.min(simT, r.start) - r.arr));
+    const top = waits.indexOf(Math.max(...waits));
+    run.forEach((r, i) => {
+      const b = bars[i], w = waits[i];
+      b.classList.toggle("wait", w >= 0 && r.start > simT);
+      b.style.height = `${w < 0 ? 0 : Math.max(4, w * 28)}px`;
+      b.style.setProperty("--c", colour(w));
+      b.innerHTML = i === top && w > 0.5 ? `<em>${w.toFixed(1)} min</em>` : "";
+    });
+    const m = Math.floor(simT);
+    clock.textContent = `09:${String(m).padStart(2, "0")}`;
+  }
+  api.onFrame((t, dt) => {
+    if (api.shot || api.reducedMotion) return render();
+    simT = (simT + dt * SPEED) % T_END;
+    render();
+  });
+
+  const CAPS = [
+    "Four lines: shopper 03's full trolley holds up whoever picked till 3, while the other lines keep moving.",
+    "One shared line: whichever till frees up first takes the next person, so nobody is stuck behind the trolley.",
+  ];
+  const caption = el.querySelector(".caption"), vs = el.querySelector(".vs");
+  const btns = [...el.querySelectorAll(".mode .df-btn")];
+  btns.forEach((b) => b.addEventListener("click", () => api.setStep(Number(b.dataset.mode))));
+  const nums = { avg: 0, max: 0 };
+  const avgEl = el.querySelector(".avg"), maxEl = el.querySelector(".max");
+
+  function setMode(m) {
+    mode = m;
+    if (!api.shot && !api.reducedMotion) simT = 0;
+    btns.forEach((b, i) => b.setAttribute("aria-pressed", String(i === m)));
+    gsap.to(laneEls, { opacity: m ? 0.25 : 1, duration: 0.6, overwrite: true });
+    gsap.to([shared, fork], { opacity: m ? 1 : 0, duration: 0.6, overwrite: true });
+    gsap.to(nums, { avg: SUM[m].avg, max: SUM[m].max, duration: 1.2, ease: "power3.out", overwrite: true,
+      onUpdate: () => { avgEl.textContent = nums.avg.toFixed(1); maxEl.textContent = nums.max.toFixed(1); } });
+    vs.innerHTML = `Four lines <b>${SUM[0].avg.toFixed(1)}</b> avg · <b>${SUM[0].max.toFixed(1)}</b> worst<br>One line <b>${SUM[1].avg.toFixed(1)}</b> avg · <b>${SUM[1].max.toFixed(1)}</b> worst`;
+    caption.textContent = CAPS[m];
+    gsap.fromTo(caption, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" });
+    render();
+  }
+
+  return {
+    steps: 2,
+    step: setMode,
+  };
+});
+</script>

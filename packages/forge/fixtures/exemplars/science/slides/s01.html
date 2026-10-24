@@ -42,7 +42,8 @@
   #s01 .row.gap { margin-top: 46px; }
   #s01 .val { font: 500 32px/1 var(--df-font-mono); color: var(--df-accent); }
   #s01 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
-  #s01 .stats .df-stat-label { font-size: 15px; }
+  #s01 .stats .df-stat { justify-content: space-between; }
+  #s01 .stats .df-stat-label { font-size: 18px; letter-spacing: .06em; }
   #s01 .stats .df-stat-value { font-size: 46px; }
   #s01 .peak { color: var(--df-accent-3) !important; }
   #s01 .verdict { margin: 34px 0 0; padding-top: 24px; border-top: 1px solid var(--df-line); font: 400 25px/1.45 var(--df-font-body); color: var(--df-text); min-height: 4.4em; }
@@ -94,7 +95,7 @@ DF.slide("s01", (api) => {
 
   function draw() {
     ctx.clearRect(0, 0, W, H);
-    ctx.font = "500 16px " + getComputedStyle(el).getPropertyValue("--df-font-mono");
+    ctx.font = "500 18px " + getComputedStyle(el).getPropertyValue("--df-font-mono");
     ctx.fillStyle = C.muted; ctx.strokeStyle = C.line; ctx.lineWidth = 1;
     for (const v of [0, 0.25, 0.5, 0.75, 1]) {
       ctx.beginPath(); ctx.moveTo(L, py(v)); ctx.lineTo(R, py(v)); ctx.stroke();

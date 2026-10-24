@@ -1,0 +1,33 @@
+{
+  "title": "Field guide: small models of everyday things",
+  "style": {
+    "look": "light, clean lab notebook: cool white, crisp ink, soft cards",
+    "theme": {
+      "colors": {
+        "bg": "#f7f8f6",
+        "surface": "#ffffff",
+        "text": "#15181e",
+        "muted": "#555c66",
+        "line": "#dcdfe3",
+        "accent": "#0b7a5c",
+        "accent2": "#2853c4",
+        "accent3": "#c9512a"
+      },
+      "fonts": { "display": "inter", "body": "inter", "mono": "ibm-plex-mono" },
+      "backdrop": "radial-gradient(1600px 900px at 85% 0%, #ffffff 0%, rgba(255,255,255,0) 60%), linear-gradient(180deg, #f9faf8 0%, #f1f3f0 100%)"
+    },
+    "motion": "subtle",
+    "use3d": false,
+    "interactivity": 2,
+    "density": "balanced",
+    "surface": { "radius": "soft", "border": "hairline", "depth": "soft", "texture": "none" },
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "Hardy–Weinberg in one square", "section": "Genetics", "budgetSec": 120 },
+    { "id": "s02", "title": "One line beats four", "section": "Queues", "budgetSec": 120 },
+    { "id": "s03", "title": "The best launch angle is not 45°", "section": "Sport", "budgetSec": 150 },
+    { "id": "s04", "title": "Five zones of the ocean", "section": "Ocean", "budgetSec": 120 },
+    { "id": "s05", "title": "What to remember about sleep", "section": "Wrap-up", "budgetSec": 60 }
+  ]
+}

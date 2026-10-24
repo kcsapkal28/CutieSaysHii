@@ -21,11 +21,11 @@
   #s01 .title em { font-style: italic; color: var(--df-accent); }
   #s01 .eras { position: absolute; left: 0; top: 300px; width: 1920px; height: 650px; }
   #s01 .era { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--c) 9%, transparent); border-left: 1px solid color-mix(in oklab, var(--c) 35%, transparent); }
-  #s01 .era span { position: absolute; left: 12px; top: 14px; font: italic 400 24px/1 var(--df-font-display); color: var(--c); white-space: nowrap; }
+  #s01 .era span { position: absolute; left: 12px; top: 14px; font: italic 400 24px/1 var(--df-font-display); color: color-mix(in oklab, var(--c) 62%, var(--df-text)); white-space: nowrap; }
   #s01 .axis { position: absolute; left: 128px; top: 470px; width: 1664px; height: 2px; }
   #s01 .axis .line { position: absolute; inset: 0; background: var(--df-text); transform-origin: 0 50%; }
   #s01 .tick { position: absolute; top: -9px; width: 2px; height: 20px; background: var(--df-text); }
-  #s01 .tick em { position: absolute; top: -34px; left: 50%; transform: translateX(-50%); font: 500 16px/1 var(--df-font-mono); font-style: normal; color: var(--df-muted); white-space: nowrap; }
+  #s01 .tick em { position: absolute; top: -34px; left: 50%; transform: translateX(-50%); font: 500 18px/1 var(--df-font-mono); font-style: normal; color: color-mix(in oklab, var(--df-muted) 70%, var(--df-text)); white-space: nowrap; }
   #s01 .gap { position: absolute; top: -14px; width: 28px; height: 30px; background: var(--df-bg); font: 400 28px/30px var(--df-font-display); text-align: center; color: var(--df-muted); }
   #s01 .leaders { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; }
   #s01 .leaders line { stroke: var(--df-text); stroke-width: 1.2; }
@@ -35,7 +35,7 @@
   #s01 .ev time { display: block; font: 500 16px/1 var(--df-font-mono); letter-spacing: .06em; color: var(--df-accent); }
   #s01 .ev h3 { margin: 10px 0 6px; font: 500 27px/1.1 var(--df-font-display); letter-spacing: -.01em; }
   #s01 .ev p { margin: 0; font: 400 19px/1.35 var(--df-font-body); color: var(--df-muted); }
-  #s01 .ev b { display: inline-block; margin-top: 12px; padding: 5px 9px; font: 600 15px/1 var(--df-font-mono); color: var(--df-surface); background: var(--df-accent-2); }
+  #s01 .ev b { display: inline-block; margin-top: 12px; padding: 5px 9px; font: 600 18px/1 var(--df-font-mono); color: var(--df-surface); background: var(--df-accent-2); }
   #s01 .coda { position: absolute; left: 128px; bottom: 56px; margin: 0; font: italic 400 30px/1.3 var(--df-font-display); color: var(--df-text); }
 </style>
 
@@ -66,7 +66,7 @@ DF.slide("s01", (api) => {
     { y: 1656, when: "1656", name: "Pendulum clock", text: "Christiaan Huygens tames the swing.", chip: "≈ 15 s / day", lvl: 1, step: 2 },
     { y: 1759, when: "1759", name: "Marine chronometer", text: "John Harrison's H4 finds longitude at sea.", lvl: 0, step: 2 },
     { y: 1927, when: "1927", name: "Quartz clock", text: "Bell Labs: a vibrating crystal keeps the beat.", lvl: 0, step: 3 },
-    { y: 1955, when: "1955", name: "Caesium clock", text: "NPL, London: the atom becomes the pendulum.", chip: "≈ 1 s / 300 years", lvl: 1, step: 3 },
+    { y: 1955, when: "1955", name: "Caesium clock", text: "NPL, London: the atom becomes the pendulum.", chip: "≈ 1 s / 300 yr", lvl: 1, step: 3 },
   ];
   const AXIS_Y = 470, LEVEL_Y = [530, 735];
 

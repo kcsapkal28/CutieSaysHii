@@ -1,0 +1,93 @@
+<section class="df-slide" id="s03">
+  <header class="head">
+    <p class="df-eyebrow">Home heating · A year of warmth</p>
+    <h2 class="title">Same warm house, <span class="hl">a third of the energy</span></h2>
+  </header>
+  <div class="table">
+    <div class="th"></div>
+    <div class="th">Gas boiler</div>
+    <div class="th b-h">Heat pump</div>
+  </div>
+  <p class="foot">Typical UK figures, rounded: 12,000 kWh of heat a year; boiler 90% efficient; heat pump seasonal COP ≈ 3; gas and grid both ≈ 0.2 kg CO₂ per kWh. Illustrative.</p>
+  <aside class="df-notes">
+    <p>Read the boiler column first: it is the baseline everyone knows. Then reveal the heat pump.</p>
+    <p>The trick is in row one: a heat pump moves heat from outside air instead of making it, so 1 kWh of electricity delivers about 3 kWh of heat.</p>
+  </aside>
+</section>
+
+<style>
+  #s03 .head { position: absolute; left: 128px; top: 92px; }
+  #s03 .head .df-eyebrow { margin: 0 0 20px; }
+  #s03 .title { margin: 0; font: 700 72px/1.05 var(--df-font-display); letter-spacing: -.035em; }
+  #s03 .hl { color: var(--df-bg); background: var(--df-accent); padding: 0 .12em; }
+  #s03 .table { position: absolute; left: 128px; right: 128px; top: 290px; display: grid; grid-template-columns: 500px 500px 1fr; }
+  #s03 .th { padding: 0 0 18px; font: 600 22px/1 var(--df-font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--df-muted); border-bottom: 4px solid var(--df-text); }
+  #s03 .b-h { color: var(--df-accent); }
+  #s03 .cell { display: flex; flex-direction: column; justify-content: center; gap: 16px; height: 196px; border-bottom: 2px solid var(--df-line); }
+  #s03 .label { font: 600 34px/1.15 var(--df-font-display); color: var(--df-text); padding-right: 48px; }
+  #s03 .label small { display: block; margin-top: 10px; font: 400 23px/1.3 var(--df-font-body); color: var(--df-muted); }
+  #s03 .row { display: flex; align-items: center; gap: 28px; }
+  #s03 .num { font: 700 96px/1 var(--df-font-display); letter-spacing: -.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #s03 .num u { text-decoration: none; font: 500 34px/1 var(--df-font-body); letter-spacing: 0; margin-left: 10px; }
+  #s03 .a .num { color: var(--df-muted); }
+  #s03 .b .num { color: var(--df-text); }
+  #s03 .bar { height: 18px; width: 0; }
+  #s03 .a .bar { background: color-mix(in oklab, var(--df-muted) 55%, var(--df-bg)); }
+  #s03 .b .bar { background: var(--df-accent); }
+  #s03 .chip { padding: 10px 16px; font: 700 26px/1 var(--df-font-mono); color: var(--df-bg); background: var(--df-accent-2); border: 3px solid var(--df-text); box-shadow: var(--df-shadow-sm); white-space: nowrap; }
+  #s03 .foot { position: absolute; left: 128px; right: 128px; bottom: 50px; margin: 0; font: 400 19px/1.4 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s03", (api) => {
+  const { el, gsap } = api;
+  const quick = api.reducedMotion ? 0 : 1;
+  const ROWS = [
+    { label: "Heat out per 1 kWh bought", sub: "gas burnt vs electricity used", a: 0.9, b: 3, unit: "kWh", dec: 1, chip: "× 3.3" },
+    { label: "Energy bought per year", sub: "for 12,000 kWh of heat", a: 13300, b: 4000, unit: "kWh", dec: 0, chip: "↓ 70%" },
+    { label: "CO₂ per year", sub: "same emission factor per kWh", a: 2.7, b: 0.8, unit: "t", dec: 1, chip: "↓ 70%" },
+  ];
+  const BAR = 400;
+  const fmt = (v, dec) => v.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+
+  // tween a plain object and write the formatted value: the standard counter pattern
+  function count(node, to, dec) {
+    const o = { v: Number(node.dataset.v) || 0 };
+    gsap.to(o, { v: to, duration: 1.4 * quick, ease: "power3.out", overwrite: true, onUpdate: () => { node.dataset.v = o.v; node.textContent = fmt(o.v, dec); } });
+  }
+
+  const table = el.querySelector(".table");
+  for (const r of ROWS) {
+    const max = Math.max(r.a, r.b);
+    const l = document.createElement("div");
+    l.className = "cell label";
+    l.innerHTML = `<div>${r.label}<small>${r.sub}</small></div>`;
+    const a = document.createElement("div");
+    a.className = "cell a";
+    a.innerHTML = `<span class="num"><span class="n">0</span><u>${r.unit}</u></span><i class="bar"></i>`;
+    const b = document.createElement("div");
+    b.className = "cell b";
+    b.innerHTML = `<div class="row"><span class="num"><span class="n">0</span><u>${r.unit}</u></span><span class="chip">${r.chip}</span></div><i class="bar"></i>`;
+    table.append(l, a, b);
+    Object.assign(r, { an: a.querySelector(".n"), bn: b.querySelector(".n"), abar: a.querySelector(".bar"), bbar: b.querySelector(".bar"), chipEl: b.querySelector(".chip"), bCell: b, wa: (r.a / max) * BAR, wb: (r.b / max) * BAR });
+  }
+
+  return {
+    steps: 2,
+    enter() {
+      gsap.from(el.querySelectorAll(".label"), { x: -30, opacity: 0, duration: 0.8 * quick, stagger: 0.1 * quick, ease: "power3.out" });
+    },
+    step(i) {
+      const on = i >= 1;
+      ROWS.forEach((r, k) => {
+        count(r.an, r.a, r.dec);
+        count(r.bn, on ? r.b : 0, r.dec);
+        gsap.to(r.abar, { width: r.wa, duration: 1.2 * quick, ease: "power3.out", overwrite: true });
+        gsap.to(r.bbar, { width: on ? r.wb : 0, duration: 1.2 * quick, delay: on ? 0.1 * k * quick : 0, ease: "power3.out", overwrite: true });
+        gsap.to(r.bCell, { opacity: on ? 1 : 0.14, duration: 0.6 * quick, overwrite: true });
+        gsap.fromTo(r.chipEl, { scale: on ? 0.4 : 1, opacity: on ? 0 : 1 }, { scale: on ? 1 : 0.4, opacity: on ? 1 : 0, duration: 0.6 * quick, delay: on ? (0.9 + 0.12 * k) * quick : 0, ease: "back.out(2.5)", overwrite: true });
+      });
+    },
+  };
+});
+</script>

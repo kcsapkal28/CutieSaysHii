@@ -1,0 +1,150 @@
+<section class="df-slide" id="s05">
+  <header class="head">
+    <p class="df-eyebrow">Ecology · Kelp forest food web</p>
+    <h2 class="title">Remove the otter, lose the forest</h2>
+  </header>
+  <svg class="web" viewBox="0 0 1920 1080" aria-hidden="true"><g class="edges"></g><g class="pulses"></g><g class="nodes"></g></svg>
+  <div class="side">
+    <div class="df-legend legend"></div>
+    <div class="df-stat stat"><span class="df-stat-label"></span><span class="df-stat-value"></span></div>
+  </div>
+  <p class="caption"></p>
+  <p class="foot">Simplified web after Estes &amp; Palmisano (1974) and later kelp-forest studies; links illustrative.</p>
+  <aside class="df-notes">
+    <p>Step through slowly. The otter has only a handful of links, fewer than the crab, yet removing it unravels the whole forest.</p>
+    <p>That is what "keystone species" means: importance is not the number of links but where they sit.</p>
+  </aside>
+</section>
+
+<style>
+  #s05 .head { position: absolute; left: 128px; top: 80px; }
+  #s05 .head .df-eyebrow { margin: 0 0 18px; }
+  #s05 .title { margin: 0; font: 500 64px/1.05 var(--df-font-display); letter-spacing: -.025em; }
+  #s05 .web { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: visible; }
+  #s05 .web text { font: 500 21px var(--df-font-body); fill: var(--df-text); text-anchor: middle; paint-order: stroke; stroke: var(--df-bg); stroke-width: 6px; stroke-linejoin: round; }
+  #s05 .web .ring { fill: none; stroke: var(--df-accent); stroke-width: 3; }
+  #s05 .side { position: absolute; left: 1490px; top: 300px; width: 310px; }
+  #s05 .legend { flex-direction: column; gap: 20px; font-size: 23px; }
+  #s05 .legend .df-key b { font: 500 21px/1 var(--df-font-mono); color: var(--df-text); margin-left: auto; padding-left: 14px; }
+  #s05 .legend .df-key { width: 100%; }
+  #s05 .stat { margin-top: 54px; padding-top: 28px; border-top: 1px solid var(--df-line); }
+  #s05 .stat .df-stat-label { line-height: 1.35; }
+  #s05 .stat .df-stat-value { font-size: 80px; color: var(--df-accent); }
+  #s05 .caption { position: absolute; left: 128px; bottom: 96px; width: 1360px; margin: 0; font: 400 32px/1.35 var(--df-font-body); }
+  #s05 .foot { position: absolute; left: 128px; bottom: 46px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s05", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const GROUPS = [
+    { name: "Top predators", c: C.accent, y: 320 },
+    { name: "Predators", c: C.text, y: 490 },
+    { name: "Grazers and filterers", c: C.accent3, y: 660 },
+    { name: "Kelp and plankton", c: C.accent2, y: 830 },
+  ];
+  // [name, group, lives in the kelp?]
+  const SPECIES = [
+    ["Orca", 0], ["Harbour seal", 0], ["Sea otter", 0], ["Gull", 0],
+    ["Rockfish", 1, 1], ["Kelp bass", 1, 1], ["Sunflower star", 1], ["Octopus", 1], ["Crab", 1],
+    ["Kelp perch", 2, 1], ["Purple urchin", 2], ["Red urchin", 2], ["Abalone", 2, 1], ["Turban snail", 2, 1], ["Mussels", 2], ["Kelp crab", 2, 1],
+    ["Giant kelp", 3, 1], ["Understory algae", 3], ["Plankton", 3],
+  ];
+  // predator > prey
+  const EATS = "Orca>Sea otter,Orca>Harbour seal,Harbour seal>Rockfish,Harbour seal>Kelp bass,Harbour seal>Octopus,Gull>Crab,Gull>Mussels,Gull>Kelp perch," +
+    "Sea otter>Purple urchin,Sea otter>Red urchin,Sea otter>Abalone,Sea otter>Crab,Sea otter>Mussels,Rockfish>Kelp perch,Rockfish>Crab,Kelp bass>Kelp perch," +
+    "Kelp bass>Kelp crab,Sunflower star>Purple urchin,Sunflower star>Turban snail,Sunflower star>Mussels,Crab>Turban snail,Crab>Mussels,Octopus>Crab,Octopus>Abalone," +
+    "Purple urchin>Giant kelp,Red urchin>Giant kelp,Purple urchin>Understory algae,Abalone>Giant kelp,Turban snail>Giant kelp,Turban snail>Understory algae," +
+    "Kelp crab>Giant kelp,Kelp perch>Plankton,Mussels>Plankton";
+
+  // ---------- graph: nodes by trophic row, edges from data, degree and the kelp cascade computed here
+  const nodes = SPECIES.map(([name, g, home]) => ({ name, g, home: !!home, deg: 0 }));
+  const by = Object.fromEntries(nodes.map((n) => [n.name, n]));
+  const edges = EATS.split(",").map((s) => { const [a, b] = s.split(">"); by[a].deg++; by[b].deg++; return { pred: by[a], prey: by[b] }; });
+  GROUPS.forEach((g, gi) => {
+    const row = nodes.filter((n) => n.g === gi);
+    row.forEach((n, k) => { n.x = 190 + ((k + 0.5) / row.length) * 1260 + (gi % 2 ? 30 : -30); n.y = g.y; n.r = 12 + n.deg * 2.2; });
+  });
+  const kelp = by["Giant kelp"];
+  // lose food or shelter when kelp goes: lives in it, or eats it
+  const otter = by["Sea otter"], urchins = [by["Purple urchin"], by["Red urchin"]];
+  const cascade = nodes.filter((n) => n !== kelp && !urchins.includes(n) && (n.home || edges.some((e) => e.pred === n && e.prey === kelp)));
+
+  // top predators are labelled above (their links all leave downwards), the rest below
+  const labelY = (n, r) => (n.g === 0 ? n.y - r - 14 : n.y + r + 28);
+  const gE = el.querySelector(".edges"), gP = el.querySelector(".pulses"), gN = el.querySelector(".nodes");
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.append(e); return e; };
+  for (const e of edges) {
+    // a gentle curve from prey (below) up to predator
+    e.cx = (e.pred.x + e.prey.x) / 2 + (e.prey.y - e.pred.y) * 0.18; e.cy = (e.pred.y + e.prey.y) / 2;
+    e.el = mk("path", { d: `M${e.prey.x},${e.prey.y} Q${e.cx},${e.cy} ${e.pred.x},${e.pred.y}`, fill: "none", stroke: C.line, "stroke-width": 2 }, gE);
+    e.pulses = [0, 0.5].map((o) => ({ o, el: mk("circle", { r: 6, fill: C.text, opacity: 0 }, gP) }));
+    e.on = 0;
+  }
+  for (const n of nodes) {
+    n.el = mk("g", {}, gN);
+    n.dot = mk("circle", { cx: n.x, cy: n.y, r: n.r, fill: GROUPS[n.g].c, stroke: C.bg, "stroke-width": 3 }, n.el);
+    n.label = mk("text", { x: n.x, y: labelY(n, n.r) }, n.el);
+    n.label.textContent = n.name;
+  }
+  const ring = mk("circle", { class: "ring", cx: otter.x, cy: otter.y, r: otter.r + 12, opacity: 0 }, gN);
+
+  // pulses run prey → predator along active edges: energy moving up the web
+  const qp = (e, u) => [(1 - u) ** 2 * e.prey.x + 2 * (1 - u) * u * e.cx + u * u * e.pred.x, (1 - u) ** 2 * e.prey.y + 2 * (1 - u) * u * e.cy + u * u * e.pred.y];
+  api.onFrame((t) => {
+    for (const e of edges) for (const p of e.pulses) {
+      const u = ((api.reducedMotion ? 0.35 : t * 0.45) + p.o) % 1;
+      const [x, y] = qp(e, u);
+      p.el.setAttribute("cx", x); p.el.setAttribute("cy", y); p.el.setAttribute("opacity", e.on);
+    }
+  });
+
+  // ---------- legend with counts, a stat, a caption per step
+  const legend = el.querySelector(".legend");
+  GROUPS.forEach((g, gi) => {
+    const k = document.createElement("span");
+    k.className = "df-key";
+    k.style.setProperty("--c", g.c);
+    k.innerHTML = `<i></i>${g.name}<b>${nodes.filter((n) => n.g === gi).length}</b>`;
+    legend.append(k);
+  });
+  const statLabel = el.querySelector(".stat .df-stat-label"), statValue = el.querySelector(".stat .df-stat-value");
+  const otterPrey = edges.filter((e) => e.pred === otter).length;
+  const STEPS = [
+    { label: "Feeding links", value: edges.length, text: `${nodes.length} species and ${edges.length} feeding links: who eats whom in a Californian kelp forest.` },
+    { label: "Species the otter eats", value: otterPrey, text: `Sea otters eat ${otterPrey} kinds of prey. Few links, but one of them, the urchin, matters most.` },
+    { label: "Urchin grazers left unchecked", value: urchins.length, text: "Without otters, urchins boom and graze the kelp down to bare rock: an urchin barren." },
+    { label: "Species that lose food or shelter", value: cascade.length, text: `With the kelp gone, ${cascade.length} species lose food or shelter. One predator held the forest up.` },
+  ];
+  const caption = el.querySelector(".caption");
+
+  return {
+    steps: 4,
+    step(i) {
+      const s = STEPS[i];
+      caption.textContent = s.text;
+      statLabel.textContent = s.label;
+      const o = { v: Number(statValue.textContent) || 0 };
+      gsap.to(o, { v: s.value, duration: 0.9, ease: "power2.out", overwrite: true, onUpdate: () => (statValue.textContent = Math.round(o.v)) });
+      gsap.fromTo(caption, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5, overwrite: true });
+      for (const e of edges) {
+        const hot = (i === 1 && e.pred === otter) || (i >= 2 && urchins.includes(e.pred) && e.prey === kelp);
+        const gone = (i >= 2 && (e.pred === otter || e.prey === otter)) || (i === 3 && (cascade.includes(e.pred) || cascade.includes(e.prey) || e.prey === kelp));
+        e.on = hot && !(i === 3 && e.prey === kelp) ? 1 : 0;
+        gsap.to(e.el, { attr: { stroke: hot ? (i === 1 ? C.accent : C.accent3) : C.line, "stroke-width": hot ? 5 : 2 }, opacity: gone && !hot ? 0.25 : 1, duration: 0.6, overwrite: true });
+      }
+      for (const n of nodes) {
+        const boom = i >= 2 && urchins.includes(n);
+        const faded = (i >= 2 && n === otter) || (i === 3 && (n === kelp || cascade.includes(n)));
+        const r = boom ? n.r * 1.9 : n.r;
+        gsap.to(n.dot, { attr: { r }, duration: 0.8, ease: "back.out(2)", overwrite: true });
+        gsap.to(n.label, { attr: { y: labelY(n, r) }, duration: 0.8, overwrite: true });
+        gsap.to(n.el, { opacity: faded ? 0.25 : 1, duration: 0.6, overwrite: true });
+      }
+      gsap.to(ring, { opacity: i === 1 ? 1 : 0, duration: 0.5, overwrite: true });
+    },
+  };
+});
+</script>

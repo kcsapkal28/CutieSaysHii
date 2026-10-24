@@ -1,0 +1,157 @@
+<section class="df-slide" id="s02">
+  <svg class="parts" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <canvas class="flow" width="1920" height="1080"></canvas>
+  <svg class="leaders" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="tags"></div>
+  <div class="side">
+    <p class="df-eyebrow">Physiology · Circulation</p>
+    <h2 class="title">Two loops, one pump</h2>
+    <p class="kicker"></p>
+    <p class="text"></p>
+    <div class="df-legend legend"></div>
+    <p class="chip"><b>≈ 5 L/min</b> pumped at rest: your whole blood volume, about once a minute</p>
+  </div>
+  <p class="foot">Stylised: the right side of the heart is drawn on the left, as if facing you. Not to scale.</p>
+  <aside class="df-notes">
+    <p>Follow one red cell. It comes back tired from the body, gets pushed to the lungs, picks up oxygen, and only then goes back out.</p>
+    <p>The point: the heart is two pumps side by side. The right one feeds the lungs, the left one feeds everything else.</p>
+  </aside>
+</section>
+
+<style>
+  #s02 .parts, #s02 .leaders, #s02 .flow { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #s02 .parts .box { fill: color-mix(in oklab, var(--df-surface) 80%, transparent); stroke: var(--df-line); stroke-width: 2; transition: stroke .5s; }
+  #s02 .parts .box.hot { stroke: var(--df-accent); stroke-width: 3; }
+  #s02 .parts .lobe { fill: color-mix(in oklab, var(--df-accent-3) 9%, var(--df-surface)); stroke: var(--df-line); stroke-width: 2; }
+  #s02 .parts text { font: 500 24px var(--df-font-body); fill: var(--df-muted); text-anchor: middle; }
+  #s02 .leaders line { stroke: var(--df-muted); stroke-width: 1.5; }
+  #s02 .leaders circle { fill: var(--df-accent); stroke: var(--df-bg); stroke-width: 2.5; }
+  #s02 .tags { position: absolute; inset: 0; pointer-events: none; }
+  #s02 .tags .df-tag { position: absolute; transform: translate(-50%, -50%); font-size: 24px; }
+  #s02 .side { position: absolute; left: 128px; top: 110px; width: 520px; }
+  #s02 .side .df-eyebrow { margin: 0 0 22px; }
+  #s02 .title { margin: 0 0 60px; font: 500 72px/1.02 var(--df-font-display); letter-spacing: -.025em; white-space: nowrap; }
+  #s02 .kicker { margin: 0 0 14px; font: 500 20px/1 var(--df-font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--df-accent); }
+  #s02 .text { margin: 0; min-height: 4.2em; font: 400 32px/1.35 var(--df-font-body); }
+  #s02 .legend { margin-top: 44px; flex-direction: column; gap: 18px; font-size: 24px; }
+  #s02 .legend .df-key { transition: opacity .5s; }
+  #s02 .legend .df-key.off { opacity: .3; }
+  #s02 .chip { margin: 52px 0 0; padding: 18px 22px; border-radius: min(var(--df-radius), 24px); background: color-mix(in oklab, var(--df-accent) 12%, var(--df-bg)); border: 1px solid color-mix(in oklab, var(--df-accent) 45%, transparent); font: 400 22px/1.4 var(--df-font-body); color: var(--df-text); }
+  #s02 .chip b { display: block; font: 600 40px/1.1 var(--df-font-mono); color: var(--df-accent); }
+  #s02 .foot { position: absolute; left: 128px; bottom: 50px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+
+  // ---------- flows: SVG path data, sampled once into lookup tables; `at` = the step that adds it
+  const FLOWS = [
+    { name: "Back from the body", color: C.accent2, at: 0, hot: ["ra", "rv"], d: "M820,930 C690,930 690,470 1060,470 L1060,680" },
+    { name: "Out to the lungs", color: C.accent2, at: 1, hot: ["rv"], d: "M1060,680 C1170,690 1220,600 1220,480 C1220,370 1120,280 1000,220" },
+    { name: "Back from the lungs", color: C.accent3, at: 2, hot: ["la", "lv"], d: "M1000,220 C1120,150 1320,150 1440,220 C1590,300 1570,470 1380,470 L1380,680" },
+    { name: "Out to the body", color: C.accent3, at: 3, hot: ["lv"], d: "M1380,680 C1520,700 1700,690 1720,790 C1740,890 1700,930 1620,930" },
+  ];
+  const probe = document.createElementNS(NS, "path");
+  el.querySelector(".leaders").append(probe);
+  for (const f of FLOWS) {
+    probe.setAttribute("d", f.d);
+    f.len = probe.getTotalLength();
+    f.pts = [];
+    for (let s = 0; s <= f.len; s += 3) { const p = probe.getPointAtLength(s); f.pts.push([p.x, p.y]); }
+    f.on = 0;
+  }
+  probe.remove();
+
+  // ---------- particles: beads spaced along each path, offset by time
+  const cv = el.querySelector(".flow");
+  const ctx = cv.getContext("2d");
+  const SPACING = 32, SPEED = api.reducedMotion ? 0 : 130;
+  function draw(t) {
+    ctx.clearRect(0, 0, 1920, 1080);
+    ctx.lineCap = "round";
+    for (const f of FLOWS) {
+      if (f.on < 0.01) continue;
+      ctx.globalAlpha = 0.28 * f.on;
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      f.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.stroke();
+      for (let d = (t * SPEED) % SPACING; d < f.len * f.on; d += SPACING) {
+        const [x, y] = f.pts[Math.min(f.pts.length - 1, Math.round(d / 3))];
+        ctx.globalAlpha = 0.25 * f.on; ctx.fillStyle = f.color;
+        ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill();
+        ctx.globalAlpha = f.on;
+        ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fill();
+        ctx.fillStyle = C.bg;
+        ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  api.onFrame((t) => draw(t));
+
+  // ---------- parts: four chambers, the lungs, the body (slide px)
+  const CHAMBERS = [
+    { id: "ra", num: "01", name: "Right atrium", x: 1060, y: 470, w: 200, h: 150, tag: [1000, 330] },
+    { id: "rv", num: "02", name: "Right ventricle", x: 1060, y: 680, w: 200, h: 170, tag: [1000, 820] },
+    { id: "la", num: "03", name: "Left atrium", x: 1380, y: 470, w: 200, h: 150, tag: [1400, 330] },
+    { id: "lv", num: "04", name: "Left ventricle", x: 1380, y: 680, w: 200, h: 170, tag: [1400, 820] },
+  ];
+  const parts = el.querySelector(".parts");
+  parts.innerHTML =
+    `<ellipse class="lobe" cx="1000" cy="215" rx="150" ry="82"/><ellipse class="lobe" cx="1440" cy="215" rx="150" ry="82"/>` +
+    `<text x="1220" y="240">Lungs</text>` +
+    `<rect class="box" x="770" y="890" width="900" height="80" rx="40"/><text x="1220" y="938">Body: organs and muscles</text>` +
+    CHAMBERS.map((c) => `<rect class="box" data-id="${c.id}" x="${c.x - c.w / 2}" y="${c.y - c.h / 2}" width="${c.w}" height="${c.h}" rx="34"/>`).join("");
+  const leaders = el.querySelector(".leaders");
+  const tags = el.querySelector(".tags");
+  for (const c of CHAMBERS) {
+    const [tx, ty] = c.tag;
+    const above = ty < c.y;
+    const ay = above ? c.y - c.h / 2 : c.y + c.h / 2; // anchor: the chamber's top or bottom edge
+    const ax = c.x + (tx - c.x) * 0.5;
+    leaders.innerHTML += `<line x1="${ax}" y1="${ay}" x2="${tx}" y2="${ty + (above ? 22 : -22)}"/><circle cx="${ax}" cy="${ay}" r="6"/>`;
+    const t = document.createElement("span");
+    t.className = "df-tag";
+    t.innerHTML = `<b>${c.num}</b>${c.name}`;
+    t.style.left = `${tx}px`;
+    t.style.top = `${ty}px`;
+    tags.append(t);
+  }
+  const legend = el.querySelector(".legend");
+  for (const f of FLOWS) {
+    f.key = document.createElement("span");
+    f.key.className = "df-key";
+    f.key.style.setProperty("--c", f.color);
+    f.key.innerHTML = `<i></i>${f.name}${f.color === C.accent2 ? " · oxygen-poor" : " · oxygen-rich"}`;
+    legend.append(f.key);
+  }
+
+  const CAPS = [
+    ["Loop 1 · in", "Oxygen-poor blood returns from the body into the right atrium, then drops into the right ventricle."],
+    ["Loop 1 · out", "The right ventricle pushes it a short way: only to the lungs, at low pressure."],
+    ["Loop 2 · in", "In the lungs it swaps carbon dioxide for oxygen and returns to the left side of the heart."],
+    ["Loop 2 · out", "The thick left ventricle drives it out through the aorta to every organ, then round again."],
+  ];
+  const kicker = el.querySelector(".kicker"), text = el.querySelector(".text");
+
+  return {
+    steps: 4,
+    step(i) {
+      kicker.textContent = CAPS[i][0];
+      text.textContent = CAPS[i][1];
+      gsap.fromTo([kicker, text], { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.06, ease: "power2.out", overwrite: true });
+      for (const f of FLOWS) {
+        gsap.to(f, { on: i >= f.at ? 1 : 0, duration: 1.4, ease: "power2.inOut", overwrite: true });
+        f.key.classList.toggle("off", i < f.at);
+      }
+      const hot = FLOWS[i].hot;
+      for (const r of parts.querySelectorAll(".box[data-id]")) r.classList.toggle("hot", hot.includes(r.dataset.id));
+    },
+  };
+});
+</script>

@@ -1,0 +1,107 @@
+<section class="df-slide" id="s01">
+  <p class="df-eyebrow kicker">Linguistics · Language vitality</p>
+  <div class="statement">
+    <p class="words">Nearly half of the world's 7,000 languages are <span class="key">endangered.</span></p>
+    <svg class="underline" viewBox="0 0 600 40" preserveAspectRatio="none" aria-hidden="true"><path d="M6,24 C140,10 330,34 594,12"/></svg>
+  </div>
+  <p class="cite"><span class="rule"></span><span>Ethnologue, 27th edition, 2024</span></p>
+  <div class="field">
+    <div class="half" aria-hidden="true">½</div>
+    <svg class="dots" viewBox="0 0 470 470" aria-hidden="true"></svg>
+    <div class="df-legend legend">
+      <span class="df-key" style="--c: var(--df-accent)"><i></i>Endangered</span>
+      <span class="df-key hollow"><i></i>Stable or vigorous</span>
+    </div>
+    <p class="per">1 dot ≈ 71 languages</p>
+  </div>
+  <p class="context">Of about <b>7,100</b> living languages, some <b>3,100</b> are endangered: children are no longer learning them at home.</p>
+  <aside class="df-notes">
+    <p>Say the sentence, then stop. Let the yellow word sit.</p>
+    <p>Step two turns it into a picture: a hundred dots, forty-four of them yellow. A language is endangered when it stops being passed from parents to children.</p>
+  </aside>
+</section>
+
+<style>
+  #s01 .kicker { position: absolute; left: 128px; top: 96px; margin: 0; }
+  #s01 .statement { position: absolute; left: 128px; top: 196px; width: 1120px; }
+  #s01 .words { margin: 0; font: 700 128px/1.04 var(--df-font-display); letter-spacing: -.04em; color: var(--df-text); }
+  #s01 .words .w { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .1em; margin-bottom: -.1em; }
+  #s01 .words .w > span { display: inline-block; }
+  #s01 .key { color: var(--df-accent); }
+  #s01 .underline { position: absolute; left: 0; top: 0; width: 600px; height: 40px; overflow: visible; }
+  #s01 .underline path { fill: none; stroke: var(--df-accent); stroke-width: 9; stroke-linecap: round; }
+  #s01 .cite { position: absolute; left: 128px; top: 846px; margin: 0; display: flex; align-items: center; gap: 22px; font: 500 26px/1.2 var(--df-font-mono); color: var(--df-muted); }
+  #s01 .rule { width: 88px; height: 3px; background: var(--df-text); }
+  #s01 .field { position: absolute; left: 1322px; top: 196px; width: 470px; height: 700px; }
+  #s01 .half { position: absolute; left: -40px; top: -150px; font: 700 620px/1 var(--df-font-display); color: color-mix(in oklab, var(--df-accent) 16%, var(--df-bg)); }
+  #s01 .dots { position: absolute; left: 0; top: 0; width: 470px; height: 470px; overflow: visible; }
+  #s01 .dots circle { stroke-width: 3; }
+  #s01 .legend { position: absolute; left: 0; top: 512px; flex-direction: column; gap: 16px; color: var(--df-text); }
+  #s01 .legend .hollow > i { background: transparent; box-shadow: none; border: 3px solid var(--df-muted); width: 16px; height: 16px; }
+  #s01 .per { position: absolute; left: 0; top: 610px; margin: 0; font: 500 20px/1 var(--df-font-mono); letter-spacing: .06em; color: var(--df-muted); }
+  #s01 .context { position: absolute; left: 128px; top: 920px; width: 1120px; margin: 0; font: 400 30px/1.35 var(--df-font-body); color: var(--df-text); }
+  #s01 .context b { color: var(--df-accent); font: 600 30px/1 var(--df-font-mono); }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const quick = api.reducedMotion ? 0 : 1;
+
+  // split the sentence into masked words so each one rises into place
+  const p = el.querySelector(".words");
+  const key = p.querySelector(".key").outerHTML;
+  const plain = p.textContent.replace("endangered.", "").trim().split(/\s+/);
+  p.innerHTML = [...plain.map((w) => `<span class="w"><span>${w}</span></span>`), `<span class="w"><span>${key}</span></span>`].join(" ");
+  const inner = p.querySelectorAll(".w > span");
+
+  // the hand-drawn underline sits under the key word (offsets are unscaled layout px)
+  const under = el.querySelector(".underline");
+  const path = under.querySelector("path");
+  function placeUnderline() {
+    const w = p.querySelector(".key").closest(".w");
+    under.style.left = `${w.offsetLeft}px`;
+    under.style.top = `${w.offsetTop + w.offsetHeight - 26}px`;
+    under.style.width = `${w.offsetWidth - 24}px`;
+  }
+  const len = path.getTotalLength();
+  path.style.strokeDasharray = len;
+
+  // 100 dots = all living languages; the first 44 (in reading order) are the endangered share
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".dots");
+  const SHARE = 44, PITCH = 47, R = 15;
+  const dots = [];
+  for (let k = 0; k < 100; k++) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", 23 + (k % 10) * PITCH);
+    c.setAttribute("cy", 23 + Math.floor(k / 10) * PITCH);
+    c.setAttribute("r", R);
+    c.setAttribute("fill", "transparent");
+    c.setAttribute("stroke", C.muted);
+    svg.append(c);
+    dots.push(c);
+  }
+  const endangered = dots.slice(0, SHARE);
+  const extras = el.querySelectorAll(".legend, .per, .context");
+
+  return {
+    steps: 2,
+    enter() {
+      placeUnderline();
+      gsap.timeline()
+        .fromTo(inner, { yPercent: 110 }, { yPercent: 0, duration: 1.0 * quick, stagger: 0.07 * quick, ease: "power4.out" })
+        .fromTo(path, { strokeDashoffset: len }, { strokeDashoffset: 0, duration: 0.9 * quick, ease: "power2.inOut" }, 0.8 * quick)
+        .fromTo(el.querySelector(".cite"), { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.7 * quick, ease: "power2.out" }, 1.0 * quick)
+        .fromTo(el.querySelector(".half"), { opacity: 0 }, { opacity: 1, duration: 1.2 * quick }, 0.4 * quick);
+    },
+    step(i) {
+      const on = i >= 1;
+      gsap.to(endangered, { attr: { fill: on ? C.accent : "transparent", stroke: on ? C.accent : C.muted }, duration: 0.35 * quick, stagger: on ? 0.02 * quick : 0, overwrite: true });
+      gsap.to(dots.slice(SHARE), { opacity: on ? 0.6 : 1, duration: 0.5 * quick, overwrite: true });
+      gsap.to(extras, { opacity: on ? 1 : 0, y: on ? 0 : 16, duration: 0.6 * quick, stagger: 0.08 * quick, ease: "power2.out", overwrite: true });
+    },
+  };
+});
+</script>

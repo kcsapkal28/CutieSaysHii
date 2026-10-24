@@ -1,0 +1,188 @@
+<section class="df-slide" id="s01">
+  <header class="head">
+    <p class="df-eyebrow kicker">Genetics · Hardy–Weinberg</p>
+    <h2 class="df-h2 title">Two allele shares fix all three genotype shares</h2>
+  </header>
+  <svg class="sq" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
+  <div class="marks"></div>
+  <div class="eq">
+    <p class="pre">p + q = 1, so (p + q)² = 1</p>
+    <p class="terms"><span class="t" data-at="1">p²</span><span class="t" data-at="2"> + 2pq</span><span class="t" data-at="3"> + q²</span><span class="t" data-at="3"> = 1</span></p>
+  </div>
+  <p class="caption"></p>
+  <div class="rows"></div>
+  <p class="foot">Assumes random mating, no selection, migration or mutation. CF ≈ 1 in 2,500 births in Northern Europe; values rounded.</p>
+  <aside class="df-notes">
+    <p>Build the equation one term at a time and point at the matching area of the square each time: the square IS the equation.</p>
+    <p>Last step: a rare disease (q² tiny) still means one person in 25 carries the allele. That is why carrier screening matters.</p>
+  </aside>
+</section>
+
+<style>
+  #s01 .head { position: absolute; left: 128px; top: 84px; width: 1660px; }
+  #s01 .kicker { margin: 0 0 18px; }
+  #s01 .title { font-weight: 650; font-size: 64px; letter-spacing: -.025em; }
+  #s01 .sq { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: visible; }
+  #s01 .sq .cell { stroke: var(--df-text); stroke-width: 2; }
+  #s01 .sq .split { stroke: var(--df-muted); stroke-width: 2; fill: none; }
+  #s01 .sq .lead { stroke: var(--df-text); stroke-width: 1.5; }
+  #s01 .sq .dot { fill: var(--df-text); stroke: var(--df-surface); stroke-width: 2; }
+  #s01 .marks { position: absolute; inset: 0; pointer-events: none; }
+  #s01 .ax { position: absolute; transform: translate(-50%, -50%); font: 500 26px/1 var(--df-font-mono); color: var(--df-text); white-space: nowrap; }
+  #s01 .ax i { font-style: normal; color: var(--df-muted); }
+  #s01 .lab { position: absolute; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; }
+  #s01 .lab b { display: block; font: 700 52px/1 var(--df-font-display); letter-spacing: -.02em; color: var(--c); }
+  #s01 .lab span { display: block; margin-top: 10px; font: 500 24px/1 var(--df-font-mono); color: var(--df-text); }
+  #s01 .marks .df-tag { position: absolute; transform: translate(-50%, -50%); box-shadow: inset 3px 0 0 var(--c), var(--df-shadow-sm); }
+  #s01 .marks .df-tag b { color: var(--c); font-weight: 700; }
+  #s01 .eq { position: absolute; left: 1000px; top: 300px; width: 792px; }
+  #s01 .pre { margin: 0; font: 500 24px/1 var(--df-font-mono); color: var(--df-muted); }
+  #s01 .terms { margin: 18px 0 0; font: 650 104px/1 var(--df-font-display); letter-spacing: -.03em; white-space: nowrap; }
+  #s01 .t { display: inline-block; white-space: pre; }
+  #s01 .t:nth-child(1) { color: var(--df-accent); }
+  #s01 .t:nth-child(2) { color: var(--df-accent-2); }
+  #s01 .t:nth-child(3) { color: var(--df-accent-3); }
+  #s01 .caption { position: absolute; left: 1000px; top: 482px; width: 792px; margin: 0; font: 400 30px/1.35 var(--df-font-body); color: var(--df-text); text-wrap: pretty; }
+  #s01 .rows { position: absolute; left: 1000px; top: 600px; width: 792px; }
+  #s01 .row { display: grid; grid-template-columns: 112px 1fr 250px; align-items: center; height: 84px; border-top: 1px solid var(--df-line); }
+  #s01 .row .k { font: 600 32px/1 var(--df-font-mono); color: var(--c); }
+  #s01 .row .w { font: 400 24px/1.25 var(--df-font-body); color: var(--df-text); padding-right: 16px; }
+  #s01 .row .v { text-align: right; font: 500 32px/1 var(--df-font-mono); font-variant-numeric: tabular-nums; color: var(--df-text); }
+  #s01 .row .v small { display: block; margin-top: 6px; font: 500 24px/1 var(--df-font-mono); color: var(--c); }
+  #s01 .foot { position: absolute; left: 128px; top: 978px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  // The square IS the equation: sides split p | q, so each cell's area is a genotype share.
+  const X0 = 240, Y0 = 330, S = 610;
+  const st = { p: 0.7 };
+  // Each term owns: a span in the equation (data-at), cells in the square, a row of meaning. Same colour, same step.
+  const TERMS = [
+    { geno: "AA", key: "p²", c: C.accent, cells: [[0, 0]], at: 1, val: (p, q) => p * p,
+      words: "Both copies A: chance p × p." },
+    { geno: "Aa", key: "2pq", c: C.accent2, cells: [[0, 1], [1, 0]], at: 2, val: (p, q) => 2 * p * q,
+      words: "One of each, two ways: A then a, or a then A." },
+    { geno: "aa", key: "q²", c: C.accent3, cells: [[1, 1]], at: 3, val: (p, q) => q * q,
+      words: "Both copies a: chance q × q." },
+  ];
+  // cell (row i = egg allele, col j = sperm allele) as a rectangle of the square
+  const rect = (i, j, p) => ({ x: X0 + (j ? p * S : 0), y: Y0 + (i ? p * S : 0), w: (j ? 1 - p : p) * S, h: (i ? 1 - p : p) * S });
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = el.querySelector(".sq"), marks = el.querySelector(".marks");
+  const mk = (tag, cls, parent = svg) => { const n = document.createElementNS(NS, tag); n.setAttribute("class", cls); parent.append(n); return n; };
+  const div = (cls, html) => { const d = document.createElement("div"); d.className = cls; d.innerHTML = html; marks.append(d); return d; };
+
+  for (const T of TERMS) {
+    T.rects = T.cells.map(() => mk("rect", "cell"));
+    T.fill = 0;
+    T.labs = T.cells.map(() => div("lab", `<b>${T.geno}</b><span></span>`));
+    T.labs.forEach((l) => l.style.setProperty("--c", T.c));
+  }
+  // side brackets and allele labels (top = sperm, left = eggs)
+  const splits = [mk("path", "split"), mk("path", "split")];
+  const ax = { tp: div("ax", "A <i>·</i> p"), tq: div("ax", "a <i>·</i> q"), lp: div("ax", "A <i>·</i> p"), lq: div("ax", "a <i>·</i> q") };
+  // callouts for the thin cells of the real example (leader lines end on the cells)
+  const TAGS = [
+    { html: "<b>Aa</b>Carriers · about 1 in 25", c: C.accent2, x: 560, y: 470, to: (p) => [[X0 + p * S + ((1 - p) * S) / 2, 470], [400, Y0 + p * S + ((1 - p) * S) / 2]] },
+    { html: "<b>aa</b>Has CF · 1 in 2,500", c: C.accent3, x: 620, y: 830, to: (p) => [[X0 + p * S + ((1 - p) * S) / 2, Y0 + p * S + ((1 - p) * S) / 2]] },
+  ];
+  for (const g of TAGS) {
+    g.tag = div("df-tag", g.html);
+    g.tag.style.setProperty("--c", g.c);
+    Object.assign(g.tag.style, { left: `${g.x}px`, top: `${g.y}px` });
+    g.lines = [mk("line", "lead"), mk("line", "lead")];
+    g.dots = [mk("circle", "dot"), mk("circle", "dot")];
+    g.vis = 0;
+  }
+
+  const ROWS = [
+    { key: "p, q", c: C.muted, words: "Shares of the two alleles, A and a. They add up to 1.", at: 0 },
+    ...TERMS,
+  ];
+  const rowsEl = el.querySelector(".rows");
+  for (const r of ROWS) {
+    r.row = document.createElement("div");
+    r.row.className = "row";
+    r.row.style.setProperty("--c", r.c);
+    r.row.innerHTML = `<span class="k">${r.key}</span><span class="w">${r.words}</span><span class="v"></span>`;
+    r.v = r.row.querySelector(".v");
+    rowsEl.append(r.row);
+  }
+  const fmt = (v) => (v >= 0.1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toFixed(4));
+  const odds = (v) => `≈ 1 in ${(Math.round(1 / v / 5) * 5).toLocaleString("en-GB")}`;
+
+  function layout() {
+    const p = st.p, q = 1 - p, real = p > 0.9;
+    for (const T of TERMS) {
+      T.cells.forEach(([i, j], k) => {
+        const r = rect(i, j, p);
+        T.rects[k].setAttribute("x", r.x); T.rects[k].setAttribute("y", r.y);
+        T.rects[k].setAttribute("width", r.w); T.rects[k].setAttribute("height", r.h);
+        T.rects[k].setAttribute("fill", `color-mix(in oklab, ${T.c} ${Math.round(T.fill * 18)}%, ${C.surface})`);
+        const lab = T.labs[k];
+        const fits = r.w > 150 && r.h > 120;
+        Object.assign(lab.style, { left: `${r.x + r.w / 2}px`, top: `${r.y + r.h / 2}px`, opacity: fits ? T.fill : 0 });
+        lab.querySelector("span").textContent = `${T.key} = ${fmt(T.val(p, q))}`;
+      });
+    }
+    // brackets: a tick at each end of the p and q segments
+    const tY = Y0 - 22, lX = X0 - 22, a = X0 + p * S, b = Y0 + p * S;
+    splits[0].setAttribute("d", `M${X0},${tY - 8}v16M${X0},${tY}H${a - 6}M${a - 6},${tY - 8}v16M${a + 6},${tY - 8}v16M${a + 6},${tY}H${X0 + S}M${X0 + S},${tY - 8}v16`);
+    splits[1].setAttribute("d", `M${lX - 8},${Y0}h16M${lX},${Y0}V${b - 6}M${lX - 8},${b - 6}h16M${lX - 8},${b + 6}h16M${lX},${b + 6}V${Y0 + S}M${lX - 8},${Y0 + S}h16`);
+    const place = (n, x, y) => Object.assign(n.style, { left: `${x}px`, top: `${y}px` });
+    place(ax.tp, X0 + (p * S) / 2, tY - 30); place(ax.tq, Math.max(a + 50, X0 + p * S + (q * S) / 2), tY - 30);
+    place(ax.lp, lX - 62, Y0 + (p * S) / 2); place(ax.lq, lX - 62, Math.min(Y0 + S + 4, b + Math.max(36, (q * S) / 2)));
+    for (const g of TAGS) {
+      g.tag.style.opacity = g.vis;
+      const pts = g.to(p);
+      g.lines.forEach((ln, k) => {
+        const pt = pts[k];
+        ln.style.opacity = dt(pt) * g.vis; g.dots[k].style.opacity = dt(pt) * g.vis;
+        if (!pt) return;
+        const w = g.tag.offsetWidth / 2, h = g.tag.offsetHeight / 2;
+        // leave the tag from its nearest edge
+        const inX = Math.abs(pt[0] - g.x) < w;
+        const sx = inX ? pt[0] : g.x + Math.sign(pt[0] - g.x) * w;
+        const sy = inX ? g.y + Math.sign(pt[1] - g.y) * h : g.y;
+        ln.setAttribute("x1", sx); ln.setAttribute("y1", sy); ln.setAttribute("x2", pt[0]); ln.setAttribute("y2", pt[1]);
+        g.dots[k].setAttribute("cx", pt[0]); g.dots[k].setAttribute("cy", pt[1]); g.dots[k].setAttribute("r", 6);
+      });
+    }
+    ROWS[0].v.innerHTML = `${p.toFixed(2)} · ${q.toFixed(2)}`;
+    for (const T of TERMS) {
+      const v = T.val(p, q);
+      T.v.innerHTML = real && T.geno !== "AA" ? `${fmt(v)}<small>${odds(v)}</small>` : fmt(v);
+    }
+  }
+  const dt = (pt) => (pt ? 1 : 0);
+
+  const STEPS = [
+    ["Allele shares", "Pick two alleles at random. Along each side of the square, A takes share p and a takes q."],
+    ["Term 1 · p²", "The top-left area is A × A. Its area, p × p, is the share of people with two A copies."],
+    ["Term 2 · 2pq", "Two areas mix A and a, one for each order. Together they make 2pq: the carriers."],
+    ["Term 3 · q²", "The last corner is a × a. The four areas fill the square, so the three terms add to 1."],
+    ["Example · cystic fibrosis", "CF hits about 1 in 2,500 births: q² = 0.0004, so q = 0.02. Yet 2pq says one person in 25 carries it."],
+  ];
+  const kicker = el.querySelector(".kicker"), caption = el.querySelector(".caption");
+  const spans = [...el.querySelectorAll(".t")];
+  layout();
+
+  return {
+    steps: STEPS.length,
+    step(i) {
+      kicker.textContent = `Genetics · ${STEPS[i][0]}`;
+      caption.textContent = STEPS[i][1];
+      gsap.fromTo(caption, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out", overwrite: true });
+      spans.forEach((s) => gsap.to(s, { opacity: i >= +s.dataset.at ? 1 : 0.12, y: i >= +s.dataset.at ? 0 : 16, duration: 0.6, ease: "power3.out", overwrite: true }));
+      for (const r of ROWS) gsap.to(r.row, { opacity: i >= r.at ? 1 : 0, x: i >= r.at ? 0 : -20, duration: 0.6, ease: "power2.out", overwrite: true });
+      for (const T of TERMS) gsap.to(T, { fill: i >= T.at ? 1 : 0, duration: 0.7, ease: "power2.out", overwrite: true, onUpdate: layout });
+      for (const g of TAGS) gsap.to(g, { vis: i === 4 ? 1 : 0, duration: 0.6, delay: i === 4 ? 1 : 0, overwrite: true, onUpdate: layout });
+      gsap.to(st, { p: i === 4 ? 0.98 : 0.7, duration: 1.4, ease: "expo.inOut", overwrite: true, onUpdate: layout });
+    },
+  };
+});
+</script>

@@ -1,0 +1,128 @@
+<section class="df-slide" id="s04">
+  <header class="head">
+    <p class="df-eyebrow kicker">Marine biology · Ocean zones</p>
+    <h2 class="df-h2 title">Sunlight runs out in the first 200 metres</h2>
+    <p class="caption"></p>
+  </header>
+  <div class="hdr"><span>Light</span><span>Temp</span><span>Pressure</span></div>
+  <div class="stack"></div>
+  <p class="foot">Bands drawn at equal height: the depth axis is not to scale. Typical open-ocean values; pressure ≈ 1 atm per 10 m.</p>
+  <aside class="df-notes">
+    <p>Go down one zone per click. The bands are equal on purpose: the sunlit zone is under 2% of the deepest water column, yet almost all ocean life depends on it.</p>
+    <p>Finish on the snailfish: filmed alive at 8,336 m in 2022, deeper than any fish before it.</p>
+  </aside>
+</section>
+
+<style>
+  #s04 .head { position: absolute; left: 128px; top: 84px; width: 1664px; }
+  #s04 .kicker { margin: 0 0 18px; }
+  #s04 .title { font-weight: 650; font-size: 64px; letter-spacing: -.025em; }
+  #s04 .caption { width: 1160px; margin: 16px 0 0; white-space: nowrap; min-height: 1.35em; font: 400 28px/1.35 var(--df-font-body); color: var(--df-muted); }
+  #s04 .hdr { position: absolute; left: 1330px; top: 262px; width: 462px; display: grid; grid-template-columns: 172px 124px 166px; font: 500 18px/1 var(--df-font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--df-muted); }
+  #s04 .stack { position: absolute; inset: 0; }
+  #s04 .name { position: absolute; left: 128px; width: 230px; transform: translateY(-50%); }
+  #s04 .name b { display: block; font: 650 32px/1.05 var(--df-font-display); letter-spacing: -.015em; color: var(--df-text); }
+  #s04 .name span { display: block; margin-top: 8px; font: 400 20px/1 var(--df-font-mono); color: var(--df-muted); }
+  #s04 .on .name b { color: var(--df-accent); }
+  #s04 .tick { position: absolute; left: 368px; width: 92px; transform: translateY(-50%); text-align: right; font: 500 20px/1 var(--df-font-mono); color: var(--df-text); white-space: nowrap; }
+  #s04 .tick::after { content: ""; position: absolute; right: -16px; top: 50%; width: 10px; height: 2px; background: var(--df-text); }
+  #s04 .band { position: absolute; left: 480px; width: 810px; overflow: hidden; background: var(--bg); border-radius: 4px; }
+  #s04 .on .band { box-shadow: 0 0 0 4px var(--df-accent), var(--df-shadow); z-index: 1; }
+  #s04 .band svg { position: absolute; inset: 0; width: 810px; height: 100%; }
+  #s04 .band .df-tag { position: absolute; right: 390px; top: 50%; transform: translateY(-50%); background: var(--df-surface); }
+  #s04 .band .df-tag b { font-weight: 700; }
+  #s04 .lead { position: absolute; left: 432px; top: 50%; width: var(--w); height: 2px; margin-top: -1px; background: var(--df-surface); }
+  #s04 .lead::after { content: ""; position: absolute; right: -6px; top: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--df-surface); box-shadow: 0 0 0 2px var(--df-text); }
+  #s04 .det { position: absolute; left: 1330px; width: 462px; transform: translateY(-50%); display: grid; grid-template-columns: 172px 124px 166px; font: 500 22px/1.2 var(--df-font-body); color: var(--df-text); font-variant-numeric: tabular-nums; }
+  #s04 .on .det { color: var(--df-accent); font-weight: 650; }
+  #s04 .foot { position: absolute; left: 128px; top: 990px; margin: 0; font: 400 18px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s04", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  // The stack: equal bands (so the zones can be compared), a piecewise depth axis, one band expands per step.
+  const TOP = 296, TOTAL = 670, BIG = 214, N = 5;
+  const sizes = Array.from({ length: N }, () => ({ h: TOTAL / N, dim: 1, tag: 0 }));
+  // Lay the bands out top to bottom from their tweened heights; labels, details and ticks follow their band.
+  function layout() {
+    let y = TOP;
+    surface.style.top = `${y}px`;
+    Z.forEach((z, i) => {
+      const s = sizes[i], h = s.h - 6;
+      Object.assign(z.band.style, { top: `${y}px`, height: `${h}px`, opacity: s.dim });
+      z.nameEl.style.top = z.det.style.top = `${y + h / 2}px`;
+      z.tag.forEach((t) => (t.style.opacity = s.tag));
+      y += s.h;
+      z.tick.style.top = `${y - 3}px`;
+    });
+  }
+  const mix = (a, p, b) => `color-mix(in oklab, ${a} ${p}%, ${b})`;
+  const Z = [
+    { name: "Sunlit", sub: "epipelagic", to: "200 m", bg: mix(C.accent2, 24, C.surface), ink: C.text, light: "Full sun", temp: "5–30 °C", atm: "1–21 atm",
+      who: "Bluefin tuna", draw: "tuna", nose: 492, cap: "Sunlit: enough light for algae to grow, so nearly all ocean food starts here." },
+    { name: "Twilight", sub: "mesopelagic", to: "1,000 m", bg: mix(C.accent2, 62, C.surface), ink: C.text, light: "Faint blue", temp: "4–15 °C", atm: "21–101 atm",
+      who: "Lanternfish", draw: "lantern", nose: 515, cap: "Twilight: a faint blue glow, too dim for anything to grow." },
+    { name: "Midnight", sub: "bathypelagic", to: "4,000 m", bg: mix(C.accent2, 55, C.text), ink: C.surface, light: "Only glow", temp: "≈ 4 °C", atm: "101–401 atm",
+      who: "Anglerfish", draw: "angler", nose: 528, cap: "Midnight: no sunlight. The only light is made by animals, like this lure." },
+    { name: "Abyssal", sub: "abyssopelagic", to: "6,000 m", bg: mix(C.accent2, 32, C.text), ink: C.surface, light: "None", temp: "2–3 °C", atm: "401–601 atm",
+      who: "Tripod fish", draw: "tripod", nose: 518, cap: "Abyssal: near-freezing plains. The tripod fish waits for food to drift by." },
+    { name: "Hadal", sub: "trenches", to: "11,000 m", bg: mix(C.accent2, 14, C.text), ink: C.surface, light: "None", temp: "1–2.5 °C", atm: "601–1,100 atm",
+      who: "Snailfish · 8,336 m", draw: "snail", nose: 518, cap: "Hadal: the trenches. A snailfish filmed at 8,336 m in 2022 is the deepest yet." },
+  ];
+
+  // ---------- build: label, band (with creature + tagged leader), details row, boundary tick
+  const stack = el.querySelector(".stack");
+  const tick = (txt) => { const t = document.createElement("div"); t.className = "tick"; t.textContent = txt; stack.append(t); return t; };
+  const surface = tick("0 m");
+  Z.forEach((z, i) => {
+    z.g = document.createElement("div");
+    z.g.innerHTML = `<div class="name"><b>${z.name}</b><span>${z.sub}</span></div>` +
+      `<div class="band" style="--bg:${z.bg}"><svg viewBox="0 0 820 220" preserveAspectRatio="xMinYMid slice" aria-hidden="true">${scenery(i)}${creature(z.draw, z.ink)}</svg>` +
+      `<span class="df-tag"><b>0${i + 1}</b>${z.who}</span><i class="lead" style="--w:${z.nose - 438}px"></i></div>` +
+      `<div class="det"><span>${z.light}</span><span>${z.temp}</span><span>${z.atm}</span></div>`;
+    stack.append(z.g);
+    z.tick = tick(z.to);
+    [z.nameEl, z.band, z.det] = [".name", ".band", ".det"].map((s) => z.g.querySelector(s));
+    z.tag = z.g.querySelectorAll(".df-tag, .lead");
+  });
+
+  // ---------- scenery and creatures, drawn in a 820×220 box centred in each band
+  function scenery(i) {
+    if (i === 0) return [0, 1, 2, 3].map((k) => `<path d="M${120 + k * 190},-20 l90,0 l-150,260 l-60,0z" fill="${C.surface}" opacity=".35"/>`).join("");
+    // marine snow and, in the twilight and midnight zones, a few glowing points
+    let s = "", seed = i * 97;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 26; k++) s += `<circle cx="${(rnd() * 800).toFixed(0)}" cy="${(rnd() * 210).toFixed(0)}" r="${(1.5 + rnd() * 1.5).toFixed(1)}" fill="${C.surface}" opacity="${i < 3 ? 0.5 : 0.3}"/>`;
+    return s;
+  }
+  function creature(kind, c) {
+    return {
+    tuna: (c) => `<g transform="translate(560,110) scale(.75)" fill="${c}"><path d="M-90,0 C-60,-38 40,-40 80,-6 L120,-34 L108,0 L120,34 L80,6 C40,40 -60,38 -90,0Z"/><path d="M-10,-30 l26,-26 l12,22z"/><circle cx="-62" cy="-6" r="5" fill="${C.surface}"/></g>`,
+    lantern: (c) => `<g transform="translate(560,110) scale(.75)" fill="${c}"><path d="M-60,0 C-40,-28 30,-28 52,-4 L80,-24 L72,0 L80,24 L52,4 C30,28 -40,28 -60,0Z"/>${[-30, -14, 2, 18, 34].map((x) => `<circle cx="${x}" cy="12" r="4.5" fill="${C.accent3}"/>`).join("")}<circle cx="-40" cy="-6" r="6" fill="${C.surface}"/></g>`,
+    angler: (c) => `<g transform="translate(580,118) scale(.75)" fill="${c}"><path d="M-70,10 C-70,-50 40,-60 60,-6 L96,-30 L90,8 L100,40 L58,18 C40,58 -70,60 -70,10Z"/><path d="M-70,8 l26,-8 l-22,16z" fill="${C.text}"/><path d="M-30,-40 C-40,-80 -80,-86 -96,-62" fill="none" stroke="${c}" stroke-width="4"/><circle cx="-96" cy="-58" r="12" fill="${C.accent3}" opacity=".35"/><circle cx="-96" cy="-58" r="6" fill="${C.accent3}"/></g>`,
+    tripod: (c) => `<g transform="translate(570,110) scale(.75)" fill="${c}"><path d="M-70,0 C-50,-20 40,-20 70,-4 L110,-20 L104,0 L110,18 L70,4 C40,18 -50,18 -70,0Z"/><path d="M-20,8 L-40,90 M10,8 L30,90 M80,8 L104,90" stroke="${c}" stroke-width="3" fill="none"/><path d="M-200,92 H220" stroke="${c}" stroke-width="2" opacity=".5"/></g>`,
+    snail: (c) => `<g transform="translate(570,110) scale(.75)" fill="${c}" opacity=".92"><path d="M-70,0 C-70,-40 10,-44 40,-16 C70,-4 110,-6 130,0 C110,8 70,6 40,18 C10,44 -70,40 -70,0Z"/><circle cx="-44" cy="-8" r="5" fill="${C.text}"/></g>`,
+    }[kind](c);
+  }
+
+  const kicker = el.querySelector(".kicker"), caption = el.querySelector(".caption");
+  layout();
+
+  return {
+    steps: Z.length + 1,
+    step(i) {
+      const on = i - 1;
+      kicker.textContent = on < 0 ? "Marine biology · Ocean zones" : `Marine biology · Zone ${on + 1} of 5`;
+      caption.textContent = on < 0 ? "Five zones from the surface to the deepest trench, drawn at equal height." : Z[on].cap;
+      gsap.fromTo(caption, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" });
+      Z.forEach((z, k) => z.g.classList.toggle("on", k === on));
+      sizes.forEach((s, k) => {
+        const h = on < 0 ? TOTAL / Z.length : k === on ? BIG : (TOTAL - BIG) / (Z.length - 1);
+        gsap.to(s, { h, dim: on < 0 || k === on ? 1 : 0.72, tag: k === on ? 1 : 0, duration: 0.9, ease: "expo.inOut", overwrite: true, onUpdate: layout });
+      });
+    },
+  };
+});
+</script>

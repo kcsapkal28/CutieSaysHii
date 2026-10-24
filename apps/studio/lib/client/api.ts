@@ -29,7 +29,7 @@ export const api = {
   restore: (id: string, version: number) => fetch(`/api/projects/${id}/versions/${version}/restore`, { method: "POST" }).then((r) => json<VersionInfo>(r)),
 };
 
-export const deckUrl = (id: string, version: number | "latest", opts: { shot?: string; step?: number; download?: boolean } = {}) => {
+export const deckUrl = (id: string, version: number | "latest" | "draft", opts: { shot?: string; step?: number; download?: boolean } = {}) => {
   const q = new URLSearchParams();
   if (opts.shot) q.set("df-shot", opts.shot);
   if (opts.shot && opts.step !== undefined) q.set("step", String(opts.step));

@@ -158,8 +158,14 @@ export function Segmented<T extends string | number>({
       aria-label={label}
       className={cx("grid auto-cols-fr grid-flow-col gap-0.5 rounded-lg border border-line bg-bg p-0.5", className)}
       onKeyDown={(e) => {
-        if (e.key === "ArrowRight" || e.key === "ArrowDown") (e.preventDefault(), move(1));
-        if (e.key === "ArrowLeft" || e.key === "ArrowUp") (e.preventDefault(), move(-1));
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+          e.preventDefault();
+          move(1);
+        }
+        if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+          e.preventDefault();
+          move(-1);
+        }
       }}
     >
       {options.map((o) => {

@@ -19,23 +19,23 @@ export function StylePoster({ style, title, className }: { style: Style; title: 
   const c = style.theme.colors;
   return (
     <div
-      className={`relative aspect-video w-full overflow-hidden ${className ?? ""}`}
+      className={`relative aspect-video w-full overflow-hidden [container-type:inline-size] ${className ?? ""}`}
       style={{ background: style.theme.backdrop || c.bg, color: c.text, fontFamily: familyOf(style.theme.fonts.body) }}
       aria-hidden
     >
-      <div className="absolute left-[7%] top-[30%] right-[7%]">
-        <div style={{ fontFamily: familyOf(style.theme.fonts.mono), color: c.accent, fontSize: "clamp(6px, 0.75cqw, 9px)", letterSpacing: ".22em" }} className="uppercase">
+      <div className="absolute left-[7%] top-[28%] right-[7%]">
+        <div style={{ fontFamily: familyOf(style.theme.fonts.mono), color: c.accent, fontSize: "2.6cqw", letterSpacing: ".22em" }} className="uppercase">
           {style.look.replace(/-/g, " ")}
         </div>
         <div
-          style={{ fontFamily: familyOf(style.theme.fonts.display), fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.01em", fontWeight: 500 }}
-          className="mt-2 line-clamp-2"
+          style={{ fontFamily: familyOf(style.theme.fonts.display), fontSize: "8.5cqw", lineHeight: 1.05, letterSpacing: "-0.01em", fontWeight: 500 }}
+          className="mt-[2.5cqw] line-clamp-2"
         >
           {title}
         </div>
-        <div className="mt-3 flex gap-1.5">
+        <div className="mt-[4cqw] flex gap-[1.6cqw]">
           {[c.accent, c.accent2, c.accent3].map((x, i) => (
-            <span key={i} className="h-1.5 w-8 rounded-full" style={{ background: x }} />
+            <span key={i} className="h-[1.6cqw] w-[9cqw] rounded-full" style={{ background: x }} />
           ))}
         </div>
       </div>

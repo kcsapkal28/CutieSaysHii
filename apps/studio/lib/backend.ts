@@ -10,6 +10,8 @@ export class NotFound extends Error {
   override name = "NotFound";
 }
 
+export type DeckRef = number | "latest" | "draft";
+
 export interface RunOptions {
   /** Aborted when the client disconnects or presses Stop. */
   signal?: AbortSignal;
@@ -37,6 +39,9 @@ export interface StudioBackend {
   listVersions(id: string): Promise<VersionInfo[]>;
   /** Rolls back by writing a new version that copies `version`. */
   restoreVersion(id: string, version: number): Promise<VersionInfo>;
-  /** The self-contained deck.html of a version ("latest" = newest). null when there is none. */
-  getDeckHtml(id: string, version: number | "latest"): Promise<string | null>;
+  /**
+   * The self-contained deck.html of a version. "latest" = newest version; "draft" = the working slides as they
+   * stand right now (slides/<id>.html), so the build view can show slides as they pass. null when there is none.
+   */
+  getDeckHtml(id: string, version: DeckRef): Promise<string | null>;
 }

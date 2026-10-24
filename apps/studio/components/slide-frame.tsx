@@ -12,12 +12,15 @@ export function SlideFrame({
   className,
   interactive = false,
   lazy = true,
+  height = 1080,
 }: {
   src: string;
   title: string;
   className?: string;
   interactive?: boolean;
   lazy?: boolean;
+  /** Page height in deck pixels: 1080, or 1152 when the deck has a presenter dock. */
+  height?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -37,7 +40,7 @@ export function SlideFrame({
   }, []);
 
   return (
-    <div ref={box} className={cx("relative aspect-video w-full overflow-hidden bg-[#0b0c10]", className)}>
+    <div ref={box} className={cx("relative w-full overflow-hidden bg-[#0b0c10]", className)} style={{ aspectRatio: `1920 / ${height}` }}>
       {scale > 0 && (
         <iframe
           key={src}
@@ -47,7 +50,7 @@ export function SlideFrame({
           tabIndex={interactive ? 0 : -1}
           onLoad={() => setLoaded(true)}
           className={cx("absolute left-0 top-0 origin-top-left border-0 transition-opacity duration-300", loaded ? "opacity-100" : "opacity-0", !interactive && "pointer-events-none")}
-          style={{ width: 1920, height: 1080, transform: `scale(${scale})` }}
+          style={{ width: 1920, height, transform: `scale(${scale})` }}
         />
       )}
       {!loaded && <div className="skeleton absolute inset-0" aria-hidden />}

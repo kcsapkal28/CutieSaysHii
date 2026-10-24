@@ -182,7 +182,7 @@ export function StyleStudio({ fonts, initial }: { fonts: FontOption[]; initial: 
     <div className="flex h-full flex-col">
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line px-6">
         <h1 className="font-display text-[22px] tracking-[-0.01em]">Style</h1>
-        <span className="text-[12.5px] text-dim">{dirty ? "Unsaved changes" : initial ? "Saved" : "Not saved yet"}</span>
+        <span className="text-[12.5px] text-dim">{!savedJson ? "Not saved yet" : dirty ? "Unsaved changes" : "Saved"}</span>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="secondary" onClick={() => void save(false)} disabled={saving || !dirty}>
             Save

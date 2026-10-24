@@ -2,7 +2,7 @@
 // Decks are bundled by the real engine (bundleHtml) from hand-written contract slides in ./slides.ts.
 // STUDIO_MOCK_SPEED scales all delays (e.g. 0.1 in the e2e test).
 import type { DeckConfig, Style } from "@deckforge/forge";
-import { NotFound, type RunOptions, type StudioBackend } from "../backend";
+import { NotFound, type DeckRef, type RunOptions, type StudioBackend } from "../backend";
 import { engine } from "../server/engine";
 import type { PipelineEvent } from "../events";
 import { cloneStyle, LOOKS } from "../looks";
@@ -100,7 +100,10 @@ function seed(): Map<string, MockProject> {
   const cinematic = cloneStyle(LOOKS[0]!.style);
   cinematic.features = { timer: true, notes: true, stepNav: true, print: false };
 
-  const done = (h: number, u: Usage): StageState => stageState("approved", hoursAgo(h), u);
+  const done = (h: number, u: Usage, lines: string[] = []): StageState => ({
+    ...stageState("approved", hoursAgo(h), u),
+    log: [...lines.map((message, i) => ({ at: hoursAgo(h + (lines.length - i) / 120), message })), { at: hoursAgo(h), message: "Done. Approved." }],
+  });
   const anc: MockProject = {
     id: "inside-anc",
     title: "Inside ANC",
@@ -108,11 +111,11 @@ function seed(): Map<string, MockProject> {
     createdAt: hoursAgo(30),
     updatedAt: hoursAgo(0.4),
     stageState: {
-      research: done(29, { inputTokens: 48_200, outputTokens: 6_100, costUsd: 0.24 }),
-      outline: done(28.5, { inputTokens: 12_400, outputTokens: 2_300, costUsd: 0.07 }),
-      script: done(28, { inputTokens: 15_800, outputTokens: 5_400, costUsd: 0.13 }),
-      storyboard: done(27, { inputTokens: 31_000, outputTokens: 9_800, costUsd: 1.2 }),
-      build: done(26, { inputTokens: 612_000, outputTokens: 188_000, costUsd: 23.4 }),
+      research: done(29, { inputTokens: 48_200, outputTokens: 6_100, costUsd: 0.24 }, RESEARCH_LOG),
+      outline: done(28.5, { inputTokens: 12_400, outputTokens: 2_300, costUsd: 0.07 }, OUTLINE_LOG),
+      script: done(28, { inputTokens: 15_800, outputTokens: 5_400, costUsd: 0.13 }, SCRIPT_LOG),
+      storyboard: done(27, { inputTokens: 31_000, outputTokens: 9_800, costUsd: 1.2 }, STORYBOARD_LOG),
+      build: done(26, { inputTokens: 612_000, outputTokens: 188_000, costUsd: 23.4 }, ANC_SCRIPT.slides.map((s) => `${s.id} passed after ${(ANC_CRITIC[s.id]?.length ?? 0) + 1} round(s)`)),
     },
     files: {
       "brief.json": json(ANC_BRIEF),
@@ -165,7 +168,21 @@ function seed(): Map<string, MockProject> {
     brief: jpegBrief,
     createdAt: hoursAgo(5),
     updatedAt: hoursAgo(1.2),
-    stageState: { ...freshStages(), research: stageState("review", hoursAgo(1.2), { inputTokens: 39_000, outputTokens: 5_200, costUsd: 0.2 }) },
+    stageState: {
+      ...freshStages(),
+      research: {
+        ...stageState("review", hoursAgo(1.2), { inputTokens: 39_000, outputTokens: 5_200, costUsd: 0.2 }),
+        log: [
+          "Reading the brief: 15 min, CS undergraduates",
+          "Searching: JPEG baseline pipeline DCT quantisation",
+          "Reading ITU-T T.81",
+          "Reading Wallace, The JPEG Still Picture Compression Standard",
+          "Searching: JPEG blocking ringing artefacts cause",
+          "Writing research.md with 3 sources",
+          "Done. Waiting for your review.",
+        ].map((message, i) => ({ at: hoursAgo(1.2 + (7 - i) / 200), message })),
+      },
+    },
     files: {
       "brief.json": json(jpegBrief),
       "style.json": json(technical),
@@ -212,12 +229,7 @@ function parseStyle(p: MockProject): Style | null {
 
 function summary(p: MockProject): ProjectSummary {
   const latest = p.versions.at(-1);
-  let slideCount = 0;
-  try {
-    slideCount = p.files["script.json"] ? (JSON.parse(p.files["script.json"]) as Script).slides.length : 0;
-  } catch {
-    slideCount = 0;
-  }
+  const slideCount = safeJson<Script>(p.files["script.json"])?.slides.length ?? 0;
   return {
     id: p.id,
     title: p.title,
@@ -411,7 +423,7 @@ export class MockBackend implements StudioBackend {
       yield { type: "error", stage, message: st.error, retryable: true };
     } finally {
       if (!finished) {
-        st.status = before === "running" ? "idle" : before;
+        st.status = before;
         st.log.push({ at: now(), message: "Stopped" });
         if (p.build) for (const s of p.build.slides) if (s.status === "building") s.status = "queued";
       }
@@ -523,11 +535,17 @@ export class MockBackend implements StudioBackend {
     return info;
   }
 
-  async getDeckHtml(id: string, version: number | "latest"): Promise<string | null> {
+  async getDeckHtml(id: string, version: DeckRef): Promise<string | null> {
     const p = need(id);
-    const v = version === "latest" ? p.versions.at(-1) : p.versions.find((x) => x.info.version === version);
+    let v: MockVersion | undefined;
+    if (version === "draft") {
+      // Mock: every slide source exists up front; the build view only shows the ones that have passed.
+      if (!p.build && !p.versions.length) return null;
+      const style = parseStyle(p) ?? cloneStyle(LOOKS[0]!.style);
+      v = p.versions.at(-1) ?? { info: { version: 0, createdAt: now(), note: "draft", slideIds: MOCK_SLIDE_IDS, changed: [] }, opts: {}, style };
+    } else v = version === "latest" ? p.versions.at(-1) : p.versions.find((x) => x.info.version === version);
     if (!v) return null;
-    const key = `${id}:${v.info.version}`;
+    const key = `${id}:${v.info.version}:${JSON.stringify([v.style, v.opts])}`;
     let hit = deckCache.get(key);
     if (!hit) {
       const outline = safeJson<Outline>(p.files["outline.json"]) ?? ANC_OUTLINE;

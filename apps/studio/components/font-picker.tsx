@@ -69,9 +69,18 @@ export function FontPicker({ label, value, options, onChange, sample }: { label:
           aria-labelledby={`${id}-l`}
           aria-activedescendant={`${id}-o${hi}`}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") (e.preventDefault(), setHi((h) => Math.min(options.length - 1, h + 1)));
-            else if (e.key === "ArrowUp") (e.preventDefault(), setHi((h) => Math.max(0, h - 1)));
-            else if (e.key === "Enter" || e.key === " ") (e.preventDefault(), choose(hi));
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHi((h) => Math.min(options.length - 1, h + 1));
+            }
+            else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHi((h) => Math.max(0, h - 1));
+            }
+            else if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              choose(hi);
+            }
             else if (e.key === "Escape" || e.key === "Tab") {
               setOpen(false);
               btn.current?.focus();

@@ -7,6 +7,8 @@ import type { NextConfig } from "next";
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const config: NextConfig = {
+  // The e2e test runs its own dev server next to yours; a separate dist dir keeps them apart.
+  distDir: process.env.STUDIO_DIST_DIR ?? ".next",
   turbopack: { root },
   outputFileTracingRoot: root,
   // The engine (@deckforge/forge) is never bundled: lib/server/engine.ts imports it with turbopackIgnore so Node

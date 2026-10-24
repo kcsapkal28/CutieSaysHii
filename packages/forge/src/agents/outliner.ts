@@ -409,6 +409,18 @@ export async function runOutline(llm: Llm, input: OutlineInput, opts: OutlineOpt
   const thinking = (opts.cardThinking ?? OUTLINE_DEFAULTS.cardThinking) === "off" ? { thinking: "off" as const } : {};
 
   let done = 0;
+  // The card prompt and the deck context are the same for every card: cached blocks, written once before the fan-out
+  // so the concurrent cards read them (cards that start together can't read each other's writes).
+  const cardBlocks = [
+    { text: cardSystem, cache: true },
+    { text: shared, cache: true },
+  ];
+  const cardModel = opts.cardModel ?? MODELS.sonnet;
+  if (slides.length > 1 && llm.warm) {
+    await llm
+      .warm({ label: "outline:warm", model: cardModel, system: cardBlocks, ...thinking, tool: { name: "write_card", description: "Write this slide's card: its words and its visual direction.", schema: CardDraft } })
+      .catch(() => {}); // only an optimisation
+  }
   const cards = await mapPool(slides, opts.concurrency ?? OUTLINE_DEFAULTS.concurrency, async (s, i) => {
     const prev = slides[i - 1];
     const next = slides[i + 1];
@@ -436,13 +448,12 @@ export async function runOutline(llm: Llm, input: OutlineInput, opts: OutlineOpt
       `This slide in the arc: ${slideLine(s)}\n` +
       (prev ? `Previous slide ${prev.id} (${prev.explainer}, ${prev.composition}) hands off: ${prev.handoff}\n` : "This is the opening slide.\n") +
       (next ? `Next slide ${next.id} (${next.explainer}, ${next.composition}); your exit sets up your handoff: ${s.handoff}\n` : "This is the closing slide.\n");
-    const cardModel = opts.cardModel ?? MODELS.sonnet;
     const write = (model: string, validationRetries: number) =>
       llm.callTool({
         label: `outline:${s.id}`,
         model,
-        system: cardSystem,
-        user: `${shared}\n\n${own}${ask}`,
+        system: cardBlocks,
+        user: `${own}${ask}`,
         maxTokens: opts.cardMaxTokens ?? OUTLINE_DEFAULTS.cardMaxTokens,
         timeoutMs: 5 * 60_000,
         validationRetries,

@@ -47,7 +47,9 @@ describe("per-card context", () => {
     await runOutline(llm, { brief, style, researchMd: researchToMarkdown("A topic", big) }, { cardContext });
     const card = llm.requests.find((r) => r.tools?.[0]?.name === "write_card" && cardOf(r) === "s02")!;
     const user = (card.messages[0]!.content[0] as { text: string }).text;
-    return { system: card.system, user, size: card.system.length + user.length };
+    // The deck context is a cached system block now; the user turn holds only the card's own brief.
+    const system = typeof card.system === "string" ? card.system : card.system.map((b) => b.text).join("\n");
+    return { system, user, size: system.length + user.length };
   }
 
   it("sends a card only its own technique entry and the research items the arc chose, at well under half the size", async () => {
@@ -65,7 +67,7 @@ describe("per-card context", () => {
     expect(slim.system).toContain("## The visual bar");
 
     expect(full.system).toContain("# Technique catalogue");
-    expect(full.user).toContain("Mechanism 2");
+    expect(full.system).toContain("Mechanism 2");
     expect(slim.size).toBeLessThan(full.size * 0.5);
     expect(slim.size).toBeLessThan(13_000);
   });

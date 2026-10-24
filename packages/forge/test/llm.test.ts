@@ -238,3 +238,13 @@ describe("idle timeout", () => {
     expect(calls).toBe(2);
   });
 });
+
+describe("parseLenient arrays", () => {
+  it("parses an array of objects that arrived as JSON text", async () => {
+    const { parseLenient } = await import("../src/llm.ts");
+    const schema = z.object({ issues: z.array(z.object({ kind: z.string(), what: z.string() })) });
+    const r = parseLenient(schema, { issues: JSON.stringify([{ kind: "labels", what: "chip off its part" }]) });
+    expect(r.success && r.data.issues[0]!.kind).toBe("labels");
+    expect(parseLenient(schema, { issues: '<parameter name="kind">labels' }).success).toBe(false);
+  });
+});

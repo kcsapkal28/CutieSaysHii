@@ -94,7 +94,7 @@ describe("stage ordering and invalidation", () => {
     const done = events.find((e) => e.type === "stage:done" && e.stage === "build") as Extract<ForgeEvent, { type: "stage:done" }>;
     expect(done.calls).toBe(5); // the cache warm-up, then 2 slides × (builder + critic)
     expect(done.usage.input).toBe(410);
-    expect(llm.warms).toHaveLength(1);
+    expect(llm.warms.filter((w) => w.tools?.[0]?.name === "write_slide")).toHaveLength(1);
   });
 
   it("re-running a stage deletes every later stage's outputs but keeps earlier ones and versions", async () => {
@@ -149,7 +149,8 @@ describe("outline: an arc, then one card per slide", () => {
     // Each card sees the whole arc (compact), its neighbours' handoff, the summary and the research items the arc
     // pointed it at; the cards share one system prompt.
     const second = JSON.stringify(cards[1]!.messages[0]);
-    expect(second).toMatch(/The deck's arc \(fixed\)/);
+    // The arc sits in the shared (cached) system block; the user turn carries the card's own brief.
+    expect(JSON.stringify(cards[1]!.system)).toMatch(/The deck's arc \(fixed\)/);
     expect(second).toMatch(/Previous slide s01 .* hands off: the noise wave/);
     expect(second).toContain("ANC adds an inverted copy of noise.");
     expect(second).toContain("[R10] Feedforward");
@@ -495,5 +496,36 @@ describe("the outline respects the style", () => {
   it("puts the cards on another model when configured", async () => {
     await runAll(project, { auto: true, to: "outline", ...opts(), models: { outlineCard: MODELS.opus } });
     expect(llm.requests.filter((r) => toolOf(r) === "write_card").every((r) => r.model === MODELS.opus)).toBe(true);
+  });
+});
+
+describe("data-flow cuts (v3)", () => {
+  it("runs style and research side by side in auto mode", async () => {
+    await runAll(project, { auto: true, to: "research", ...opts() });
+    const order = events.filter((e) => e.type === "stage:start" || e.type === "stage:done").map((e) => `${e.type}:${(e as { stage: string }).stage}`);
+    expect(order.indexOf("stage:start:research")).toBeLessThan(order.indexOf("stage:done:style"));
+  });
+
+  it("gives every outline card the same cached prefix, warmed once, and only its own brief in the user turn", async () => {
+    await upToOutline();
+    const cards = llm.requests.filter((r) => toolOf(r) === "write_card");
+    expect(cards.length).toBeGreaterThan(1);
+    for (const r of cards) {
+      // Two cached blocks (prompt, deck context), then the uncached tool instruction.
+      expect(Array.isArray(r.system) && r.system.length >= 2 && r.system.slice(0, 2).every((b) => b.cache_control?.type === "ephemeral")).toBe(true);
+      expect(JSON.stringify(r.messages[0])).toMatch(/Write the card for s\d\d/);
+    }
+    expect(new Set(cards.map((r) => JSON.stringify(r.system))).size).toBe(1);
+    expect(llm.warms.filter((w) => w.tools?.[0]?.name === "write_card")).toHaveLength(1);
+  });
+
+  it("sends the critic a compact storyboard, not the whole card", async () => {
+    await runAll(project, { auto: true, ...opts() });
+    const review = llm.requests.find((r) => toolOf(r) === "review_slide")!;
+    const text = JSON.stringify(review.messages[0]);
+    expect(text).toContain("steps");
+    expect(text).toContain("what must be visible");
+    expect(text).not.toContain("reducedMotion");
+    expect(text).not.toContain("why");
   });
 });

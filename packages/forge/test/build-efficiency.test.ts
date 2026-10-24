@@ -280,7 +280,7 @@ describe("prompt caching", () => {
 
   it("skips the warm-up for a single slide at a time", async () => {
     await runStage(project, "build", { ...opts(), concurrency: 1 });
-    expect(llm.warms).toHaveLength(0);
+    expect(llm.warms.filter((w) => w.tools?.[0]?.name === "write_slide")).toHaveLength(0);
   });
 });
 

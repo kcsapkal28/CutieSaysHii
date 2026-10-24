@@ -52,6 +52,9 @@ export type PipelineOptions = {
 /** @deprecated alias kept for the first API draft. */
 export type PipelineContext = PipelineOptions;
 
+/** What each stage reads from earlier ones. Research needs only the brief, so it can run beside style. */
+const PREREQ: Record<Stage, Stage[]> = { style: [], research: [], outline: ["style", "research"], build: ["style", "research", "outline"] };
+
 export class StageError extends Error {
   constructor(message: string) {
     super(message);
@@ -107,7 +110,7 @@ export async function withEngine<T>(engine: Engine | undefined, fn: (e: Engine) 
 /** Runs one stage. Earlier stages must be done; every later stage's outputs are deleted first. */
 export async function runStage(project: Project, stage: Stage, opts: PipelineOptions = {}): Promise<BuildSummary | void> {
   const { onEvent } = journaled(journalFile(project), opts.onEvent, opts.runId);
-  const missing = STAGES.slice(0, STAGES.indexOf(stage)).filter((s) => !isStageDone(project, s));
+  const missing = PREREQ[stage].filter((s) => !isStageDone(project, s));
   if (missing.length) throw new StageError(`cannot run ${stage}: run ${missing.join(", ")} first`);
 
   const invalidated = invalidateAfter(project, stage);
@@ -206,7 +209,14 @@ export async function runAll(project: Project, opts: RunAllOptions): Promise<{ r
   const runId = opts.runId ?? newRunId();
   const ran: Stage[] = [];
   let build: BuildSummary | undefined;
-  for (const stage of STAGES.slice(STAGES.indexOf(from), to + 1)) {
+  const stages = STAGES.slice(STAGES.indexOf(from), to + 1);
+  // Style and research both depend only on the brief: in auto mode they run side by side (saves the style call's time).
+  if (opts.auto && stages[0] === "style" && stages[1] === "research") {
+    await Promise.all([runStage(project, "style", { ...opts, llm, runId }), runStage(project, "research", { ...opts, llm, runId })]);
+    ran.push("style", "research");
+    stages.splice(0, 2);
+  }
+  for (const stage of stages) {
     const result = await runStage(project, stage, { ...opts, llm, runId });
     if (result) build = result;
     ran.push(stage);

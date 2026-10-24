@@ -28,6 +28,24 @@ export type CriticOpts = {
 
 const RANK = { high: 0, medium: 1, low: 2 } as const;
 
+/** The parts of the card the critic judges against: what should be visible, where, and what changes per step. */
+export function compactBoard(b: StoryboardSlide): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    explainer: b.explainer,
+    concept: b.concept,
+    layout: b.layout,
+    ...(b.focus ? { focus: b.focus } : {}),
+    ...(b.anchors ? { anchors: b.anchors } : {}),
+    ...(b.legend ? { legend: b.legend } : {}),
+    interaction: b.interaction.kind === "none" ? "none" : `${b.interaction.kind}: ${b.interaction.description}`,
+    steps: b.steps.map((s, i) => `${i + 1}. ${s.beat}`),
+  };
+  if (b.data) out.data = b.data;
+  if (b.object3d) out.object3d = { parts: b.object3d.parts.map((p) => p.name), states: b.object3d.states };
+  if (b.simulation) out.simulation = { controls: b.simulation.controls, readouts: b.simulation.readouts };
+  return out;
+}
+
 /** Issues most severe first (stable within a severity, so the critic's own order breaks ties), at most `max`. */
 export function rankIssues(issues: Issue[], max = 5): Issue[] {
   return [...issues].sort((a, b) => RANK[a.severity] - RANK[b.severity]).slice(0, max);
@@ -40,7 +58,7 @@ export async function runCritic(llm: Llm, input: CriticInput, opts: CriticOpts =
       type: "text",
       text: [
         `Slide ${slide.id}. Title: "${slide.title}".`,
-        `Storyboard intent:\n${JSON.stringify(board, null, 2)}`,
+        `Storyboard intent (what must be visible):\n${JSON.stringify(compactBoard(board), null, 1)}`,
         ...(input.instruction ? [`The presenter then asked for this change, which outranks the storyboard: ${input.instruction}`] : []),
         `On-slide copy:\n${JSON.stringify({ kicker: slide.kicker, subtitle: slide.subtitle, callouts: slide.callouts }, null, 2)}`,
         `The slide reports ${input.steps} step(s); the storyboard planned ${board.steps.length}.`,

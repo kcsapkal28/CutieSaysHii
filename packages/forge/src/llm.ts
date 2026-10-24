@@ -463,9 +463,10 @@ export function parseLenient<S extends z.ZodTypeAny>(schema: S, input: unknown):
       const key = issue.path.at(-1)!;
       const parent = at(copy, issue.path.slice(0, -1)) as Record<string | number, unknown> | undefined;
       if (!parent || typeof parent !== "object") continue;
-      if (issue.expected === "object" && issue.received === "string") {
+      if ((issue.expected === "object" || issue.expected === "array") && issue.received === "string") {
         const parsed = parseStringObject(parent[key]);
-        if (parsed !== undefined) {
+        // An array that arrived as text is usable only when it parsed as JSON; the <parameter> form loses its items.
+        if (parsed !== undefined && (issue.expected === "object" || Array.isArray(parsed))) {
           parent[key] = parsed;
           changed = true;
         }

@@ -29,3 +29,9 @@ export async function studioModels(): Promise<Partial<Record<import("@deckforge/
   if ((process.env.STUDIO_MODELS ?? "opus") === "default") return {};
   return Object.fromEntries(Object.keys(f.DEFAULT_MODELS).map((agent) => [agent, f.MODELS.opus]));
 }
+
+/** The thinking level the Studio forces on every agent call. STUDIO_THINKING=off|low|medium|high|model; default medium. */
+export function studioThinking(): import("@deckforge/forge/pipeline").Thinking {
+  const v = process.env.STUDIO_THINKING ?? "medium";
+  return (["off", "low", "medium", "high", "model"] as const).find((x) => x === v) ?? "medium";
+}

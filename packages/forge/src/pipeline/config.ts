@@ -41,6 +41,15 @@ export function thinkingFor(label: string): Thinking {
   return agent in DEFAULT_THINKING ? DEFAULT_THINKING[agent as AgentName] : "off";
 }
 
+/** Forces one thinking level on every call of a run (a presenter's "think harder" setting), whatever the agent asked for. */
+export function withThinking(llm: Llm, thinking: Thinking): Llm {
+  return {
+    callTool: (opts) => llm.callTool({ ...opts, thinking }),
+    callText: (opts) => llm.callText({ ...opts, thinking }),
+    ...(llm.warm ? { warm: (opts) => llm.warm!({ ...opts, thinking }) } : {}),
+  } satisfies Llm;
+}
+
 /** Fills each call's `thinking` from DEFAULT_THINKING (by label) when the agent didn't set it. */
 export function withDefaultThinking(llm: Llm): Llm {
   return {

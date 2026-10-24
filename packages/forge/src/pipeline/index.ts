@@ -17,7 +17,7 @@ export type { BuildSummary, SlideBuild, RoundRecord, VersionMeta } from "./build
 export type { ForgeEvent, OnEvent, Verdict } from "./events.ts";
 export { journalFile, readJournal, summarizeRun, summarizeRuns, formatRun } from "./journal.ts";
 export type { JournalLine, RunSummary, StageRow, SlideRow, CostRow } from "./journal.ts";
-export { DEFAULT_MODELS, DEFAULT_THINKING, BUILD_DEFAULTS, OUTLINE_DEFAULTS } from "./config.ts";
+export { DEFAULT_MODELS, DEFAULT_THINKING, BUILD_DEFAULTS, OUTLINE_DEFAULTS, withThinking } from "./config.ts";
 export { migrateProject, mergeLegacy } from "./migrate.ts";
 export type { Migration } from "./migrate.ts";
 export { toScript, toStoryboard, outlineSlides } from "../agents/schemas.ts";
@@ -29,5 +29,5 @@ export { runStylist } from "../agents/stylist.ts";
 export { refineResearch, researchSection } from "../agents/research-refiner.ts";
 export type { RefineInput, RefineResult } from "../agents/research-refiner.ts";
 export { createLlm, createProxyLlm, loadLlmEnv, MODELS, LlmError } from "../llm.ts";
-export type { Llm, Usage, CallRecord, Transport } from "../llm.ts";
+export type { Llm, Usage, CallRecord, Transport, Thinking } from "../llm.ts";
 export type { StylePrefs, Brief, Outline, OutlineSlide, Visual, LegacyOutline, Script, Storyboard } from "../agents/schemas.ts";

@@ -201,3 +201,14 @@ describe("parseLenient moves hoisted optional fields home", () => {
     expect(r.success && r.data.visual).toEqual({ concept: "c", data: "A: 1; B: 2", simulation: { model: "x = y + 1", controls: ["phase"] } });
   });
 });
+
+describe("wireThinking levels", () => {
+  it("maps effort levels per model family", async () => {
+    const { wireThinking } = await import("../src/llm.ts");
+    expect(wireThinking("claude-opus-5-5", "medium")).toEqual({ output_config: { effort: "medium" } });
+    expect(wireThinking("claude-opus-5-5", "off")).toEqual({ output_config: { effort: "low" } });
+    expect(wireThinking("claude-sonnet-5-5", "off")).toEqual({ thinking: { type: "between_tools" } });
+    expect(wireThinking("claude-sonnet-5-5", "medium")).toEqual({});
+    expect(wireThinking("claude-opus-5-5", "model")).toEqual({});
+  });
+});

@@ -3,14 +3,14 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Style, type Engine } from "../contract.ts";
-import { createProxyLlm, type Llm } from "../llm.ts";
+import { createProxyLlm, type Llm, type Thinking } from "../llm.ts";
 import type { Exemplar } from "../agents/builder.ts";
 import { runResearcher, type WebSearch } from "../agents/researcher.ts";
 import { runOutline } from "../agents/outliner.ts";
 import { Brief, Outline, toScript, toStoryboard } from "../agents/schemas.ts";
 import { runStylist } from "../agents/stylist.ts";
 import { runBuild, type BuildOptions, type BuildSummary } from "./build.ts";
-import { DEFAULT_MODELS, OUTLINE_DEFAULTS, withDefaultThinking, type AgentName } from "./config.ts";
+import { DEFAULT_MODELS, OUTLINE_DEFAULTS, withDefaultThinking, withThinking, type AgentName } from "./config.ts";
 import { meteredLlm, type OnEvent } from "./events.ts";
 import { journaled, journalFile, newRunId } from "./journal.ts";
 import { invalidateAfter, isStageDone, readJson, STAGES, writeJson, type Project, type Stage } from "./project.ts";
@@ -34,6 +34,8 @@ export type PipelineOptions = {
   patchFixes?: boolean;
   /** Outline: slide cards written at once (default in config.ts). */
   outlineConcurrency?: number;
+  /** One thinking level forced on every call of the run (e.g. "medium"); unset = each agent's default. */
+  thinking?: Thinking;
   /** Builder thinking on draft and fix rounds (default "off", see config.ts). */
   builderThinking?: "off" | "model";
   /** Web search for the researcher (milestone 3). */
@@ -101,7 +103,8 @@ export async function runStage(project: Project, stage: Stage, opts: PipelineOpt
   const invalidated = invalidateAfter(project, stage);
   onEvent({ type: "stage:start", stage, invalidated });
   const started = Date.now();
-  const { llm, total } = meteredLlm(withDefaultThinking(opts.llm ?? createProxyLlm()), stage, onEvent);
+  const base = opts.llm ?? createProxyLlm();
+  const { llm, total } = meteredLlm(opts.thinking ? withThinking(base, opts.thinking) : withDefaultThinking(base), stage, onEvent);
   try {
     const result = await execute(project, stage, opts, llm, onEvent);
     onEvent({ type: "stage:done", stage, ms: Date.now() - started, ...total() });

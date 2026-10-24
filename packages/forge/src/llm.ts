@@ -30,7 +30,8 @@ export type Part = { type: "text"; text: string } | ({ type: "image" } & ImageDa
  */
 export type SystemBlock = { text: string; cache?: boolean };
 /** "off": no thinking before the answer (fast, cheap); "model": the model's own adaptive thinking. */
-export type Thinking = "off" | "model";
+/** "off" = no thinking (low effort on Opus, which can't turn it off); an effort level; "model" = the model's own default. */
+export type Thinking = "off" | "low" | "medium" | "high" | "model";
 
 type CallBase = {
   /** Who is calling (e.g. "storyboarder", "builder:s03"): shows up in usage records and errors. */
@@ -171,7 +172,8 @@ export function sdkTransport({ baseUrl, apiKey }: LlmEnv): Transport {
  */
 export function wireThinking(model: string, thinking: Thinking = "off"): Pick<WireRequest, "thinking" | "output_config"> {
   if (thinking === "model") return {};
-  return /sonnet/i.test(model) ? { thinking: { type: "between_tools" } } : { output_config: { effort: "low" } };
+  if (/sonnet/i.test(model)) return thinking === "off" ? { thinking: { type: "between_tools" } } : {};
+  return { output_config: { effort: thinking === "off" ? "low" : thinking } };
 }
 
 /** The system prompt on the wire: cache breakpoints only after the marked blocks; `suffix` (uncached) goes last. */

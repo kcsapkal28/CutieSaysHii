@@ -378,7 +378,7 @@ export async function runOutline(llm: Llm, input: OutlineInput, opts: OutlineOpt
     system: loadPrompt("outline", { techniques: technique.pointer }) + technique.appendix,
     user: arcContext,
     maxTokens: 8000,
-    timeoutMs: 10 * 60_000,
+    timeoutMs: 5 * 60_000,
     validationRetries: 2,
     tool: { name: "plan_arc", description: "Plan the deck's arc: sections and slides, with each slide's point, time, visual approach and research items.", schema: arcSchema(style, catalogueIds(techniqueFile)) },
   });
@@ -444,7 +444,7 @@ export async function runOutline(llm: Llm, input: OutlineInput, opts: OutlineOpt
         system: cardSystem,
         user: `${shared}\n\n${own}${ask}`,
         maxTokens: opts.cardMaxTokens ?? OUTLINE_DEFAULTS.cardMaxTokens,
-        timeoutMs: 10 * 60_000,
+        timeoutMs: 5 * 60_000,
         validationRetries,
         ...thinking,
         tool: { name: "write_card", description: "Write this slide's card: its words and its visual direction.", schema: cardSchema(s, style) },

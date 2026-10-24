@@ -277,7 +277,7 @@ export async function runBuilder(
     system: builderSystem(input, exemplars, input.board, { ...(opts.exemplarChars ? { exemplarChars: opts.exemplarChars } : {}) }),
     user: builderUser(input, mode),
     maxTokens: 48000,
-    timeoutMs: 15 * 60_000,
+    timeoutMs: 6 * 60_000,
     // Thinking before a long code answer multiplied output 3-6x (and hit max_tokens); off unless asked for.
     thinking: opts.thinking ?? "off",
     tool: { ...TOOL, schema: builderSchema(input.slide.id, mode === "patch" ? input.fix?.previousHtml : undefined) },

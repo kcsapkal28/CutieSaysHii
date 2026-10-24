@@ -9,7 +9,10 @@ import { toJsonSchema } from "./agents/json-schema.ts";
 
 export const MODELS = { opus: "claude-opus-5-5", sonnet: "claude-sonnet-5-5" } as const;
 export const DEFAULT_BASE_URL = "http://localhost:4001";
-const DEFAULT_TIMEOUT_MS = 10 * 60_000;
+// Per-attempt cap and the idle cap (no stream event for this long aborts the attempt). Healthy calls answer in 10–60 s;
+// a stalled upstream used to hold a slide for the whole cap, twice.
+const DEFAULT_TIMEOUT_MS = 4 * 60_000;
+export const DEFAULT_IDLE_MS = 45_000;
 const DEFAULT_MAX_RETRIES = 4;
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_MAX_MS = 20_000;
@@ -44,6 +47,8 @@ type CallBase = {
   /** Default "off" (see wireThinking); "model" only where thinking measurably pays. */
   thinking?: Thinking;
   timeoutMs?: number;
+  /** Abort an attempt when its stream is silent for this long (default DEFAULT_IDLE_MS). */
+  idleMs?: number;
   signal?: AbortSignal;
 };
 
@@ -105,7 +110,45 @@ export type WireResponse = {
   stop_reason: string | null;
   usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
 };
-export type Transport = (req: WireRequest, opts: { signal: AbortSignal }) => Promise<WireResponse>;
+export type Transport = (req: WireRequest, opts: { signal: AbortSignal; idleMs?: number }) => Promise<WireResponse>;
+
+/** Thrown by a transport when a stream goes quiet for longer than `idleMs`; `send` treats it like a timeout. */
+export class IdleTimeoutError extends Error {
+  constructor(public readonly idleMs: number) {
+    super(`no stream event for ${idleMs} ms`);
+    this.name = "IdleTimeoutError";
+  }
+}
+
+/**
+ * An abort signal that fires `idleMs` after the last `touch()` (or after the outer signal). Transports call `touch()`
+ * on every stream event, so a call that keeps producing tokens is never cut, while a stalled one is cut quickly.
+ */
+export function idleSignal(outer: AbortSignal, idleMs: number): { signal: AbortSignal; touch: () => void; dispose: () => void; idle: () => boolean } {
+  const ctrl = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let idle = false;
+  const arm = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      idle = true;
+      ctrl.abort(new IdleTimeoutError(idleMs));
+    }, idleMs);
+  };
+  const onOuter = () => ctrl.abort(outer.reason);
+  if (outer.aborted) onOuter();
+  else outer.addEventListener("abort", onOuter, { once: true });
+  arm();
+  return {
+    signal: ctrl.signal,
+    touch: arm,
+    idle: () => idle,
+    dispose: () => {
+      if (timer) clearTimeout(timer);
+      outer.removeEventListener("abort", onOuter);
+    },
+  };
+}
 
 export class LlmError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -153,14 +196,23 @@ export function sdkTransport({ baseUrl, apiKey }: LlmEnv): Transport {
   // SDK 1.x sends the key as `Authorization: Bearer`, which the proxy expects; retries are ours, so the SDK's are off.
   // The SDK's own timeout is a backstop; each call's timeoutMs (an abort signal) is what governs.
   const client = new Anthropic({ baseURL: baseUrl, apiKey, maxRetries: 0, timeout: 30 * 60_000 });
-  return async (req, { signal }) => {
+  return async (req, { signal, idleMs = DEFAULT_IDLE_MS }) => {
     // A cache pre-warm (max_tokens 0) is rejected when streamed, and returns at once anyway.
     if (req.max_tokens === 0) {
       return (await client.messages.create(req as Anthropic.MessageCreateParamsNonStreaming, { signal })) as unknown as WireResponse;
     }
-    // Streaming avoids the SDK's non-streaming guard on large max_tokens (builder output).
-    const stream = client.messages.stream(req as Anthropic.MessageStreamParams, { signal });
-    return (await stream.finalMessage()) as unknown as WireResponse;
+    // Streaming avoids the SDK's non-streaming guard on large max_tokens (builder output), and lets a quiet stream
+    // be cut after idleMs instead of waiting for the whole per-attempt cap.
+    const idle = idleSignal(signal, idleMs);
+    try {
+      const stream = client.messages.stream(req as Anthropic.MessageStreamParams, { signal: idle.signal });
+      stream.on("streamEvent", idle.touch);
+      return (await stream.finalMessage()) as unknown as WireResponse;
+    } catch (e) {
+      throw idle.idle() ? new IdleTimeoutError(idleMs) : e;
+    } finally {
+      idle.dispose();
+    }
   };
 }
 
@@ -208,19 +260,20 @@ export function createLlm(o: LlmOptions): Llm {
       const timeout = AbortSignal.timeout(c.timeoutMs ?? DEFAULT_TIMEOUT_MS);
       const signal = c.signal ? AbortSignal.any([c.signal, timeout]) : timeout;
       try {
-        return { res: await o.transport(req, { signal }), attempts: attempt };
+        return { res: await o.transport(req, { signal, ...(c.idleMs !== undefined ? { idleMs: c.idleMs } : {}) }), attempts: attempt };
       } catch (e) {
         if (c.signal?.aborted) throw new LlmError(`${c.label}: cancelled`, { cause: e });
         if (isConnectionRefused(e)) throw new LlmError(`proxy not running on ${baseUrl}`, { cause: e });
-        const timedOut = timeout.aborted || e instanceof APIConnectionTimeoutError;
+        const idle = e instanceof IdleTimeoutError;
+        const timedOut = idle || timeout.aborted || e instanceof APIConnectionTimeoutError;
         if (timedOut) timeouts++;
-        // A hung call is retried once: a second timeout means the proxy or upstream is stuck, so fail fast.
+        // A hung call is retried once, at once: a second timeout means the proxy or upstream is stuck, so fail fast.
         const retryable = timedOut ? timeouts < 2 : isRetryable(e);
         if (!retryable || attempt > maxRetries) {
-          const why = timedOut ? `timed out after ${c.timeoutMs ?? DEFAULT_TIMEOUT_MS}ms` : describe(e);
+          const why = idle ? `stream idle for ${(e as IdleTimeoutError).idleMs}ms` : timedOut ? `timed out after ${c.timeoutMs ?? DEFAULT_TIMEOUT_MS}ms` : describe(e);
           throw new LlmError(`${c.label} (${c.model}): ${why}${attempt > 1 ? ` after ${attempt} attempts` : ""}`, { cause: e });
         }
-        await sleep(retryWaitMs(e, attempt));
+        if (!timedOut) await sleep(retryWaitMs(e, attempt));
       }
     }
   }

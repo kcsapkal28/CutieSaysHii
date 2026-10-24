@@ -1,0 +1,457 @@
+<title>DeckForge Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one calm reading column. Colour encodes WHICH PART of the system a thing belongs to (screen, engine, AI, disk). */
+  :root {
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --ink: #151a2d;
+    --muted: #596077;
+    --line: #dde0e8;
+    --code-bg: #eceef3;
+
+    --ui: #2f5fd0;       --ui-tint: #e6edfb;
+    --engine: #17825d;   --engine-tint: #e1f3ec;
+    --ai: #b86a0c;       --ai-tint: #faeed9;
+    --disk: #5d6475;     --disk-tint: #e9ebf0;
+
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+    --body: "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10131d; --surface: #181c2a; --ink: #e8eaf2; --muted: #9ba2b8; --line: #2a3043; --code-bg: #20263a;
+      --ui: #7fa2f5;     --ui-tint: #1b2745;
+      --engine: #4fc795; --engine-tint: #14302a;
+      --ai: #f0a447;     --ai-tint: #3a2a14;
+      --disk: #a0a7ba;   --disk-tint: #232839;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10131d; --surface: #181c2a; --ink: #e8eaf2; --muted: #9ba2b8; --line: #2a3043; --code-bg: #20263a;
+    --ui: #7fa2f5;     --ui-tint: #1b2745;
+    --engine: #4fc795; --engine-tint: #14302a;
+    --ai: #f0a447;     --ai-tint: #3a2a14;
+    --disk: #a0a7ba;   --disk-tint: #232839;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 400 17px/1.6 var(--body);
+    padding-block: 40px 72px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 64px; }
+  section { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.12; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(2.2rem, 5.5vw, 3.4rem); font-weight: 700; }
+  h2 { font-size: clamp(1.5rem, 3.2vw, 2rem); font-weight: 700; }
+  h3 { font-size: 1.1rem; font-weight: 600; }
+  p { margin: 0; max-width: 66ch; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 58ch; }
+  .muted { color: var(--muted); }
+  code, .mono { font-family: var(--mono); font-size: 0.86em; background: var(--code-bg); padding: 0.1em 0.38em; border-radius: 4px; }
+  .eyebrow { font: 500 0.75rem/1 var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+
+  /* Layer tags */
+  .tag { display: inline-flex; align-items: center; gap: 6px; font: 500 0.74rem/1 var(--mono); padding: 5px 9px; border-radius: 99px; white-space: nowrap; }
+  .tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .t-ui { color: var(--ui); background: var(--ui-tint); }
+  .t-engine { color: var(--engine); background: var(--engine-tint); }
+  .t-ai { color: var(--ai); background: var(--ai-tint); }
+  .t-disk { color: var(--disk); background: var(--disk-tint); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* Hero flow */
+  .hero { display: flex; flex-direction: column; gap: 22px; }
+  .oneline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; font-family: var(--display); font-weight: 600; font-size: 1.05rem; }
+  .oneline .pill { background: var(--surface); border: 1px solid var(--line); padding: 8px 14px; border-radius: 10px; }
+  .oneline .arrow { color: var(--muted); }
+
+  /* Big picture */
+  .chain { display: flex; align-items: stretch; gap: 0; }
+  .chain .node { flex: 1 1 0; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .chain .node p { font-size: 0.93rem; color: var(--muted); }
+  .chain .node .where { font: 400 0.78rem/1.3 var(--mono); color: var(--muted); }
+  .chain .link { flex: 0 0 34px; display: grid; place-items: center; color: var(--muted); font-size: 1.3rem; }
+  .chain .link::before { content: "→"; }
+  @media (max-width: 860px) {
+    .chain { flex-direction: column; }
+    .chain .link { flex-basis: 30px; }
+    .chain .link::before { content: "↓"; }
+  }
+  .below { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .below { grid-template-columns: 1fr; } }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .box p { font-size: 0.95rem; color: var(--muted); }
+
+  /* Stage stepper */
+  .stepper { display: grid; grid-template-columns: 250px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 760px) { .stepper { grid-template-columns: 1fr; } }
+  .tabs { display: flex; flex-direction: column; gap: 6px; }
+  @media (max-width: 760px) { .tabs { flex-direction: row; flex-wrap: wrap; } }
+  .tabs button {
+    font: 600 0.95rem/1.2 var(--body); color: var(--ink); text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .tabs button .n { font: 500 0.78rem/1 var(--mono); color: var(--muted); width: 1.2em; }
+  .tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .tabs button[aria-selected="true"] .n { color: var(--bg); opacity: 0.7; }
+  .tabs button:focus-visible, .play:focus-visible { outline: 2px solid var(--ui); outline-offset: 2px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .panel dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 0.95rem; }
+  .panel dt { color: var(--muted); }
+  .panel dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .approve { font-size: 0.9rem; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 12px; }
+
+  /* Build loop */
+  .loop { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 860px) { .loop { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .loop { grid-template-columns: 1fr; } }
+  .loop .box h3 { display: flex; gap: 8px; align-items: baseline; }
+  .loop .box h3 span { font: 500 0.78rem var(--mono); color: var(--muted); }
+  .decision { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .decision { grid-template-columns: 1fr; } }
+  .decision .box { border-style: dashed; }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+  .callout strong { font-family: var(--display); }
+
+  /* Data flow */
+  .play { align-self: flex-start; font: 600 0.92rem var(--body); background: var(--ink); color: var(--bg); border: 0; border-radius: 99px; padding: 9px 16px; cursor: pointer; }
+  .flow { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; counter-reset: s; }
+  .flow li { counter-increment: s; display: grid; grid-template-columns: 38px 1fr; gap: 14px; padding-bottom: 18px; position: relative; opacity: 1; transition: opacity .25s; }
+  .flow li::before { content: counter(s); width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface); display: grid; place-items: center; font: 500 0.82rem var(--mono); position: relative; z-index: 1; }
+  .flow li:not(:last-child)::after { content: ""; position: absolute; left: 14.5px; top: 30px; bottom: 0; width: 1.5px; background: var(--line); }
+  .flow li.dim { opacity: 0.35; }
+  .flow li.on::before { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .flow .who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 4px; }
+  .flow .who .go { color: var(--muted); }
+  .flow p { font-size: 0.97rem; }
+
+  /* Tree */
+  .scroll { overflow-x: auto; }
+  pre.tree { margin: 0; font: 400 0.86rem/1.75 var(--mono); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; min-width: 560px; }
+  pre.tree .c { color: var(--muted); }
+  pre.tree .d { color: var(--ui); }
+  pre.tree .e { color: var(--engine); }
+  pre.tree .a { color: var(--ai); }
+
+  /* Map table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; min-width: 560px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 500 0.74rem var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); background: var(--code-bg); }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { white-space: nowrap; }
+
+  /* Reading list */
+  ol.read { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; counter-reset: r; }
+  ol.read li { counter-increment: r; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 14px 56px; position: relative; display: flex; flex-direction: column; gap: 3px; }
+  ol.read li::before { content: counter(r); position: absolute; left: 16px; top: 14px; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font: 500 0.82rem var(--mono); }
+  ol.read li span { font-size: 0.93rem; color: var(--muted); }
+
+  ul.plain { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; max-width: 66ch; }
+  footer { font-size: 0.85rem; color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) { .flow li { transition: none; } }
+</style>
+
+<div class="wrap">
+
+  <!-- 1. Hero -->
+  <header class="hero">
+    <span class="eyebrow">DeckForge · how it works</span>
+    <h1>You give it a topic. It builds a slideshow as one HTML file.</h1>
+    <p class="lede">DeckForge is a small app that runs on your own computer. AI helpers research the topic, write the story, then write the code for every slide. A real browser checks each slide before it is kept.</p>
+    <div class="oneline" aria-label="The whole idea in one line">
+      <span class="pill">Your topic</span><span class="arrow">→</span>
+      <span class="pill">6 AI steps, you approve each</span><span class="arrow">→</span>
+      <span class="pill">one <code>deck.html</code> file</span>
+    </div>
+    <div class="legend" aria-label="Colour key">
+      <span class="tag t-ui">the screen you use</span>
+      <span class="tag t-engine">the engine (our code)</span>
+      <span class="tag t-ai">AI models</span>
+      <span class="tag t-disk">files on disk</span>
+    </div>
+    <p class="muted" style="font-size:.9rem">The same colours are used in every diagram below.</p>
+  </header>
+
+  <!-- 2. Big picture -->
+  <section aria-labelledby="pic">
+    <h2 id="pic">The big picture: four parts that pass work along</h2>
+    <p class="muted">Think of a small print shop. You hand over a request at the counter, the workshop does the work, a specialist gives advice when asked, and finished pages go on a shelf.</p>
+    <div class="chain">
+      <div class="node">
+        <span class="tag t-ui">Studio</span>
+        <h3>The counter</h3>
+        <p>The web page you click on. You fill in the topic, pick a look, press Run and read the results. Your decks themselves are not kept inside it.</p>
+        <span class="where">apps/studio · Next.js · port 3210</span>
+      </div>
+      <div class="link" aria-hidden="true"></div>
+      <div class="node">
+        <span class="tag t-engine">Engine</span>
+        <h3>The workshop</h3>
+        <p>Our own code. It runs the steps in order, builds slides, opens a browser to take screenshots, and packs everything into one file.</p>
+        <span class="where">packages/forge · TypeScript</span>
+      </div>
+      <div class="link" aria-hidden="true"></div>
+      <div class="node">
+        <span class="tag t-ai">Proxy + Claude</span>
+        <h3>The specialists</h3>
+        <p>The engine never talks to the internet directly. It asks a small local helper (the proxy), and the proxy asks the Claude models.</p>
+        <span class="where">claude-openai · port 4001</span>
+      </div>
+    </div>
+    <div class="below">
+      <div class="box">
+        <span class="tag t-disk">projects/ folder</span>
+        <h3>The shelf</h3>
+        <p>Every deck is just a folder of plain files. Nothing lives in a database. If you delete a folder, that deck is gone; if you copy it, you have a backup.</p>
+      </div>
+      <div class="box">
+        <span class="tag t-engine">Chromium (Playwright)</span>
+        <h3>The inspector</h3>
+        <p>The engine opens a hidden Chrome window, shows each slide, and takes pictures. The AI critic looks at those pictures, just like you would.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Steps -->
+  <section aria-labelledby="steps">
+    <h2 id="steps">The six steps of making a deck</h2>
+    <p class="muted">Each step reads the files the earlier steps wrote and writes one of its own. Click a step to see what it does.</p>
+    <div class="stepper">
+      <div class="tabs" role="tablist" aria-label="Deck steps" id="tabs"></div>
+      <div class="panel" id="panel" role="tabpanel" aria-live="polite"></div>
+    </div>
+    <div class="callout">
+      <strong>Changing your mind is safe.</strong>
+      <p>If you edit or re-run a step, DeckForge deletes the files of the steps after it, because they were based on the old answer. Finished deck versions are never deleted.</p>
+    </div>
+  </section>
+
+  <!-- 4. Build loop -->
+  <section aria-labelledby="loop">
+    <h2 id="loop">Inside the Build step: write, look, fix</h2>
+    <p class="muted">This is where the quality comes from. Every slide goes through this loop, and up to 6 slides are worked on at the same time.</p>
+    <div class="loop">
+      <div class="box">
+        <h3><span>1</span>Builder writes</h3>
+        <span class="tag t-ai">Sonnet</span>
+        <p>It gets the slide's script, the storyboard idea, your style, and 2–3 example slides that use a similar trick. It writes the slide as HTML, CSS and a little JavaScript.</p>
+      </div>
+      <div class="box">
+        <h3><span>2</span>Rules check</h3>
+        <span class="tag t-engine">Engine</span>
+        <p>A quick check that the slide follows the house rules: right size, own CSS only, no outside links. Broken slides go straight back to step 1.</p>
+      </div>
+      <div class="box">
+        <h3><span>3</span>Screenshots</h3>
+        <span class="tag t-engine">Chromium</span>
+        <p>The slide is opened in a real browser. Each animation step is photographed. Any error shown in the browser console is collected too.</p>
+      </div>
+      <div class="box">
+        <h3><span>4</span>Critic reviews</h3>
+        <span class="tag t-ai">Opus</span>
+        <p>It looks at up to 4 pictures and the errors, then says <em>pass</em> or <em>fix</em>, gives a score, and lists what is wrong.</p>
+      </div>
+    </div>
+    <div class="decision">
+      <div class="box">
+        <h3>If it passes</h3>
+        <p>The slide is saved to <code>slides/s03.html</code>. Done.</p>
+      </div>
+      <div class="box">
+        <h3>If it needs a fix</h3>
+        <p>The critic's list and the last picture go back to the Builder (step 1). That is one round. There are 2 rounds. If a serious problem is still left, the stronger Opus model gets one last try. The best attempt wins.</p>
+      </div>
+    </div>
+    <p class="muted">When all slides are done, the engine packs them into <code>versions/1/deck.html</code> together with the presenter code, 3D library, animation library and fonts. That is why the finished deck works with no internet.</p>
+  </section>
+
+  <!-- 5. Data flow -->
+  <section aria-labelledby="flow">
+    <h2 id="flow">Data flow: what happens when you press Run</h2>
+    <p class="muted">Follow one click from your screen to the files on disk and back.</p>
+    <button class="play" id="play" type="button">Play the steps</button>
+    <ol class="flow" id="flowList">
+      <li>
+        <div><div class="who"><span class="tag t-ui">Your browser</span><span class="go">asks</span><span class="tag t-ui">Studio server</span></div>
+        <p>You press Run. The page sends a request to <code>/api/projects/&lt;id&gt;/stages/&lt;stage&gt;/run</code> and keeps the connection open to receive a live feed of progress messages.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-ui">Studio server</span><span class="go">starts</span><span class="tag t-engine">Engine</span></div>
+        <p>The server checks the project exists, then starts the work <em>in the background</em> and keeps a list of every message it produces. Because of that list, closing the tab or reloading the page does not stop the build. When you come back, you get the old messages replayed, then the new ones.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-engine">Engine</span><span class="go">reads</span><span class="tag t-disk">Project folder</span></div>
+        <p>The engine opens the earlier files (for example the script) and builds a clear question for the AI from them.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-engine">Engine</span><span class="go">asks</span><span class="tag t-ai">Proxy → Claude</span></div>
+        <p>The question goes to the local proxy, which forwards it to Claude. The answer must match a fixed shape (a schema). If it does not, it counts as an error instead of being saved.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-engine">Engine</span><span class="go">writes</span><span class="tag t-disk">Project folder</span></div>
+        <p>The valid answer is saved as the step's file, such as <code>storyboard.json</code>. Files of later steps are deleted, since they are now out of date.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-engine">Engine</span><span class="go">reports</span><span class="tag t-ui">Studio server</span></div>
+        <p>All along, the engine sends small progress messages ("slide 3, round 2, critic says fix"). The Studio translates them into its own message format, adds up the token use to estimate the cost, and forwards them to your browser.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-ui">Your browser</span><span class="go">shows</span><span class="tag t-ui">You</span></div>
+        <p>You watch live progress. When the step finishes, you read the result, edit it if you want (edits are saved back to the same file), then click Approve to unlock the next step.</p></div>
+      </li>
+      <li>
+        <div><div class="who"><span class="tag t-engine">Engine</span><span class="go">packs</span><span class="tag t-disk">versions/&lt;n&gt;/deck.html</span></div>
+        <p>After Build, the finished deck is saved as a numbered version. The Studio serves that file to a viewer on the deck page. A chat edit on one slide runs the same loop for that slide and saves a new version, so you can always go back.</p></div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 6. Folder -->
+  <section aria-labelledby="folder">
+    <h2 id="folder">What a deck looks like on disk</h2>
+    <p class="muted">Each deck is a folder. You can open any file in a text editor.</p>
+    <div class="scroll">
+<pre class="tree"><span class="d">projects/why-the-moon-has-phases/</span>
+├─ brief.json          <span class="c">what you typed: topic, audience, minutes</span>
+├─ style.json          <span class="c">colours, fonts, how much motion and 3D</span>
+├─ research.md         <span class="c">facts the researcher collected</span>
+├─ outline.json        <span class="c">the list of slides and the story order</span>
+├─ script.json         <span class="c">what each slide says, and for how long</span>
+├─ storyboard.json     <span class="c">the picture/animation idea for each slide</span>
+├─ slides/             <span class="c">one finished HTML piece per slide (s01.html …)</span>
+├─ shots/              <span class="c">screenshots taken during the build loop</span>
+├─ versions/
+│  ├─ 1/deck.html      <span class="e">the finished single-file presentation</span>
+│  └─ 2/deck.html      <span class="e">a later version after a chat edit</span>
+├─ build.json          <span class="c">scores and rounds for each slide</span>
+└─ studio.json         <span class="c">approvals, cost and logs shown in the Studio</span></pre>
+    </div>
+  </section>
+
+  <!-- 7. Where code lives -->
+  <section aria-labelledby="where">
+    <h2 id="where">Where the code lives</h2>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Folder or file</th><th>In plain words</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/forge/src/pipeline/</code></td><td>The conductor. <code>stages.ts</code> runs the steps in order, <code>build.ts</code> is the write-look-fix loop, <code>revise.ts</code> handles chat edits and versions.</td></tr>
+        <tr><td><code>packages/forge/src/agents/</code></td><td>One file per AI helper (stylist, researcher, script writer, storyboarder, builder, critic) and the shapes their answers must have.</td></tr>
+        <tr><td><code>packages/forge/prompts/</code></td><td>The written instructions given to each helper. Slide quality depends heavily on these.</td></tr>
+        <tr><td><code>packages/forge/src/bundle.ts</code> and <code>shoot.ts</code></td><td>Pack slides into one HTML file; open it in Chrome and take screenshots.</td></tr>
+        <tr><td><code>packages/forge/src/shell/</code></td><td>The small program inside every finished deck: arrow-key navigation, scaling to the screen, the 3D helper.</td></tr>
+        <tr><td><code>packages/forge/src/contract.ts</code></td><td>The shared rules and types. The "what is a slide?" definition.</td></tr>
+        <tr><td><code>apps/studio/app/</code></td><td>The pages you see, and the <code>api/</code> routes the pages call.</td></tr>
+        <tr><td><code>apps/studio/lib/server/</code></td><td>Glue between the pages and the engine. <code>real-backend.ts</code> does the work; <code>runs.ts</code> keeps builds alive in the background.</td></tr>
+        <tr><td><code>start.sh</code></td><td>One command to start the proxy and the Studio together.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">Folders <code>packages/harness</code>, <code>renderer</code>, <code>schemas</code>, <code>catalog</code> belong to an older approach that is paused. You can skip them.</p>
+  </section>
+
+  <!-- 8. Read first -->
+  <section aria-labelledby="read">
+    <h2 id="read">What to read first</h2>
+    <ol class="read">
+      <li><strong><code>README.md</code></strong><span>How to start it and the one-page overview.</span></li>
+      <li><strong><code>packages/forge/src/contract.ts</code></strong><span>Short. Defines the words everything else uses: style, deck, slide.</span></li>
+      <li><strong><code>packages/forge/src/pipeline/build.ts</code></strong><span>The write-look-fix loop. Most of the product's behaviour is here.</span></li>
+      <li><strong><code>packages/forge/src/pipeline/stages.ts</code> and <code>project.ts</code></strong><span>Step order and the folder layout.</span></li>
+      <li><strong><code>packages/forge/prompts/builder.md</code> and <code>critic.md</code></strong><span>What the AI is told to do. Change these to change slide quality.</span></li>
+      <li><strong><code>apps/studio/lib/backend.ts</code>, then <code>lib/server/real-backend.ts</code></strong><span>The list of things the screen can ask for, and how each is answered.</span></li>
+      <li><strong><code>packages/forge/src/shell/main.ts</code></strong><span>What a finished deck does when you open it.</span></li>
+    </ol>
+  </section>
+
+  <!-- 9. Limits -->
+  <section aria-labelledby="limits">
+    <h2 id="limits">Good to know</h2>
+    <ul class="plain">
+      <li><strong>Cost.</strong> A real 4-slide build used about $14 of model time. Making it cheaper is planned.</li>
+      <li><strong>Stop button.</strong> It hides the live view but does not yet cancel the build on the server.</li>
+      <li><strong>Server restart.</strong> A build in progress is lost if the Studio restarts. Finished decks stay on disk.</li>
+      <li><strong>Research.</strong> The researcher uses what the model already knows. Live web search is not connected yet.</li>
+    </ul>
+  </section>
+
+  <footer>Based on the code in the <code>feat/v2</code> branch of kcsapkal28/CutieSaysHii.</footer>
+</div>
+
+<script>
+(function () {
+  var STEPS = [
+    { n: "Style", tag: "t-ai", who: "Stylist · Sonnet", out: "style.json",
+      what: "Picks the look: colours, fonts, how much motion, whether to use 3D, and how interactive the slides are. You can also set it yourself on the Style page, which shows a live preview.",
+      reads: "brief.json (your topic and audience)", extra: "Text colours are checked so they stay readable on the background." },
+    { n: "Research", tag: "t-ai", who: "Researcher · Sonnet", out: "research.md",
+      what: "Collects the facts the deck needs, so the later steps do not make things up.",
+      reads: "brief.json, style.json", extra: "Today this uses the model's own knowledge. Web search is a placeholder." },
+    { n: "Outline", tag: "t-ai", who: "Script writer · Sonnet", out: "outline.json",
+      what: "Decides the story: how many slides, in what order, and what each one is for.",
+      reads: "brief, research", extra: "You can edit the slides here before moving on." },
+    { n: "Script", tag: "t-ai", who: "Script writer · Sonnet", out: "script.json",
+      what: "Writes each slide's key message, what the speaker says, and how many seconds it should take.",
+      reads: "outline.json, research.md", extra: "The seconds feed the optional pacing timer in the final deck." },
+    { n: "Storyboard", tag: "t-ai", who: "Storyboarder · Opus", out: "storyboard.json",
+      what: "The creative step. For every slide it invents the picture: an animated diagram, a simulation you can play with, or a 3D object with named parts.",
+      reads: "script.json, style.json", extra: "It chooses from a list of known explainer techniques and avoids repeating the same trick on every slide." },
+    { n: "Build", tag: "t-ai", who: "Builder · Sonnet, Critic · Opus", out: "slides/*.html, versions/1/deck.html",
+      what: "Turns each storyboard entry into working slide code, checks it in a real browser, and fixes problems. Then packs everything into the final file.",
+      reads: "everything above", extra: "This is the slow and expensive step. See the write-look-fix loop above." }
+  ];
+  var tabs = document.getElementById("tabs");
+  var panel = document.getElementById("panel");
+  function show(i) {
+    var s = STEPS[i];
+    Array.prototype.forEach.call(tabs.children, function (b, j) { b.setAttribute("aria-selected", j === i ? "true" : "false"); });
+    panel.innerHTML =
+      "<div><span class='tag " + s.tag + "'>" + s.who + "</span></div>" +
+      "<h3>" + (i + 1) + ". " + s.n + "</h3>" +
+      "<p>" + s.what + "</p>" +
+      "<dl><dt>Reads</dt><dd>" + s.reads + "</dd><dt>Writes</dt><dd><code>" + s.out + "</code></dd></dl>" +
+      "<p class='muted' style='font-size:.93rem'>" + s.extra + "</p>" +
+      "<p class='approve'>After it finishes, you read the result, edit it if you like, and press Approve.</p>";
+  }
+  STEPS.forEach(function (s, i) {
+    var b = document.createElement("button");
+    b.type = "button"; b.setAttribute("role", "tab");
+    b.innerHTML = "<span class='n'>" + (i + 1) + "</span>" + s.n;
+    b.addEventListener("click", function () { show(i); });
+    tabs.appendChild(b);
+  });
+  show(0);
+
+  var items = Array.prototype.slice.call(document.querySelectorAll("#flowList li"));
+  var btn = document.getElementById("play");
+  var timer = null;
+  function reset() { clearInterval(timer); timer = null; items.forEach(function (li) { li.classList.remove("on", "dim"); }); btn.textContent = "Play the steps"; }
+  btn.addEventListener("click", function () {
+    if (timer) { reset(); return; }
+    var i = 0;
+    btn.textContent = "Stop";
+    items.forEach(function (li) { li.classList.add("dim"); li.classList.remove("on"); });
+    function tick() {
+      if (i >= items.length) { reset(); return; }
+      items.forEach(function (li, j) { li.classList.toggle("on", j === i); li.classList.toggle("dim", j > i); });
+      items[i].scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      i++;
+    }
+    tick();
+    timer = setInterval(tick, 2200);
+  });
+})();
+</script>

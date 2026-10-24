@@ -212,3 +212,29 @@ describe("wireThinking levels", () => {
     expect(wireThinking("claude-opus-5-5", "model")).toEqual({});
   });
 });
+
+describe("idle timeout", () => {
+  it("aborts a quiet stream after idleMs and keeps a busy one alive", async () => {
+    const { idleSignal, IdleTimeoutError } = await import("../src/llm.ts");
+    const quiet = idleSignal(new AbortController().signal, 30);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(quiet.signal.aborted).toBe(true);
+    expect(quiet.idle()).toBe(true);
+    expect(quiet.signal.reason).toBeInstanceOf(IdleTimeoutError);
+    quiet.dispose();
+    const busy = idleSignal(new AbortController().signal, 40);
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      busy.touch();
+    }
+    expect(busy.signal.aborted).toBe(false);
+    busy.dispose();
+  });
+  it("retries an idle-timed-out attempt once, then fails fast with the reason", async () => {
+    const { createLlm, IdleTimeoutError } = await import("../src/llm.ts");
+    let calls = 0;
+    const llm = createLlm({ transport: async () => (calls++, Promise.reject(new IdleTimeoutError(45_000))), sleep: async () => {} });
+    await expect(llm.callText({ label: "t", model: "m", system: "s", user: "u" })).rejects.toThrow(/stream idle for 45000ms after 2 attempts/);
+    expect(calls).toBe(2);
+  });
+});

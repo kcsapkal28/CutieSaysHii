@@ -3,7 +3,8 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "
 import { join } from "node:path";
 import { createProxyLlm } from "../llm.ts";
 import { buildSlide, bundleVersion, type BuildSummary, type SlideBuild, type VersionMeta } from "./build.ts";
-import { meteredLlm } from "./events.ts";
+import { meteredLlm, type OnEvent } from "./events.ts";
+import { journaled, journalFile } from "./journal.ts";
 import { readJson, writeJson, type Project } from "./project.ts";
 import { buildOptions, loadOutline, loadScript, loadStoryboard, loadStyle, StageError, withEngine, type PipelineOptions } from "./stages.ts";
 
@@ -17,7 +18,21 @@ export type ReviseResult = { build: SlideBuild; version?: number; deckFile?: str
 export async function reviseSlide(project: Project, slideId: string, instruction: string, opts: PipelineOptions = {}): Promise<ReviseResult> {
   const slideFile = join(project.dir, "slides", `${slideId}.html`);
   if (!existsSync(slideFile)) throw new StageError(`no built slide ${slideId}: run the build stage first`);
-  const onEvent = opts.onEvent ?? (() => {});
+  const journal = journaled(journalFile(project), opts.onEvent, opts.runId);
+  const started = Date.now();
+  journal.note({ type: "revise:start", slideId, instructionChars: instruction.length });
+  try {
+    const result = await revise(project, slideId, instruction, opts, journal.onEvent);
+    journal.note({ type: "revise:done", slideId, ms: Date.now() - started, verdict: result.build.verdict, version: result.version ?? null });
+    return result;
+  } catch (e) {
+    journal.note({ type: "revise:error", slideId, ms: Date.now() - started, error: e instanceof Error ? e.message : String(e) });
+    throw e;
+  }
+}
+
+async function revise(project: Project, slideId: string, instruction: string, opts: PipelineOptions, onEvent: OnEvent): Promise<ReviseResult> {
+  const slideFile = join(project.dir, "slides", `${slideId}.html`);
   const inputs = { style: loadStyle(project), outline: loadOutline(project), script: loadScript(project), storyboard: loadStoryboard(project) };
   const index = inputs.script.slides.findIndex((s) => s.id === slideId);
   const board = inputs.storyboard.slides.find((b) => b.id === slideId);

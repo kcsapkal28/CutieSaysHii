@@ -2,8 +2,11 @@
 import { transformSync } from "esbuild";
 
 export class ContractError extends Error {
-  constructor(public readonly issues: string[]) {
+  readonly issues: string[];
+
+  constructor(issues: string[]) {
     super(`slide contract violations:\n- ${issues.join("\n- ")}`);
+    this.issues = issues;
     this.name = "ContractError";
   }
 }

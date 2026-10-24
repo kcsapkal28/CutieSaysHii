@@ -1,6 +1,7 @@
-export * from "./builder.ts";
+export { builderSchema, builderSystem, builderUser, runBuilder, type BuildFix, type BuilderInput } from "./builder.ts";
 export * from "./contrast.ts";
 export * from "./critic.ts";
+export * from "./exemplars.ts";
 export * from "./researcher.ts";
 export * from "./schemas.ts";
 export * from "./scriptwriter.ts";

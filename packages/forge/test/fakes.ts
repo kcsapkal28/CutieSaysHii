@@ -125,6 +125,7 @@ export const storyboardOut = (ids: string[], explainer = "animated-diagram") => 
     id,
     concept: "Two waves sum to flat.",
     explainer,
+    technique: "phase-slider",
     why: "Shows cancellation directly.",
     layout: "Wave centre, title top-left.",
     interaction: { kind: "slider", description: "Drag phase." },

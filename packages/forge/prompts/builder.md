@@ -36,13 +36,13 @@ Lifecycle:
 - `enter()` / `leave()`: the slide became visible / hidden. `dispose()`: free anything not created through `api`.
 
 Theme and type:
-- Colours and fonts come **only** from the CSS variables `--df-bg`, `--df-surface`, `--df-text`, `--df-muted`, `--df-line`, `--df-accent`, `--df-accent-2`, `--df-accent-3`, `--df-font-display`, `--df-font-body`, `--df-font-mono` (or `api.theme` in JS). Tints via `color-mix(in oklab, var(--df-accent) 25%, transparent)` are fine. The shell already paints the backdrop; keep the section background transparent. The only exception: physically plausible material colours for 3D parts (white plastic, silicone, metal, PCB green, copper, gold) when the storyboard calls for them.
+- Colours and fonts come **only** from the CSS variables `--df-bg`, `--df-surface`, `--df-text`, `--df-muted`, `--df-line`, `--df-accent`, `--df-accent-2`, `--df-accent-3`, `--df-font-display`, `--df-font-body`, `--df-font-mono` (or `api.theme` in JS). Tints via `color-mix(in oklab, var(--df-accent) 25%, transparent)` are fine. The shell already paints the backdrop; keep the section background transparent. The only exception: physically plausible material colours for 3D parts (white plastic, glass, metal, stone, wood, copper, gold) when the storyboard calls for them.
 - Type scale on the 1920×1080 canvas: title 64–88px (display font, weight 500–700, letter-spacing −0.01em to −0.02em, sentence case as written), caption 30–38px, callout labels 22–28px, kicker 18–22px uppercase mono with 0.2em tracking. Nothing under 18px.
 - Margins: keep text inside x 96…1824, y 72…1008. Text must never overlap the visual's important parts or other text, and never clip.
 
 Shell kit (global classes already on the page; prefer them so slides share one look, and tune them under `#<id>`):
 - Type: `df-eyebrow` (mono kicker in accent), `df-h1` (128px display, title slides), `df-h2` (64px slide claim), `df-lede` (large light paragraph), `df-grad` (accent gradient text).
-- Labels and data: `df-tag` (callout chip: `<span class="df-tag"><b>07</b> Inner mic</span>`), `df-legend` (`<span class="df-key" style="--c: var(--df-accent)"><i></i>Anti-noise</span>`), `df-stat` (`df-stat-label` + `df-stat-value`), `df-panel` (surface card).
+- Labels and data: `df-tag` (callout chip: `<span class="df-tag"><b>03</b> Intake valve</span>`), `df-legend` (`<span class="df-key" style="--c: var(--df-accent)"><i></i>Inflow</span>`), `df-stat` (`df-stat-label` + `df-stat-value`), `df-panel` (surface card).
 - Controls: `df-btn` (`aria-pressed="true"` = selected), `df-toggle` (joined button group), `df-range` (slider; set `--fill` to 0–100%).
 
 Interactivity:
@@ -51,7 +51,7 @@ Interactivity:
 - Readouts update live and use tabular numerals (`font-variant-numeric: tabular-nums`).
 
 Craft:
-- **3D**: build recognisable silhouettes from LatheGeometry profiles, CapsuleGeometry, CylinderGeometry, TorusGeometry, RoundedBoxGeometry, ExtrudeGeometry and TubeGeometry. Use MeshPhysicalMaterial (clearcoat for glossy plastic, transmission/opacity for translucent silicone, metalness for metal). Light with the environment plus a key DirectionalLight and a rim light; add a soft contact shadow (a radial-gradient texture on a plane, or a shadow-catching ShadowMaterial). Frame the object so it fills 40–60% of the canvas and is clearly lit against the background. Group parts by name so steps can explode, highlight (emissive pulse) or fade them. Keep it under ~150k triangles and dispose your geometries and materials in `dispose()`.
+- **3D**: build recognisable silhouettes from LatheGeometry profiles, CapsuleGeometry, CylinderGeometry, TorusGeometry, RoundedBoxGeometry, ExtrudeGeometry and TubeGeometry. Use MeshPhysicalMaterial (clearcoat for glossy plastic, transmission/opacity for glass and translucent parts, metalness for metal). Light with the environment plus a key DirectionalLight and a rim light; add a soft contact shadow (a radial-gradient texture on a plane, or a shadow-catching ShadowMaterial). Frame the object so it fills 40–60% of the canvas and is clearly lit against the background. Group parts by name so steps can explode, highlight (emissive pulse) or fade them. Keep it under ~150k triangles and dispose your geometries and materials in `dispose()`.
 - **Particles and flows**: dots spaced along a path (SVG path `getPointAtLength`, or a THREE `CatmullRomCurve3`) and advanced with `onFrame`; colour encodes the signal, and the legend says so.
 - **Callouts**: numbered chips (mono numeral in accent + label in the body font, on a `--df-surface` pill with a 3px left accent bar) with 1.5px leader lines in `--df-line` or accent ending in a small dot exactly on the part.
 - **Simulations**: keep state in plain JS objects, step them in `onFrame` with a fixed timestep, and render from state. Make them deterministic (seeded random) so screenshots are stable.

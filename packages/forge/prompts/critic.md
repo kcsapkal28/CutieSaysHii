@@ -19,7 +19,7 @@ Check each step's screenshot for:
 ## Verdict
 
 - `pass` only when there are no high-severity issues, no errors, and the slide meets the bar (score ≥ 7). Minor nits alone don't block a pass; list them as low.
-- Otherwise `fix`. Order issues by severity. Give each a precise location ("step 3, top-right chip '09 ANC processor'") and a concrete code-level fix ("move the legend to y=980 and center it", "raise the key light to 2.5 and add a rim light behind the earbud", "set the label font-size to 26px").
+- Otherwise `fix`. Order issues by severity. Give each a precise location ("step 3, top-right chip '03 Intake valve'") and a concrete code-level fix ("move the legend to y=980 and center it", "raise the key light to 2.5 and add a rim light behind the object", "set the label font-size to 26px").
 - Score honestly: 9–10 indistinguishable from the references, 7–8 good, 5–6 generic or flawed, ≤4 broken.
 
 Judge only what you can see in the screenshots and the error list; don't invent problems.

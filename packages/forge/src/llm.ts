@@ -37,6 +37,8 @@ type CallBase = {
 
 export type ToolCallOpts<S extends z.ZodTypeAny> = CallBase & {
   tool: { name: string; description: string; schema: S };
+  /** Corrective retries after invalid output, each with the error fed back (default 1). */
+  validationRetries?: number;
 };
 
 export type CallRecord = { label: string; model: string; ms: number; usage: Usage; attempts: number };
@@ -177,8 +179,9 @@ export function createLlm(o: LlmOptions): Llm {
       const messages: WireMessage[] = [{ role: "user", content: userContent(c.user) }];
       let usage = ZERO_USAGE;
       let attempts = 0;
-      // One retry with the validation error fed back as a tool_result.
-      for (let round = 1; round <= 2; round++) {
+      // Retries (one by default) with the validation error fed back as a tool_result.
+      const rounds = 1 + (c.validationRetries ?? 1);
+      for (let round = 1; round <= rounds; round++) {
         const req: WireRequest = {
           model: c.model,
           max_tokens: c.maxTokens ?? 8000,
@@ -206,9 +209,9 @@ export function createLlm(o: LlmOptions): Llm {
           return { ...rec, data: parsed.data };
         }
         const why = problem ?? formatZodError(parsed!.error);
-        if (round === 2) {
+        if (round === rounds) {
           o.onCall?.({ label: c.label, model: c.model, ms: Date.now() - started, usage, attempts });
-          throw new LlmError(`${c.label}: invalid ${c.tool.name} output after a retry: ${why}`);
+          throw new LlmError(`${c.label}: invalid ${c.tool.name} output after ${rounds - 1 === 1 ? "a retry" : `${rounds - 1} retries`}: ${why}`);
         }
         if (call) {
           messages.push({ role: "assistant", content: [call] });

@@ -1,42 +1,16 @@
 // Builder: one slide's script + storyboard + style → slides/<id>.html, following the slide contract.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Style } from "../contract.ts";
 import { MODELS, type Llm, type Part } from "../llm.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
+import { exemplarSection, loadExemplars, pickExemplars, type Exemplar } from "./exemplars.ts";
 import type { Issue, ScriptSlide, Storyboard, StoryboardSlide } from "./schemas.ts";
 import { checkSlideHtml } from "./slide-check.ts";
 
-export const EXEMPLAR_DIRS = [join(FORGE_DIR, "fixtures", "proof", "slides"), join(FORGE_DIR, "fixtures", "proof")];
 const SHELL_TYPES = join(FORGE_DIR, "src", "shell", "types.ts");
 const SHELL_CSS = join(FORGE_DIR, "src", "shell", "shell.css");
-const MAX_EXEMPLAR_CHARS = 18_000;
-
-export type Exemplar = { name: string; html: string };
-
-/** Hand-built proof slides used as few-shot examples; empty when the engine's fixtures aren't there. */
-export function loadExemplars(dirs = EXEMPLAR_DIRS): Exemplar[] {
-  for (const dir of dirs) {
-    if (!existsSync(dir)) continue;
-    const files = readdirSync(dir)
-      .filter((f) => /^s\d{2}\.html$/.test(f))
-      .sort();
-    if (files.length) return files.map((f) => ({ name: f, html: readFileSync(join(dir, f), "utf8") }));
-  }
-  return [];
-}
-
-/** Up to two exemplars: one that matches the slide's kind (3D or not), one that differs, shortest first. */
-export function pickExemplars(all: Exemplar[], explainer: StoryboardSlide["explainer"], max = 2): Exemplar[] {
-  const fits = all.filter((e) => e.html.length <= MAX_EXEMPLAR_CHARS);
-  const is3d = (e: Exemplar) => /\.three\(/.test(e.html);
-  const want3d = explainer === "3d-object";
-  const byLen = (a: Exemplar, b: Exemplar) => a.html.length - b.html.length;
-  const same = fits.filter((e) => is3d(e) === want3d).sort(byLen);
-  const other = fits.filter((e) => is3d(e) !== want3d).sort(byLen);
-  return [...same.slice(0, 1), ...other.slice(0, 1), ...same.slice(1)].slice(0, max);
-}
 
 export type BuildFix = {
   previousHtml: string;
@@ -86,10 +60,7 @@ export function builderSystem(exemplars: Exemplar[], shellTypesFile = SHELL_TYPE
       system += `\n\n## Shell kit classes (global and already loaded: use them, and adjust under #<id> when needed)\n\n\`\`\`css\n${css.slice(start).trim()}\n\`\`\`\n`;
     }
   }
-  if (exemplars.length) {
-    system += "\n\n## Exemplar slides\n\nHand-built slides that meet the bar and follow the contract. Match their structure and craft, not their content.\n";
-    for (const e of exemplars) system += `\n### ${e.name}\n\n\`\`\`html\n${e.html.trim()}\n\`\`\`\n`;
-  }
+  system += exemplarSection(exemplars);
   return system;
 }
 
@@ -142,7 +113,7 @@ export async function runBuilder(
   input: BuilderInput,
   opts: { model?: string; exemplars?: Exemplar[] } = {},
 ): Promise<{ html: string; steps: number; summary: string }> {
-  const exemplars = pickExemplars(opts.exemplars ?? loadExemplars(), input.board.explainer);
+  const exemplars = pickExemplars(opts.exemplars ?? loadExemplars(), input.board);
   const { data } = await llm.callTool({
     label: `builder:${input.slide.id}`,
     model: opts.model ?? MODELS.sonnet,
@@ -154,3 +125,4 @@ export async function runBuilder(
   });
   return data;
 }
+export type { Exemplar };

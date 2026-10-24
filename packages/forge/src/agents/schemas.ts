@@ -98,7 +98,7 @@ export type Outline = z.infer<typeof Outline>;
 export const ScriptSlide = z.object({
   id: z.string(),
   title: z.string().describe('A sentence-case claim, e.g. "Five one-way channels, each with its own handshake". Max ~60 characters.'),
-  kicker: z.string().optional().describe('Optional tiny overline, e.g. "PASS 3 · HYBRID ANC".'),
+  kicker: z.string().optional().describe('Optional tiny overline, e.g. "PART 2 · THE CRISIS".'),
   subtitle: z.string().optional().describe("Optional one line under the title or a caption. Max ~110 characters."),
   callouts: z
     .array(z.string())
@@ -116,7 +116,18 @@ export type Script = z.infer<typeof Script>;
 
 // ---- storyboard.json ----
 
-export const EXPLAINERS = ["3d-object", "simulation", "animated-diagram", "data-viz", "typographic", "image-led"] as const;
+export const EXPLAINERS = [
+  "3d-object",
+  "simulation",
+  "animated-diagram",
+  "data-viz",
+  "timeline",
+  "map",
+  "comparison",
+  "quote",
+  "typographic",
+  "image-led",
+] as const;
 export const Explainer = z.enum(EXPLAINERS);
 export const COLOR_TOKENS = ["bg", "surface", "text", "muted", "line", "accent", "accent2", "accent3"] as const;
 
@@ -125,7 +136,7 @@ export const Object3d = z.object({
   parts: z
     .array(
       z.object({
-        name: z.string().describe("Stable part id, e.g. outer-mic"),
+        name: z.string().describe("Stable part id, e.g. intake-valve"),
         label: z.string().describe("Callout text shown on the slide"),
         geometry: z.string().describe("How to model it from Three.js primitives (Lathe/Capsule/Cylinder/Torus/Box/Extrude…), with proportions"),
         material: z.string().describe("e.g. glossy white plastic (MeshPhysical, clearcoat 1, roughness .25)"),
@@ -143,6 +154,7 @@ export const StoryboardSlide = z.object({
   id: z.string(),
   concept: z.string().describe("What the viewer sees, concretely and vividly: objects, positions, colours, what moves."),
   explainer: Explainer,
+  technique: z.string().describe("The specific explainer technique, by its catalogue name when a catalogue is given (e.g. \"exploded-3d-callouts\", \"particle-flow\", \"slider-simulation\")."),
   why: z.string().describe("Why this visual explains the key message better than any alternative."),
   layout: z.string().describe("Composition on the 1920×1080 canvas: where the title, visual, callouts and caption sit."),
   interaction: z.object({
@@ -161,7 +173,7 @@ export const StoryboardSlide = z.object({
       readouts: z.array(z.string()),
     })
     .optional(),
-  data: z.string().optional().describe("For data-viz: the series, units and values to plot"),
+  data: z.string().optional().describe("For data-viz, timeline, map and comparison: the actual values, units, dates, places or items"),
   reducedMotion: z.string().describe("What the slide shows when motion is off"),
 });
 export type StoryboardSlide = z.infer<typeof StoryboardSlide>;

@@ -13,7 +13,7 @@ export type ForgeEvent =
   /** A stage finished and wrote its file(s). `usage`/`calls` total every LLM call the stage made. */
   | { type: "stage:done"; stage: Stage; ms: number; usage: Usage; calls: number }
   /** A stage failed; its outputs were not written. The error is also thrown to the caller. */
-  | { type: "stage:error"; stage: Stage; error: string }
+  | { type: "stage:error"; stage: Stage; error: string; where?: string }
   /** One LLM call completed (`label` is the agent, e.g. "storyboarder" or "builder:s03"). */
   | { type: "usage"; stage: Stage | "revise"; label: string; model: string; ms: number; usage: Usage; problems?: string[] }
   /** Outline, first pass: the arc is planned (slide ids and points); the cards are written next. */

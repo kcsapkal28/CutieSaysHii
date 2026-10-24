@@ -110,7 +110,8 @@ export async function runStage(project: Project, stage: Stage, opts: PipelineOpt
     onEvent({ type: "stage:done", stage, ms: Date.now() - started, ...total() });
     return result;
   } catch (e) {
-    onEvent({ type: "stage:error", stage, error: e instanceof Error ? e.message : String(e) });
+    const where = e instanceof Error && e.stack ? e.stack.split("\n").slice(1, 3).map((l) => l.trim()).join(" < ") : undefined;
+    onEvent({ type: "stage:error", stage, error: e instanceof Error ? e.message : String(e), ...(where ? { where } : {}) });
     throw e;
   }
 }

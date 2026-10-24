@@ -264,7 +264,14 @@ export function createLlm(o: LlmOptions): Llm {
           : res.stop_reason === "max_tokens"
             ? `output was cut off at max_tokens (${req.max_tokens}); be more concise`
             : undefined;
-        const parsed = call && !problem ? parseLenient(c.tool.schema, call.input) : undefined;
+        let parsed: ReturnType<typeof parseLenient> | undefined;
+        try {
+          parsed = call && !problem ? parseLenient(c.tool.schema, call.input) : undefined;
+        } catch (e) {
+          // A repair/validation crash still reports the call's usage, and says where it happened.
+          o.onCall?.(rec());
+          throw new LlmError(`${c.label}: validating the ${c.tool.name} output crashed: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+        }
         if (parsed?.success) {
           const r = rec();
           o.onCall?.(r);
@@ -353,7 +360,8 @@ const PARAM = /<parameter\s+name="([^"]+)">([\s\S]*?)(?=<\/parameter>|<parameter
  * An object that arrived as text: JSON, or the `<parameter name="k">v</parameter>` form some models fall back to for
  * nested objects (values are JSON when they look like it, nested parameters, numbers, booleans, else the text).
  */
-export function parseStringObject(text: string): unknown {
+export function parseStringObject(text: unknown): unknown {
+  if (typeof text !== "string") return undefined;
   const t = text.trim();
   if (t.startsWith("{") || t.startsWith("[")) {
     try {
@@ -403,7 +411,7 @@ export function parseLenient<S extends z.ZodTypeAny>(schema: S, input: unknown):
       const parent = at(copy, issue.path.slice(0, -1)) as Record<string | number, unknown> | undefined;
       if (!parent || typeof parent !== "object") continue;
       if (issue.expected === "object" && issue.received === "string") {
-        const parsed = parseStringObject(parent[key] as string);
+        const parsed = parseStringObject(parent[key]);
         if (parsed !== undefined) {
           parent[key] = parsed;
           changed = true;

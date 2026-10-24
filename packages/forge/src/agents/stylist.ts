@@ -1,8 +1,9 @@
-// Stylist: brief → Style (palette, font pair, motion, 3D, interactivity, density), with WCAG AA checked in code.
+// Stylist: brief → Style (design style, palette, font pair, surface, motion, 3D, interactivity, density), with WCAG AA checked in code.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { Features, MotionLevel, Style } from "../contract.ts";
+import { DESIGN_STYLES, SURFACE_CHOICES } from "../design-styles.ts";
 import { LlmError, MODELS, type Llm } from "../llm.ts";
 import { checkContrast, HEX, type ContrastFailure } from "./contrast.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
@@ -18,12 +19,18 @@ export function installedFonts(forgeDir = FORGE_DIR): string[] {
 }
 
 const isMono = (id: string) => id.includes("mono");
+
+/** The catalogue as one line per style, for the stylist's prompt. */
+export function designStyleMenu(): string {
+  return DESIGN_STYLES.map((d) => `- \`${d.id}\`: ${d.name} (${d.category}). ${d.blurb}`).join("\n");
+}
 const Hex = z.string().regex(HEX);
 
 export function stylistSchema(fonts: string[]) {
   const all = z.enum(fonts as [string, ...string[]]);
   const mono = fonts.filter(isMono);
   return z.object({
+    designStyle: z.enum(["none", ...DESIGN_STYLES.map((d) => d.id)] as [string, ...string[]]),
     look: z.string(),
     rationale: z.string().describe("Two sentences: why this look suits the topic and audience."),
     dark: z.boolean(),
@@ -40,6 +47,12 @@ export function stylistSchema(fonts: string[]) {
     use3d: z.boolean(),
     interactivity: z.union([z.literal(0), z.literal(1), z.literal(2)]),
     density: z.enum(["airy", "balanced", "dense"]),
+    surface: z.object({
+      radius: z.enum(SURFACE_CHOICES.radius),
+      border: z.enum(SURFACE_CHOICES.border),
+      depth: z.enum(SURFACE_CHOICES.depth),
+      texture: z.enum(SURFACE_CHOICES.texture),
+    }),
     features: Features,
   });
 }
@@ -68,7 +81,7 @@ export async function runStylist(
 ): Promise<StylistResult> {
   const fonts = opts.fonts ?? installedFonts();
   const schema = stylistSchema(fonts);
-  const system = loadPrompt("stylist", { fonts: fonts.join(", ") });
+  const system = loadPrompt("stylist", { fonts: fonts.join(", "), designStyles: designStyleMenu() });
   const maxAttempts = opts.maxAttempts ?? 3;
   const base = [
     `Topic: ${brief.topic}`,
@@ -93,11 +106,13 @@ export async function runStylist(
     if (failures.length === 0) {
       const style = Style.parse({
         look: out.look,
+        designStyle: out.designStyle === "none" ? "" : out.designStyle,
         theme: { colors: out.colors, fonts: out.fonts, backdrop: out.backdrop },
         motion: out.motion,
         use3d: out.use3d,
         interactivity: out.interactivity,
         density: out.density,
+        surface: out.surface,
         features: out.features,
       });
       return { style, rationale: out.rationale, attempts: attempt };

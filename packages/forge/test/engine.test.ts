@@ -84,6 +84,15 @@ describe("bundle", () => {
     expect(html).toContain("DF.boot()");
   });
 
+  it("writes the style's surface as --df-* variables (defaults for an old deck.json)", async () => {
+    expect(await bundleHtml(light)).toContain("--df-radius:18px");
+    const style = { ...light.config.style, surface: { radius: "sharp", border: "bold", depth: "hard", texture: "grain" } as const };
+    const html = await bundleHtml({ ...light, config: { ...light.config, style } });
+    expect(html).toMatch(/--df-radius:0px;.*--df-border-w:3px;.*--df-shadow:10px 10px 0 0 var\(--df-text\)/);
+    expect(html).toContain("--df-texture:url(\"data:image/svg+xml,");
+    expect(externalRefs(html)).toEqual([]);
+  });
+
   it("adds Three.js only when a slide uses it", async () => {
     const three = ok.replace("({ steps: 2 })", "{ const k = api.three(api.el); return {}; }");
     const html = await bundleHtml(deck({ s01: three }));

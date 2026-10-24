@@ -39,15 +39,27 @@ export const Features = z.object({
 });
 export type Features = z.infer<typeof Features>;
 
+/** Corner, border, depth and texture treatment of cards, chips and controls (see surface.ts for the CSS). */
+export const Surface = z.object({
+  radius: z.enum(["sharp", "soft", "round"]).default("soft"),
+  border: z.enum(["none", "hairline", "bold"]).default("hairline"),
+  depth: z.enum(["flat", "soft", "hard", "glass"]).default("flat"),
+  texture: z.enum(["none", "grain", "grid", "halftone"]).default("none"),
+});
+export type Surface = z.infer<typeof Surface>;
+
 /** `style.json`: what the Style Studio (or the Stylist agent) produces. */
 export const Style = z.object({
   look: z.string(),
+  /** Id of the catalogue design style it started from (design-styles.ts), or "" for none. */
+  designStyle: z.string().default(""),
   theme: Theme,
   motion: MotionLevel,
   use3d: z.boolean(),
   /** 0 = static, 1 = light interactions, 2 = rich simulations. */
   interactivity: z.union([z.literal(0), z.literal(1), z.literal(2)]),
   density: z.enum(["airy", "balanced", "dense"]),
+  surface: Surface.default({}),
   features: Features,
 });
 export type Style = z.infer<typeof Style>;

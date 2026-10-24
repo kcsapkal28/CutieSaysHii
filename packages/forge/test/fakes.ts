@@ -87,6 +87,8 @@ export const styleOut = (colors: Partial<Record<string, string>> = {}) => ({
   use3d: true,
   interactivity: 2,
   density: "balanced",
+  designStyle: "dark-cinematic",
+  surface: { radius: "soft", border: "hairline", depth: "soft", texture: "grain" },
   features: { timer: true, notes: true, stepNav: false, print: false },
 });
 

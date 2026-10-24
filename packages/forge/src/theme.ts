@@ -1,6 +1,7 @@
 // Theme tokens -> `--df-*` CSS custom properties.
-import { Theme } from "./contract.ts";
+import { Theme, type Surface } from "./contract.ts";
 import { fontStack, isFontId, FONT_IDS } from "./fonts.ts";
+import { surfaceDecls } from "./surface.ts";
 
 export class ThemeError extends Error {
   constructor(message: string) {
@@ -35,8 +36,8 @@ export const THEME_VARS = {
   backdrop: "--df-backdrop",
 } as const;
 
-/** Validates a theme and returns the `:root { --df-* }` block. */
-export function themeCss(input: Theme): string {
+/** Validates a theme and returns the `:root { --df-* }` block, including the surface variables (defaults when omitted). */
+export function themeCss(input: Theme, surface?: Partial<Surface>): string {
   const theme = Theme.parse(input);
   const decls: string[] = [];
   for (const [key, name] of Object.entries(COLOR_VARS)) {
@@ -49,5 +50,6 @@ export function themeCss(input: Theme): string {
   }
   const backdrop = theme.backdrop ? safe("backdrop", theme.backdrop) : "var(--df-bg)";
   decls.push(`--df-backdrop:${backdrop}`);
+  decls.push(...surfaceDecls(surface));
   return `:root{${decls.join(";")}}`;
 }

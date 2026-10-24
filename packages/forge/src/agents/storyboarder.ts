@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import type { Style } from "../contract.ts";
+import { designBrief } from "../design-styles.ts";
 import { MODELS, type Llm } from "../llm.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
 import { Storyboard, type Brief, type Script } from "./schemas.ts";
@@ -87,7 +88,7 @@ export async function runStoryboarder(
     model: opts.model ?? MODELS.opus,
     system: loadPrompt("storyboard", { techniques: technique.pointer }) + technique.appendix,
     user:
-      `Topic: ${brief.topic}\nAudience: ${brief.audience}\n\nStyle:\n${JSON.stringify(styleBrief, null, 2)}\n\n` +
+      `Topic: ${brief.topic}\nAudience: ${brief.audience}\n\nStyle:\n${JSON.stringify(styleBrief, null, 2)}\n\n${designBrief(style)}\n\n` +
       `Script (titles, callouts and notes per slide):\n${JSON.stringify(script, null, 2)}\n\nResearch notes:\n${researchMd}`,
     maxTokens: 32000,
     timeoutMs: 15 * 60_000,

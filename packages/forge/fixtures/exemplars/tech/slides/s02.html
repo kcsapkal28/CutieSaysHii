@@ -19,10 +19,10 @@
   #s02 .title { margin: 0; font: 700 66px/1.05 var(--df-font-display); letter-spacing: -.028em; }
   #s02 .tabs { position: absolute; left: 128px; top: 278px; display: flex; }
   #s02 .tab { all: unset; cursor: pointer; box-sizing: border-box; width: 222px; padding: 14px 18px 16px; border: 1.5px solid var(--df-line); margin-left: -1.5px; background: var(--df-surface); }
-  #s02 .tab small { display: block; font: 600 15px/1 var(--df-font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--df-muted); }
+  #s02 .tab small { display: block; font: 600 18px/1 var(--df-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--df-muted); }
   #s02 .tab span { display: block; margin-top: 8px; font: 600 23px/1 var(--df-font-display); color: var(--df-text); }
   #s02 .tab[aria-current="step"] { background: var(--df-text); border-color: var(--df-text); }
-  #s02 .tab[aria-current="step"] small { color: var(--df-accent-3); }
+  #s02 .tab[aria-current="step"] small { color: color-mix(in oklab, var(--df-accent-3) 55%, var(--df-bg)); }
   #s02 .tab[aria-current="step"] span { color: var(--df-bg); }
   #s02 .grid-wrap { position: absolute; left: 128px; top: 400px; width: 1150px; }
   #s02 .grid { border-collapse: separate; border-spacing: 6px; font: 500 19px/1 var(--df-font-mono); }
@@ -38,7 +38,7 @@
   #s02 .stage b { height: 100%; display: grid; place-items: center; color: #fff; background: var(--c); font: 700 20px/1 var(--df-font-mono); }
   #s02 .stage span { padding: 0 20px; font: 500 21px/1.2 var(--df-font-mono); color: var(--df-text); }
   #s02 .stage span.idle { color: var(--df-muted); font-family: var(--df-font-body); }
-  #s02 .stage span.bubble { color: var(--df-accent-3); }
+  #s02 .stage span.bubble { color: color-mix(in oklab, var(--df-accent-3) 80%, var(--df-text)); }
   #s02 .caption { position: absolute; left: 128px; right: 128px; bottom: 70px; margin: 0; font: 400 30px/1.4 var(--df-font-body); max-width: 1500px; }
 </style>
 

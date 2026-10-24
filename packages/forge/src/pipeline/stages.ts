@@ -130,6 +130,7 @@ async function execute(p: Project, stage: Stage, o: PipelineOptions, llm: Llm, o
         { brief, style: loadStyle(p), researchMd: loadResearch(p) },
         {
           ...model(o, "outline"),
+          cardModel: model(o, "outlineCard").model,
           concurrency: o.outlineConcurrency ?? OUTLINE_DEFAULTS.concurrency,
           onArc: (arc) => onEvent({ type: "outline:arc", ...arc }),
           onCard: (card) => onEvent({ type: "outline:card", ...card }),

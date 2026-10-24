@@ -22,6 +22,7 @@ import {
   type PipelineOptions,
   type Project,
   BUILD_DEFAULTS,
+  OUTLINE_DEFAULTS,
 } from "../src/pipeline/index.ts";
 import { arcOut, cardOut, fakeEngine, fakeLlm, researchOut, review, slideHtml, styleOut, type FakeEngine, type FakeLlm, type Handler } from "./fakes.ts";
 
@@ -134,16 +135,27 @@ describe("outline: an arc, then one card per slide", () => {
     await upToOutline();
     expect(llm.calls.plan_arc).toBe(1);
     expect(llm.calls.write_card).toBe(2);
-    const outlineCalls = llm.requests.filter((r) => toolOf(r) === "plan_arc" || toolOf(r) === "write_card");
-    expect(outlineCalls.every((r) => r.model === MODELS.opus)).toBe(true);
-
-    // Each card sees the whole arc, its neighbours' handoff and the research; the cards share one system prompt.
+    // Model tiering: the arc on Opus (with its own thinking), the cards on Sonnet with thinking off and a tight cap.
+    const arcReq = llm.requests.find((r) => toolOf(r) === "plan_arc")!;
+    expect(arcReq.model).toBe(MODELS.opus);
+    expect(arcReq.thinking).toBeUndefined();
     const cards = llm.requests.filter((r) => toolOf(r) === "write_card");
+    expect(cards.map((r) => [r.model, r.thinking?.type, r.max_tokens])).toEqual([
+      [MODELS.sonnet, "between_tools", 6000],
+      [MODELS.sonnet, "between_tools", 6000],
+    ]);
+
+    // Each card sees the whole arc (compact), its neighbours' handoff, the summary and the research items the arc
+    // pointed it at; the cards share one system prompt.
     const second = JSON.stringify(cards[1]!.messages[0]);
     expect(second).toMatch(/The deck's arc \(fixed\)/);
     expect(second).toMatch(/Previous slide s01 .* hands off: the noise wave/);
     expect(second).toContain("ANC adds an inverted copy of noise.");
+    expect(second).toContain("[R10] Feedforward");
+    expect(second).not.toContain("Feedback");
     expect(cards[0]!.system).toEqual(cards[1]!.system);
+    // The arc sees the research labelled with the ids it points at.
+    expect(JSON.stringify(arcReq.messages[0])).toContain("[R11] Feedback");
 
     const outline = loadOutline(project);
     expect(outline).toMatchObject({ title: "Inside ANC", totalSec: 480, visualThroughline: "One earbud, four signal colours." });
@@ -440,5 +452,36 @@ describe("the outline respects the style", () => {
     await upToOutline();
     expect(llm.calls.write_card).toBe(3);
     expect(loadOutline(project).sections[1]!.slides[0]!.visual.simulation).toBeDefined();
+  });
+
+  it("sends a weak card back (a rambling concept, a data slide without data) and keeps the retries bounded", async () => {
+    let s01 = 0;
+    llm = fakeLlm(
+      handlers({
+        plan_arc: () => arcOut(["timeline", "simulation"]),
+        write_card: (req) => {
+          const id = cardOf(req);
+          if (id === "s01" && ++s01 === 1) return cardOut("s01", { concept: "x".repeat(1500), interaction: { kind: "none", description: "" } });
+          return cardOut(id, id === "s01" ? { data: "1990: first; 2020: mass market", interaction: { kind: "none", description: "" } } : {});
+        },
+      }),
+    );
+    await upToOutline();
+    expect(llm.calls.write_card).toBe(3);
+    const retry = llm.requests.filter((r) => toolOf(r) === "write_card" && cardOf(r) === "s01")[1]!;
+    const feedback = JSON.stringify(retry.messages.at(-1));
+    expect(feedback).toMatch(/s01: a timeline slide needs its actual values in visual.data/);
+    expect(feedback).toMatch(/s01: visual.concept is 1500 characters/);
+
+    // A card that never complies fails the stage after 1 + cardRetries calls.
+    events = [];
+    llm = fakeLlm(handlers({ write_card: (req) => cardOut(cardOf(req), { simulation: undefined }) }));
+    await expect(runStage(project, "outline", opts())).rejects.toThrow(/outline:s02: invalid write_card output after 2 retries/);
+    expect(llm.requests.filter((r) => toolOf(r) === "write_card" && cardOf(r) === "s02")).toHaveLength(1 + OUTLINE_DEFAULTS.cardRetries);
+  });
+
+  it("puts the cards on another model when configured", async () => {
+    await runAll(project, { auto: true, to: "outline", ...opts(), models: { outlineCard: MODELS.opus } });
+    expect(llm.requests.filter((r) => toolOf(r) === "write_card").every((r) => r.model === MODELS.opus)).toBe(true);
   });
 });

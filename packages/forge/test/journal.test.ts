@@ -7,19 +7,17 @@ import { costUsd } from "../src/pricing.ts";
 import { compact, journaled, readJournal, summarizeRun, summarizeRuns, formatRun, type JournalLine } from "../src/pipeline/journal.ts";
 import { createProject, reviseSlide, runAll, type ForgeEvent, type Project } from "../src/pipeline/index.ts";
 import { aggregate, compareResults, loadTopics, metricsOf, runEval, topicResult, type EvalTopic } from "../src/eval.ts";
-import { fakeEngine, fakeLlm, outlineOut, researchOut, review, slideHtml, storyboardOut, styleOut, type Handler } from "./fakes.ts";
+import { arcOut, cardOut, fakeEngine, fakeLlm, researchOut, review, slideHtml, styleOut, type Handler } from "./fakes.ts";
 
 const slideOf = (req: WireRequest) => /Slide id: (s\d\d)|Slide (s\d\d)\./.exec(JSON.stringify(req.messages[0]))!.slice(1).find(Boolean)!;
-/** The slide ids the request's outline/script carries, so a capped outline gets a matching script and storyboard. */
-const idsOf = (req: WireRequest) => [...new Set(JSON.stringify(req.messages[0]).match(/(?<=\\"id\\": \\")s\d\d/g) ?? [])];
+const cardOf = (req: WireRequest) => /Write the card for (s\d\d)/.exec(JSON.stringify(req.messages[0]))![1]!;
 
 function handlers(over: Record<string, Handler> = {}): Record<string, Handler> {
   return {
     recommend_style: () => styleOut(),
     record_research: () => researchOut,
-    plan_outline: () => outlineOut,
-    write_script: (req) => ({ slides: idsOf(req).map((id) => ({ id, title: `Claim for ${id}`, callouts: [], notes: "Say this.", budgetSec: 60 })) }),
-    write_storyboard: (req) => storyboardOut(idsOf(req)),
+    plan_arc: () => arcOut(),
+    write_card: (req) => cardOut(cardOf(req)),
     write_slide: (req) => ({ html: slideHtml(slideOf(req)), steps: 2, summary: "Built." }),
     review_slide: () => review("pass"),
     ...over,
@@ -48,7 +46,7 @@ describe("run journal", () => {
     expect(new Set(lines.map((l) => l.run)).size).toBe(1);
     expect(lines.every((l) => !Number.isNaN(Date.parse(l.at)) && l.at.endsWith("Z"))).toBe(true);
     expect(new Set(lines.map((l) => l.type))).toEqual(
-      new Set(["stage:start", "stage:done", "usage", "slide:round", "slide:shots", "slide:verdict", "slide:done", "deck:done"]),
+      new Set(["stage:start", "stage:done", "usage", "outline:arc", "outline:card", "slide:round", "slide:shots", "slide:verdict", "slide:done", "deck:done"]),
     );
     const usage = lines.find((l) => l.type === "usage" && String(l.label).startsWith("builder"))!;
     expect(usage).toMatchObject({ stage: "build", label: "builder:s01", model: MODELS.sonnet, usage: { input: 100, output: 10, cacheRead: 0, cacheWrite: 0 } });
@@ -214,7 +212,7 @@ describe("forge eval", () => {
     ]);
     expect(r.topics[0]!.projectDir.startsWith(join(out, "base", "work", "projects"))).toBe(true);
     expect(existsSync(r.topics[0]!.deckFile!)).toBe(true);
-    expect(r.topics[0]!.run.stages.map((s) => s.stage)).toEqual(["style", "research", "outline", "script", "storyboard", "build"]);
+    expect(r.topics[0]!.run.stages.map((s) => s.stage)).toEqual(["style", "research", "outline", "build"]);
     expect(r.topics[0]!.metrics).toMatchObject({ firstPassRate: 0, roundsPerSlide: 2, scoreMean: 8, scoreMin: 8, fix: 0, failed: 0 });
     expect(r.overall.metrics).toMatchObject({ topics: 2, slides: 3, escalations: 0, errors: 0 });
     expect(r.overall.metrics.firstPassRate).toBeCloseTo(2 / 3);
@@ -232,12 +230,11 @@ describe("forge eval", () => {
   });
 
   it("records a topic that fails and carries on; --only and --slides narrow the run", async () => {
-    const llm = fakeLlm(handlers({ write_storyboard: () => ({ nope: true }) }));
+    const llm = fakeLlm(handlers({ write_card: () => ({ nope: true }) }));
     const r = await runEval({ topics, label: "broken", outDir: join(root, "eval"), llm, engine: fakeEngine(), only: "rivers", slides: 1, pipeline: { exemplars: [] } });
     expect(r.topics).toHaveLength(1);
     expect(r.topics[0]).toMatchObject({ id: "rivers", error: expect.any(String) });
-    expect(r.topics[0]!.run.stages.find((s) => s.stage === "storyboard")!.status).toBe("error");
-    expect(JSON.parse(readFileSync(join(r.topics[0]!.projectDir, "outline.json"), "utf8")).sections.flatMap((s: { slides: unknown[] }) => s.slides)).toHaveLength(1);
+    expect(r.topics[0]!.run.stages.find((s) => s.stage === "outline")!.status).toBe("error");
     expect(r.overall.metrics.errors).toBe(1);
   });
 });

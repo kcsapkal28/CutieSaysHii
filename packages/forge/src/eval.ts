@@ -34,7 +34,7 @@ export const EvalTopic = z.object({
   topic: z.string().min(3),
   audience: z.string().min(1),
   minutes: z.number().positive().max(120),
-  /** Slide cap: the outline is cut to its first `slides` slides before the script, which bounds the cost. */
+  /** Slide cap: the outline is cut to its first `slides` slides before the build, which bounds the cost. */
   slides: z.number().int().positive(),
   prefs: StylePrefs.optional(),
 });
@@ -198,7 +198,7 @@ export async function runEval(o: EvalOptions): Promise<EvalResults> {
     try {
       await runAll(project, { ...common, to: "outline" });
       capOutline(project, o.slides ?? topic.slides);
-      await runAll(project, { ...common, from: "script" });
+      await runAll(project, { ...common, from: "build" });
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       log(`✗ ${topic.id}: ${error}`);

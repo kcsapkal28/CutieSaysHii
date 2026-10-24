@@ -478,11 +478,18 @@ describe("the outline respects the style", () => {
     expect(feedback).toMatch(/s01: a timeline slide needs its actual values in visual.data/);
     expect(feedback).toMatch(/s01: visual.concept is 1500 characters/);
 
-    // A card that never complies fails the stage after 1 + cardRetries calls.
+    // A card the card model never gets right is written once by the arc model (Opus) instead of failing the stage.
     events = [];
+    llm = fakeLlm(handlers({ write_card: (req) => (cardOf(req) === "s02" && req.model !== MODELS.opus ? cardOut("s02", { simulation: undefined }) : cardOut(cardOf(req))) }));
+    await runStage(project, "outline", opts());
+    const s02 = llm.requests.filter((r) => toolOf(r) === "write_card" && cardOf(r) === "s02");
+    expect(s02.map((r) => r.model)).toEqual([...Array(1 + OUTLINE_DEFAULTS.cardRetries).fill(MODELS.sonnet), MODELS.opus]);
+    // The simulation requirement is stated up front in the slide's brief.
+    expect(JSON.stringify(s02[0]!.messages[0])).toMatch(/Required: visual.simulation/);
+
+    // When the fallback model also never complies, the stage fails.
     llm = fakeLlm(handlers({ write_card: (req) => cardOut(cardOf(req), { simulation: undefined }) }));
-    await expect(runStage(project, "outline", opts())).rejects.toThrow(/outline:s02: invalid write_card output after 2 retries/);
-    expect(llm.requests.filter((r) => toolOf(r) === "write_card" && cardOf(r) === "s02")).toHaveLength(1 + OUTLINE_DEFAULTS.cardRetries);
+    await expect(runStage(project, "outline", opts())).rejects.toThrow(/outline:s02: invalid write_card output/);
   });
 
   it("puts the cards on another model when configured", async () => {

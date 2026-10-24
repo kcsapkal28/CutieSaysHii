@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { Style } from "../contract.ts";
 import { designBrief, designStyle } from "../design-styles.ts";
-import { MODELS, type Llm } from "../llm.ts";
+import { LlmError, MODELS, type Llm } from "../llm.ts";
 import { OUTLINE_DEFAULTS } from "../pipeline/config.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
 import { Explainer, Object3d, Outline, ROLES, ScriptSlide, Storyboard, StoryboardSlide, Visual, type Brief, type OutlineSlide } from "./schemas.ts";
@@ -374,22 +374,42 @@ export async function runOutline(llm: Llm, input: OutlineInput, opts: OutlineOpt
         (notes.length ? `Technique notes for this slide (how the engineer builds it):\n${notes.join("\n\n")}\n\n` : "") +
         `Research for this slide:\n${research}\n\n`;
     }
+    const required =
+      s.explainer === "simulation"
+        ? "Required: visual.simulation (state, update rules, controls with ranges, readouts with units); the card is rejected without it.\n"
+        : s.explainer === "3d-object" && style.use3d
+          ? "Required: visual.object3d (parts, camera, lighting, states); the card is rejected without it.\n"
+          : DATA_EXPLAINERS.has(s.explainer)
+            ? "Required: visual.data with the actual values; the card is rejected without it.\n"
+            : "";
     const ask =
       `Write the card for ${s.id} (slide ${i + 1} of ${slides.length}, section "${s.section}"). Density: ${style.density}.\n` +
+      required +
       `This slide in the arc: ${slideLine(s)}\n` +
       (prev ? `Previous slide ${prev.id} (${prev.explainer}, ${prev.composition}) hands off: ${prev.handoff}\n` : "This is the opening slide.\n") +
       (next ? `Next slide ${next.id} (${next.explainer}, ${next.composition}); your exit sets up your handoff: ${s.handoff}\n` : "This is the closing slide.\n");
-    const { data } = await llm.callTool({
-      label: `outline:${s.id}`,
-      model: opts.cardModel ?? MODELS.sonnet,
-      system: cardSystem,
-      user: `${shared}\n\n${own}${ask}`,
-      maxTokens: opts.cardMaxTokens ?? OUTLINE_DEFAULTS.cardMaxTokens,
-      timeoutMs: 10 * 60_000,
-      validationRetries: opts.cardRetries ?? OUTLINE_DEFAULTS.cardRetries,
-      ...thinking,
-      tool: { name: "write_card", description: "Write this slide's card: its words and its visual direction.", schema: cardSchema(s, style) },
-    });
+    const cardModel = opts.cardModel ?? MODELS.sonnet;
+    const write = (model: string, validationRetries: number) =>
+      llm.callTool({
+        label: `outline:${s.id}`,
+        model,
+        system: cardSystem,
+        user: `${shared}\n\n${own}${ask}`,
+        maxTokens: opts.cardMaxTokens ?? OUTLINE_DEFAULTS.cardMaxTokens,
+        timeoutMs: 10 * 60_000,
+        validationRetries,
+        ...thinking,
+        tool: { name: "write_card", description: "Write this slide's card: its words and its visual direction.", schema: cardSchema(s, style) },
+      });
+    let data: CardDraft;
+    try {
+      ({ data } = await write(cardModel, opts.cardRetries ?? OUTLINE_DEFAULTS.cardRetries));
+    } catch (e) {
+      // One slide's card must not sink the stage: when the card model never complies, the arc model writes it once.
+      const arcModel = opts.model ?? MODELS.opus;
+      if (!(e instanceof LlmError) || !/invalid write_card/.test(e.message) || arcModel === cardModel) throw e;
+      ({ data } = await write(arcModel, 1));
+    }
     opts.onCard?.({ id: s.id, title: data.title, done: ++done, total: slides.length });
     return data;
   });

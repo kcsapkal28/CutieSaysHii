@@ -1,0 +1,139 @@
+<section class="df-slide" id="s02">
+  <header class="head">
+    <p class="df-eyebrow">CPU · Pipelining</p>
+    <h2 class="title">Five instructions in flight</h2>
+  </header>
+  <nav class="tabs" aria-label="Pipeline steps"></nav>
+  <div class="grid-wrap"><table class="grid"></table></div>
+  <div class="stages"></div>
+  <p class="caption"></p>
+  <aside class="df-notes">
+    <p>Click through the tabs. The diagonal is the whole idea: each stage works on a different instruction every cycle.</p>
+    <p>On the hazard tab, point at the bubble: the add needs r1, which the load only has after its memory stage.</p>
+  </aside>
+</section>
+
+<style>
+  #s02 .head { position: absolute; left: 128px; top: 96px; }
+  #s02 .head .df-eyebrow { margin: 0 0 20px; }
+  #s02 .title { margin: 0; font: 700 66px/1.05 var(--df-font-display); letter-spacing: -.028em; }
+  #s02 .tabs { position: absolute; left: 128px; top: 278px; display: flex; }
+  #s02 .tab { all: unset; cursor: pointer; box-sizing: border-box; width: 222px; padding: 14px 18px 16px; border: 1.5px solid var(--df-line); margin-left: -1.5px; background: var(--df-surface); }
+  #s02 .tab small { display: block; font: 600 15px/1 var(--df-font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--df-muted); }
+  #s02 .tab span { display: block; margin-top: 8px; font: 600 23px/1 var(--df-font-display); color: var(--df-text); }
+  #s02 .tab[aria-current="step"] { background: var(--df-text); border-color: var(--df-text); }
+  #s02 .tab[aria-current="step"] small { color: var(--df-accent-3); }
+  #s02 .tab[aria-current="step"] span { color: var(--df-bg); }
+  #s02 .grid-wrap { position: absolute; left: 128px; top: 400px; width: 1150px; }
+  #s02 .grid { border-collapse: separate; border-spacing: 6px; font: 500 19px/1 var(--df-font-mono); }
+  #s02 .grid th { font-weight: 500; color: var(--df-muted); padding: 0 0 6px; height: 28px; }
+  #s02 .grid th.cur { color: var(--df-text); }
+  #s02 .grid td.ins { padding-right: 18px; white-space: nowrap; color: var(--df-text); text-align: left; width: 250px; }
+  #s02 .grid td.cell { width: 76px; height: 64px; text-align: center; border-radius: 6px; background: color-mix(in oklab, var(--df-line) 30%, transparent); }
+  #s02 .grid td.cell.on { color: #fff; background: var(--c); font-weight: 700; }
+  #s02 .grid td.cell.stall { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--df-accent-3) 25%, transparent) 0 6px, transparent 6px 12px); color: var(--df-accent-3); border: 1.5px dashed var(--df-accent-3); }
+  #s02 .grid td.cell.now { outline: 3px solid var(--df-text); outline-offset: 2px; }
+  #s02 .stages { position: absolute; left: 1360px; top: 410px; width: 432px; display: grid; gap: 12px; }
+  #s02 .stage { display: grid; grid-template-columns: 76px 1fr; align-items: center; height: 72px; border: 1.5px solid var(--df-line); background: var(--df-surface); }
+  #s02 .stage b { height: 100%; display: grid; place-items: center; color: #fff; background: var(--c); font: 700 20px/1 var(--df-font-mono); }
+  #s02 .stage span { padding: 0 20px; font: 500 21px/1.2 var(--df-font-mono); color: var(--df-text); }
+  #s02 .stage span.idle { color: var(--df-muted); font-family: var(--df-font-body); }
+  #s02 .stage span.bubble { color: var(--df-accent-3); }
+  #s02 .caption { position: absolute; left: 128px; right: 128px; bottom: 70px; margin: 0; font: 400 30px/1.4 var(--df-font-body); max-width: 1500px; }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const STAGES = [
+    { k: "IF", name: "Fetch", c: C.accent2 },
+    { k: "ID", name: "Decode", c: C.accent },
+    { k: "EX", name: "Execute", c: C.accent3 },
+    { k: "MEM", name: "Memory", c: "color-mix(in oklab, " + C.text + " 55%, " + C.bg + ")" },
+    { k: "WB", name: "Write back", c: C.text },
+  ];
+  const INS = ["lw  r1, 0(r2)", "add r3, r1, r4", "sub r5, r6, r7", "sw  r5, 8(r2)", "beq r3, r0, L1"];
+  const CYCLES = 10;
+
+  // schedule[i] = list of { cycle, stage, stall } for instruction i
+  function schedule(hazard) {
+    return INS.map((_, i) => {
+      if (!hazard || i === 0) return STAGES.map((s, k) => ({ cycle: i + 1 + k, stage: k }));
+      if (i === 1) return [{ cycle: 2, stage: 0 }, { cycle: 3, stage: 1 }, { cycle: 4, stage: 1, stall: true }, { cycle: 5, stage: 2 }, { cycle: 6, stage: 3 }, { cycle: 7, stage: 4 }];
+      if (i === 2) return [{ cycle: 3, stage: 0 }, { cycle: 4, stage: 0, stall: true }, { cycle: 5, stage: 1 }, { cycle: 6, stage: 2 }, { cycle: 7, stage: 3 }, { cycle: 8, stage: 4 }];
+      return STAGES.map((s, k) => ({ cycle: i + 2 + k, stage: k }));
+    });
+  }
+
+  const STEPS = [
+    { tab: "Cycle 1", name: "Fetch", cycle: 1, hazard: false, text: "Cycle 1: the first instruction is fetched. The other four stages sit idle." },
+    { tab: "Cycle 3", name: "Overlap", cycle: 3, hazard: false, text: "Cycle 3: three instructions overlap, each in a different stage of the pipeline." },
+    { tab: "Cycle 5", name: "Full", cycle: 5, hazard: false, text: "Cycle 5: every stage is busy. One instruction finishes per cycle from here on." },
+    { tab: "Cycle 5", name: "Hazard", cycle: 5, hazard: true, text: "But add needs r1 before lw has loaded it, so the pipeline inserts a one-cycle bubble." },
+    { tab: "Cycle 10", name: "Drain", cycle: 10, hazard: true, text: "Five instructions finish in 10 cycles instead of 25; one stall is the price of the dependency." },
+  ];
+
+  // tabs drive the deck's step so keyboard and clicks stay in sync
+  const tabs = el.querySelector(".tabs");
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "tab";
+    b.innerHTML = `<small>${s.tab}</small><span>${s.name}</span>`;
+    b.addEventListener("click", () => api.setStep(i));
+    tabs.append(b);
+  });
+
+  const table = el.querySelector(".grid");
+  table.innerHTML =
+    `<tr><th></th>${Array.from({ length: CYCLES }, (_, c) => `<th>${c + 1}</th>`).join("")}</tr>` +
+    INS.map((ins, i) => `<tr><td class="ins">${ins}</td>${Array.from({ length: CYCLES }, (_, c) => `<td class="cell" data-i="${i}" data-c="${c + 1}"></td>`).join("")}</tr>`).join("");
+  const stagesEl = el.querySelector(".stages");
+  for (const s of STAGES) {
+    const d = document.createElement("div");
+    d.className = "stage";
+    d.style.setProperty("--c", s.c);
+    d.innerHTML = `<b>${s.k}</b><span></span>`;
+    stagesEl.append(d);
+  }
+
+  function render(i) {
+    const st = STEPS[i];
+    const sched = schedule(st.hazard);
+    [...tabs.children].forEach((b, k) => (k === i ? b.setAttribute("aria-current", "step") : b.removeAttribute("aria-current")));
+    table.querySelectorAll("th").forEach((th, k) => th.classList.toggle("cur", k === st.cycle));
+    const fresh = [];
+    for (const td of table.querySelectorAll("td.cell")) {
+      const ins = Number(td.dataset.i), cyc = Number(td.dataset.c);
+      const hit = sched[ins].find((x) => x.cycle === cyc);
+      const show = hit && cyc <= st.cycle;
+      const wasOn = td.classList.contains("on") || td.classList.contains("stall");
+      td.className = "cell";
+      td.textContent = "";
+      if (show) {
+        td.classList.add(hit.stall ? "stall" : "on");
+        td.style.setProperty("--c", STAGES[hit.stage].c);
+        td.textContent = hit.stall ? "··" : STAGES[hit.stage].k;
+        if (cyc === st.cycle) td.classList.add("now");
+        if (!wasOn) fresh.push(td);
+      }
+    }
+    gsap.from(fresh, { scale: 0.6, opacity: 0, duration: 0.35, stagger: 0.02, ease: "back.out(2)" });
+    // what each stage holds at this cycle
+    [...stagesEl.children].forEach((row, k) => {
+      const span = row.querySelector("span");
+      let who = null;
+      sched.forEach((list, ins) => list.forEach((x) => { if (x.cycle === st.cycle && x.stage === k) who = x.stall ? "bubble" : INS[ins]; }));
+      if (st.hazard && k >= 2 && st.cycle === k + 2) who = "bubble"; // the bubble moves down the pipe
+      span.className = who === null ? "idle" : who === "bubble" ? "bubble" : "";
+      span.textContent = who === null ? "idle" : who === "bubble" ? "bubble (stall)" : who;
+    });
+    el.querySelector(".caption").textContent = st.text;
+  }
+
+  return {
+    steps: STEPS.length,
+    step: render,
+  };
+});
+</script>

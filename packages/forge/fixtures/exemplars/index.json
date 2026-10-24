@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "about": "Hand-written exemplar slides for the builder agent. Select 2-3 by technique (match the storyboard's explainer type), never by topic. Paths are relative to packages/forge. Technique ids are defined in fixtures/exemplars/TECHNIQUES.md.",
+  "decks": [
+    { "id": "anc", "dir": "fixtures/proof/anc", "theme": "dark cinematic violet; IBM Plex Sans + Plex Mono; cyan / violet / amber accents; radial-glow backdrop" },
+    { "id": "tech", "dir": "fixtures/exemplars/tech", "theme": "light technical; warm off-white #f6f4ef, ink boxes; Inter Tight + Work Sans + JetBrains Mono; teal / blue / vermilion" },
+    { "id": "history", "dir": "fixtures/exemplars/history", "theme": "editorial paper; Fraunces display + Source Serif 4 body + Plex Mono; oxblood / deep teal / ochre; vignette backdrop" },
+    { "id": "data", "dir": "fixtures/exemplars/data", "theme": "bold data story; near-black #0b0b0c, flat; Space Grotesk + Inter + JetBrains Mono; electric lime highlight, orange-red callouts" },
+    { "id": "science", "dir": "fixtures/exemplars/science", "theme": "calm science night; deep teal #0e1c21 with soft glow; Source Serif 4 headings + Inter + Plex Mono; aqua / soft gold / coral" }
+  ],
+  "slides": [
+    {
+      "id": "anc/s01", "path": "fixtures/proof/anc/slides/s01.html", "title": "Engineering Silence",
+      "techniques": ["title-hero", "procedural-3d"], "domain": "consumer hardware / acoustics", "theme": "anc",
+      "steps": 1, "interactive": false, "uses3d": true,
+      "whatMakesItGood": "Light-weight display type with one gradient accent word against a large procedural 3D object (lathe + capsule primitives, env lighting, rim light, floating contact shadow). Copy left, object right, three-beat agenda strip. Idle float/sway keeps it alive without distracting."
+    },
+    {
+      "id": "anc/s02", "path": "fixtures/proof/anc/slides/s02.html", "title": "Eight parts, one job",
+      "techniques": ["exploded-3d", "annotated-labels"], "domain": "consumer hardware", "theme": "anc",
+      "steps": 4, "interactive": false, "uses3d": true,
+      "whatMakesItGood": "Assembled -> exploded with a GSAP-tweened explode factor and camera dolly. Eight named procedural parts (incl. a canvas-textured PCB). HTML .df-tag labels track projected 3D anchors every frame via kit.toSlide; leader lines are SVG. Labels are introduced a few per step, alternating above/below so nothing collides. One caption line per step."
+    },
+    {
+      "id": "anc/s03", "path": "fixtures/proof/anc/slides/s03.html", "title": "Following the signal",
+      "techniques": ["particle-flow"], "domain": "signal processing", "theme": "anc",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Four colour-coded flows sampled from SVG paths into lookup tables, drawn as moving beads on a 2D canvas. One flow is added per step with its legend key lighting up, so the system is built up pass by pass. Node glyphs are tiny inline SVG paths in glass rings."
+    },
+    {
+      "id": "anc/s04", "path": "fixtures/proof/anc/slides/s04.html", "title": "Timing is everything",
+      "techniques": ["parametric-sim"], "domain": "signal processing", "theme": "anc",
+      "steps": 1, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "Three stacked canvas lanes (input, correction, sum) driven by a real formula. Slider + segmented toggle update a live dB stat, a meter and a plain-language verdict instantly. Waves scroll in onFrame; the maths lives in one small function."
+    },
+    {
+      "id": "anc/s05", "path": "fixtures/proof/anc/slides/s05.html", "title": "Key takeaways",
+      "techniques": ["key-takeaways"], "domain": "summary", "theme": "anc",
+      "steps": 1, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Four equal cards with mono numbers, one-line titles, short bodies and a footer fact; staggered GSAP timeline reveal. A generative SVG wave that flattens left-to-right echoes the topic without clip art."
+    },
+    {
+      "id": "tech/s01", "path": "fixtures/exemplars/tech/slides/s01.html", "title": "One connection, many conversations",
+      "techniques": ["packet-channel", "parametric-sim"], "domain": "networking / web protocols", "theme": "tech",
+      "steps": 2, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "Frames flow through a single pipe between two ink-bordered boxes; the toggle switches the frame order (HTTP/1.1 vs HTTP/2) and the receiving panel's progress bars and two big stats change accordingly. The sim is a pure function of time, so shot mode freezes a representative moment (api.shot). Steps and toggle share one setMode()."
+    },
+    {
+      "id": "tech/s02", "path": "fixtures/exemplars/tech/slides/s02.html", "title": "Five instructions in flight",
+      "techniques": ["step-through-pipeline"], "domain": "computer architecture", "theme": "tech",
+      "steps": 5, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "Clickable step tabs (call api.setStep so keyboard and tabs stay in sync) drive a cycle-by-instruction grid plus a live 'what is in each stage' panel. A hazard step shows a hatched bubble moving down the pipe. Each step = one idea, one caption."
+    },
+    {
+      "id": "tech/s03", "path": "fixtures/exemplars/tech/slides/s03.html", "title": "How a message floods a mesh",
+      "techniques": ["network-graph"], "domain": "distributed systems", "theme": "tech",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Deterministic seeded layout + nearest-neighbour edges, BFS hop distances computed in the slide. Each step lights the next hop's nodes and edges in its own colour, pulses travel along the frontier edges, a ripple marks the source, and a side legend counts nodes per hop."
+    },
+    {
+      "id": "history/s01", "path": "fixtures/exemplars/history/slides/s01.html", "title": "Seven clocks that changed timekeeping",
+      "techniques": ["timeline"], "domain": "history of technology", "theme": "history",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "Piecewise (broken) time scale with an explicit break mark, tinted era bands with italic serif labels, and event cards on two alternating levels with leader lines. Events arrive era by era; small accuracy chips carry the real argument. Paper backdrop and serif pairing give the editorial tone."
+    },
+    {
+      "id": "history/s02", "path": "fixtures/exemplars/history/slides/s02.html", "title": "Time is money",
+      "techniques": ["typographic-statement"], "domain": "history / ideas", "theme": "history",
+      "steps": 2, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "One sentence at 150px italic serif. Words are split into masked spans that rise in sequence, the key word is coloured and gets a hand-drawn SVG underline (stroke-dashoffset). Attribution with a rule; a context column arrives on the second step. Huge ornamental quote mark in a muted accent."
+    },
+    {
+      "id": "data/s01", "path": "fixtures/exemplars/data/slides/s01.html", "title": "Fixing onboarding halved churn",
+      "techniques": ["data-story"], "domain": "business / product analytics", "theme": "data",
+      "steps": 4, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "SVG bar chart built in four beats: baseline + bracket note, launch marker, post-launch bars in the highlight colour, then a drawn trend curve and a counter falling to the headline number. The headline states the conclusion; data is labelled fictional; muted colour for context, one bright colour for the story."
+    },
+    {
+      "id": "data/s02", "path": "fixtures/exemplars/data/slides/s02.html", "title": "Before and after",
+      "techniques": ["comparison"], "domain": "business / product analytics", "theme": "data",
+      "steps": 2, "interactive": false, "uses3d": false,
+      "whatMakesItGood": "A three-row metric table: label column, muted 'before' numbers, bold 'after' numbers that count up (GSAP tween on a plain object + onUpdate) with pill-shaped delta chips popping in. The after column is held back until step 2."
+    },
+    {
+      "id": "science/s01", "path": "fixtures/exemplars/science/slides/s01.html", "title": "How fast does an outbreak burn?",
+      "techniques": ["parametric-sim", "data-story"], "domain": "epidemiology / maths", "theme": "science",
+      "steps": 1, "interactive": true, "uses3d": false,
+      "whatMakesItGood": "A real SIR model integrated in the slide; two sliders (R0, vaccinated share) redraw S/I/R curves, three live stats and a verdict sentence that teaches the threshold 1 - 1/R0. A dashed guide line marks where the peak happens. The equations are shown as a footnote."
+    },
+    {
+      "id": "science/s02", "path": "fixtures/exemplars/science/slides/s02.html", "title": "Jupiter's clockwork moons",
+      "techniques": ["procedural-3d", "annotated-labels"], "domain": "astronomy", "theme": "science",
+      "steps": 2, "interactive": false, "uses3d": true,
+      "whatMakesItGood": "A non-gadget 3D scene: canvas-painted banded planet, moons on line orbits with real periods, deterministic starfield, single sun light. Labels follow the moons via kit.toSlide and are clamped on-screen. A side panel counts completed orbits live, making the 4:2:1 resonance visible on step 2."
+    }
+  ]
+}

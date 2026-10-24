@@ -1,0 +1,30 @@
+{
+  "title": "How the web moves bytes",
+  "style": {
+    "look": "light technical, warm off-white, ink lines",
+    "theme": {
+      "colors": {
+        "bg": "#f6f4ef",
+        "surface": "#ffffff",
+        "text": "#1f2328",
+        "muted": "#5f6670",
+        "line": "#dcd8cf",
+        "accent": "#1f7a6d",
+        "accent2": "#3d63b0",
+        "accent3": "#d0583f"
+      },
+      "fonts": { "display": "inter-tight", "body": "work-sans", "mono": "jetbrains-mono" },
+      "backdrop": ""
+    },
+    "motion": "subtle",
+    "use3d": false,
+    "interactivity": 2,
+    "density": "balanced",
+    "features": { "timer": true, "notes": true, "stepNav": true, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "One connection, many conversations", "section": "Transport", "budgetSec": 120 },
+    { "id": "s02", "title": "Five instructions in flight", "section": "CPU", "budgetSec": 150 },
+    { "id": "s03", "title": "How a message floods a mesh", "section": "Networks", "budgetSec": 90 }
+  ]
+}

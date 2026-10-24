@@ -62,6 +62,8 @@ export type SlideApi = {
   onResize(cb: (scale: number) => void): () => void;
   /** addEventListener that is removed automatically on dispose (use for window/document listeners). */
   on(target: EventTarget, type: string, fn: (e: Event) => void, opts?: AddEventListenerOptions): void;
+  /** Moves the deck to step `i` of this slide (for in-slide step tabs); the shell then calls `step(i)`. */
+  setStep(i: number): void;
   /** Renderer + scene + camera sized to `el` (a canvas is used as-is; any other element gets a filling canvas). */
   three(el: HTMLElement, opts?: ThreeOptions): ThreeKit;
 };

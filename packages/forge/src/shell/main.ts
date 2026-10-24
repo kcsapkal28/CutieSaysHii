@@ -242,6 +242,9 @@ function makeApi(rec: Rec): SlideApi {
       target.addEventListener(type, fn, opts);
       rec.cleanups.push(() => target.removeEventListener(type, fn, opts));
     },
+    setStep: (i) => {
+      if (active === rec) go(rec.index, i);
+    },
     three: (el, opts) => makeThree(rec, el, opts),
   };
 }

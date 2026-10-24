@@ -1,0 +1,170 @@
+<section class="df-slide" id="s02">
+  <div class="stage3d"></div>
+  <div class="labels"></div>
+  <div class="copy">
+    <p class="df-eyebrow">Orbital resonance</p>
+    <h2 class="title">Jupiter&rsquo;s<br><em>clockwork</em> moons</h2>
+    <p class="lede">Galileo found four large moons in 1610. Three of them still move in lockstep.</p>
+    <div class="reso">
+      <p class="reso-head"><span>Orbits completed</span><span class="days">day 0.0</span></p>
+    </div>
+    <p class="say"></p>
+  </div>
+  <p class="foot">Distances and sizes not to scale. Orbital periods are real.</p>
+  <aside class="df-notes">
+    <p>Let the moons run, then switch to the resonance step: every time Ganymede goes round once, Europa goes twice and Io four times.</p>
+  </aside>
+</section>
+
+<style>
+  #s02 .stage3d { position: absolute; left: 640px; top: 0; width: 1280px; height: 1080px; }
+  #s02 .labels { position: absolute; inset: 0; pointer-events: none; }
+  #s02 .labels .df-tag { position: absolute; left: 0; top: 0; font-size: 21px; padding: 8px 14px 9px 12px; }
+  #s02 .labels .df-tag b { font-size: 16px; color: var(--c); }
+  #s02 .labels .df-tag { box-shadow: inset 3px 0 0 var(--c); }
+  #s02 .copy { position: absolute; left: 128px; top: 120px; width: 620px; }
+  #s02 .copy .df-eyebrow { margin: 0 0 24px; }
+  #s02 .title { margin: 0; font: 400 76px/1.02 var(--df-font-display); letter-spacing: -.02em; }
+  #s02 .title em { font-style: italic; color: var(--df-accent-2); }
+  #s02 .lede { margin: 26px 0 0; font: 300 28px/1.45 var(--df-font-body); color: var(--df-muted); }
+  #s02 .reso { margin-top: 40px; padding: 26px 28px; border-radius: 16px; background: color-mix(in oklab, var(--df-surface) 85%, transparent); border: 1px solid var(--df-line); }
+  #s02 .reso-head { display: flex; justify-content: space-between; margin: 0 0 18px; font: 500 16px/1 var(--df-font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--df-muted); }
+  #s02 .reso-head .days { color: var(--df-text); letter-spacing: .04em; }
+  #s02 .mrow { display: grid; grid-template-columns: 120px 1fr 70px; align-items: center; gap: 16px; height: 46px; transition: opacity .4s; }
+  #s02 .mrow.dim { opacity: .3; }
+  #s02 .mrow span { font: 500 22px/1 var(--df-font-body); }
+  #s02 .mrow .track { height: 8px; border-radius: 4px; background: var(--df-line); overflow: hidden; }
+  #s02 .mrow .track i { display: block; height: 100%; width: 0; background: var(--c); }
+  #s02 .mrow b { font: 600 30px/1 var(--df-font-mono); text-align: right; color: var(--c); }
+  #s02 .say { margin: 30px 0 0; font: 400 25px/1.45 var(--df-font-body); color: var(--df-text); min-height: 2.9em; }
+  #s02 .foot { position: absolute; left: 128px; bottom: 40px; margin: 0; font: 400 17px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { THREE, gsap, el } = api;
+  const C = api.theme.colors;
+  const kit = api.three(el.querySelector(".stage3d"), { fov: 30, environment: false });
+  const { scene, camera } = kit;
+  camera.position.set(0, 6.2, 21);
+  camera.lookAt(0, -0.2, 0);
+
+  // ---- Jupiter: a sphere with a procedurally painted banded texture
+  function bands() {
+    const c = document.createElement("canvas");
+    c.width = 1024; c.height = 512;
+    const g = c.getContext("2d");
+    const tones = ["#e9dcc4", "#c99e74", "#f1e6d2", "#b77f57", "#e6d2b3", "#a8714d", "#efe2c9", "#c79a6e", "#e3cfae"];
+    let y = 0, k = 0;
+    while (y < 512) {
+      const h = 22 + ((k * 37) % 41);
+      g.fillStyle = tones[k % tones.length];
+      g.fillRect(0, y, 1024, h);
+      // soft turbulent edge between bands
+      g.globalAlpha = 0.35;
+      for (let x = 0; x < 1024; x += 8) g.fillRect(x, y + h - 4 + Math.sin(x * 0.03 + k) * 4, 8, 8);
+      g.globalAlpha = 1;
+      y += h; k++;
+    }
+    g.fillStyle = "#c0603f";
+    g.beginPath(); g.ellipse(700, 330, 46, 22, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "rgba(255,240,220,.6)"; g.lineWidth = 4; g.stroke();
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  const jupiter = new THREE.Mesh(new THREE.SphereGeometry(1.7, 96, 64), new THREE.MeshStandardMaterial({ map: bands(), roughness: 1 }));
+  jupiter.rotation.z = 0.05;
+  scene.add(jupiter);
+
+  // ---- moons and orbits (radius in scene units, period in days)
+  const MOONS = [
+    { name: "Io", phase: 0.4, up: true, period: 1.769, r: 3.0, size: 0.17, color: 0xe8c55a, css: C.accent2 },
+    { name: "Europa", phase: 2.3, up: false, period: 3.551, r: 4.1, size: 0.15, color: 0xe6e1d6, css: C.text },
+    { name: "Ganymede", phase: 4.4, up: true, period: 7.155, r: 5.4, size: 0.24, color: 0xa99a86, css: C.accent },
+    { name: "Callisto", phase: -2.2, up: false, period: 16.689, r: 6.6, size: 0.22, color: 0x6f665c, css: C.muted },
+  ];
+  const tilt = new THREE.Group();
+  tilt.rotation.x = 0.06;
+  scene.add(tilt);
+  for (const m of MOONS) {
+    m.mesh = new THREE.Mesh(new THREE.SphereGeometry(m.size, 32, 24), new THREE.MeshStandardMaterial({ color: m.color, roughness: 0.9 }));
+    tilt.add(m.mesh);
+    const pts = Array.from({ length: 129 }, (_, k) => new THREE.Vector3(Math.cos((k / 128) * Math.PI * 2) * m.r, 0, Math.sin((k / 128) * Math.PI * 2) * m.r));
+    m.ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(C.text), transparent: true, opacity: 0.18 }));
+    tilt.add(m.ring);
+  }
+
+  // ---- starfield (deterministic)
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const star = new Float32Array(900 * 3);
+  for (let k = 0; k < 900; k++) { star[k * 3] = (rnd() - 0.5) * 120; star[k * 3 + 1] = (rnd() - 0.5) * 70; star[k * 3 + 2] = -30 - rnd() * 30; }
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute("position", new THREE.BufferAttribute(star, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.55 })));
+
+  const sun = new THREE.DirectionalLight(0xfff4e0, 3.0);
+  sun.position.set(-8, 3, 6);
+  scene.add(sun);
+  scene.add(new THREE.AmbientLight(0x88aab0, 0.25));
+
+  // ---- labels that follow the moons via kit.toSlide
+  const layer = el.querySelector(".labels");
+  for (const m of MOONS) {
+    m.tag = document.createElement("div");
+    m.tag.className = "df-tag";
+    m.tag.style.setProperty("--c", m.css);
+    m.tag.innerHTML = `<b>${m.period.toFixed(2)} d</b>${m.name}`;
+    layer.append(m.tag);
+  }
+  // ---- resonance counters
+  const reso = el.querySelector(".reso");
+  for (const m of MOONS) {
+    m.row = document.createElement("div");
+    m.row.className = "mrow";
+    m.row.style.setProperty("--c", m.css);
+    m.row.innerHTML = `<span>${m.name}</span><div class="track"><i></i></div><b>0</b>`;
+    reso.append(m.row);
+  }
+
+  const sim = { day: 0, speed: 1 / 1.4 }; // simulated days per second
+  let focus = 0;
+  const v = new THREE.Vector3();
+  api.onFrame((t, dt) => {
+    sim.day = api.shot ? (focus ? 7.155 : 2.6) : sim.day + dt * sim.speed * (api.reducedMotion ? 0 : 1);
+    jupiter.rotation.y = sim.day * 2.4;
+    for (const m of MOONS) {
+      const a = (sim.day / m.period) * Math.PI * 2 + m.phase;
+      m.mesh.position.set(Math.cos(a) * m.r, 0, -Math.sin(a) * m.r);
+      m.mesh.getWorldPosition(v);
+      const s = kit.toSlide(v);
+      m.tag.style.transform = `translate(${Math.min(1880 - m.tag.offsetWidth, Math.max(40, s.x - m.tag.offsetWidth / 2))}px, ${m.up ? s.y - m.tag.offsetHeight - 26 : s.y + 26}px)`;
+      const orbits = Math.floor(sim.day / m.period + 1e-6);
+      m.row.querySelector("b").textContent = String(orbits);
+      m.row.querySelector("i").style.width = `${((sim.day / m.period) % 1) * 100}%`;
+    }
+    el.querySelector(".days").textContent = `day ${sim.day.toFixed(1)}`;
+    kit.render();
+  });
+
+  const SAY = [
+    "Each moon keeps its own rhythm: Io circles in under two days, Callisto takes more than two weeks.",
+    "Io, Europa and Ganymede are locked 4 : 2 : 1. Every Ganymede orbit, Europa laps twice and Io four times.",
+  ];
+  return {
+    steps: 2,
+    step(i) {
+      focus = i;
+      if (i === 1) sim.day = 0;
+      for (const m of MOONS) {
+        const dim = i === 1 && m.name === "Callisto";
+        m.row.classList.toggle("dim", dim);
+        gsap.to(m.tag, { opacity: dim ? 0.25 : 1, duration: 0.5 });
+        gsap.to(m.ring.material, { opacity: i === 1 && !dim ? 0.45 : 0.18, duration: 0.6 });
+      }
+      el.querySelector(".say").textContent = SAY[i];
+    },
+  };
+});
+</script>

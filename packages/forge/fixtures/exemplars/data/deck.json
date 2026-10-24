@@ -1,0 +1,29 @@
+{
+  "title": "Northwind: fixing onboarding (fictional case study)",
+  "style": {
+    "look": "bold data story, black and electric lime",
+    "theme": {
+      "colors": {
+        "bg": "#0b0b0c",
+        "surface": "#161618",
+        "text": "#f5f5f0",
+        "muted": "#9a9a92",
+        "line": "#2b2b2e",
+        "accent": "#c8f031",
+        "accent2": "#ff5c39",
+        "accent3": "#7aa7ff"
+      },
+      "fonts": { "display": "space-grotesk", "body": "inter", "mono": "jetbrains-mono" },
+      "backdrop": ""
+    },
+    "motion": "rich",
+    "use3d": false,
+    "interactivity": 1,
+    "density": "balanced",
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "Fixing onboarding halved churn", "section": "Result", "budgetSec": 120 },
+    { "id": "s02", "title": "Before and after", "section": "Result", "budgetSec": 90 }
+  ]
+}

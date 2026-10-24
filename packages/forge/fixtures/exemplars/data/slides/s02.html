@@ -1,0 +1,79 @@
+<section class="df-slide" id="s02">
+  <header class="head">
+    <p class="df-eyebrow">Northwind · Before vs after</p>
+    <h2 class="title">Same product. <span class="hl">Better first week.</span></h2>
+  </header>
+  <div class="table">
+    <div class="th"></div>
+    <div class="th">Before <small>Jan–Jun</small></div>
+    <div class="th after-h">After <small>Jul–Dec</small></div>
+  </div>
+  <p class="foot">Fictional company and data, for illustration.</p>
+  <aside class="df-notes"><p>Show the old numbers first and let them sink in. Then reveal the new column: the counters do the talking.</p></aside>
+</section>
+
+<style>
+  #s02 .head { position: absolute; left: 128px; top: 92px; }
+  #s02 .head .df-eyebrow { margin: 0 0 20px; }
+  #s02 .title { margin: 0; font: 700 78px/1 var(--df-font-display); letter-spacing: -.035em; }
+  #s02 .hl { color: var(--df-bg); background: var(--df-accent); padding: 0 .14em; }
+  #s02 .table { position: absolute; left: 128px; right: 128px; top: 320px; display: grid; grid-template-columns: 1fr 380px 560px; }
+  #s02 .th { padding: 0 0 22px; font: 600 20px/1 var(--df-font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--df-muted); border-bottom: 2px solid var(--df-text); }
+  #s02 .th small { margin-left: 10px; font-size: 16px; letter-spacing: .04em; text-transform: none; opacity: .7; }
+  #s02 .after-h { color: var(--df-accent); }
+  #s02 .cell { display: flex; align-items: center; height: 176px; border-bottom: 1px solid var(--df-line); }
+  #s02 .label { font: 500 34px/1.2 var(--df-font-body); color: var(--df-text); padding-right: 40px; }
+  #s02 .label small { display: block; margin-top: 8px; font: 400 21px/1.3 var(--df-font-body); color: var(--df-muted); }
+  #s02 .num { font: 700 96px/1 var(--df-font-display); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  #s02 .num u { text-decoration: none; font-size: 44px; letter-spacing: 0; margin-left: 6px; font-weight: 500; }
+  #s02 .before .num { color: var(--df-muted); }
+  #s02 .after .num { color: var(--df-text); }
+  #s02 .chip { margin-left: 28px; padding: 10px 16px; border-radius: 999px; font: 700 24px/1 var(--df-font-mono); color: var(--df-bg); background: var(--df-accent); white-space: nowrap; }
+  #s02 .foot { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 17px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s02", (api) => {
+  const { el, gsap } = api;
+  const ROWS = [
+    { label: "Time to first report", sub: "median, new accounts", before: 9, after: 1, unit: " days", unitAfter: "day", dec: 0, chip: "↓ 89%" },
+    { label: "Active in week one", sub: "share of sign-ups", before: 31, after: 58, unit: "%", dec: 0, chip: "↑ 27 pts" },
+    { label: "Support tickets", sub: "per 1,000 users per month", before: 42, after: 11, unit: "", dec: 0, chip: "↓ 74%" },
+  ];
+  const table = el.querySelector(".table");
+  for (const r of ROWS) {
+    const l = document.createElement("div");
+    l.className = "cell label";
+    l.innerHTML = `<div>${r.label}<small>${r.sub}</small></div>`;
+    const b = document.createElement("div");
+    b.className = "cell before";
+    b.innerHTML = `<span class="num"><span class="n">0</span><u>${r.unit.trim()}</u></span>`;
+    const a = document.createElement("div");
+    a.className = "cell after";
+    a.innerHTML = `<span class="num"><span class="n">0</span><u>${(r.unitAfter ?? r.unit).trim()}</u></span><span class="chip">${r.chip}</span>`;
+    table.append(l, b, a);
+    Object.assign(r, { b: b.querySelector(".n"), a: a.querySelector(".n"), chip: a.querySelector(".chip"), aCell: a });
+  }
+
+  // tween a plain object and write the rounded value: the standard counter pattern
+  function count(node, to, dec) {
+    const o = { v: Number(node.textContent) || 0 };
+    gsap.to(o, { v: to, duration: 1.4, ease: "power3.out", overwrite: true, onUpdate: () => (node.textContent = o.v.toFixed(dec)) });
+  }
+
+  return {
+    steps: 2,
+    enter() {
+      gsap.from(el.querySelectorAll(".label"), { x: -30, opacity: 0, duration: 0.8, stagger: 0.1, ease: "power3.out" });
+    },
+    step(i) {
+      for (const r of ROWS) {
+        count(r.b, r.before, r.dec);
+        count(r.a, i >= 1 ? r.after : 0, r.dec);
+        gsap.to(r.aCell, { opacity: i >= 1 ? 1 : 0.12, duration: 0.6, overwrite: true });
+        gsap.fromTo(r.chip, { scale: i >= 1 ? 0.4 : 1, opacity: i >= 1 ? 0 : 1 }, { scale: i >= 1 ? 1 : 0.4, opacity: i >= 1 ? 1 : 0, duration: 0.6, delay: i >= 1 ? 0.9 : 0, ease: "back.out(2.5)", overwrite: true });
+      }
+    },
+  };
+});
+</script>

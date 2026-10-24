@@ -1,0 +1,93 @@
+<section class="df-slide" id="s01">
+  <p class="df-eyebrow kicker">AXI4 · Channels</p>
+  <h2 class="df-h2 title">Five one-way channels, each with its own handshake</h2>
+  <div class="diagram">
+    <div class="node mgr">Manager</div>
+    <div class="lanes"></div>
+    <div class="node sub">Subordinate</div>
+  </div>
+  <aside class="side">
+    <div class="df-toggle" role="group" aria-label="Transaction">
+      <button class="df-btn" data-mode="write">Write</button>
+      <button class="df-btn" data-mode="read">Read</button>
+      <button class="df-btn" data-mode="both" aria-pressed="true">Both</button>
+    </div>
+    <p class="explain"></p>
+  </aside>
+  <aside class="df-notes"><p>Toggle between write and read: they share no wires, so both run in the same cycle.</p></aside>
+</section>
+
+<style>
+  #s01 { padding: 120px 128px 0; }
+  #s01 .kicker { margin: 0 0 22px; }
+  #s01 .title { font-weight: 700; font-size: 68px; max-width: 1500px; }
+  #s01 .diagram { position: absolute; left: 128px; top: 330px; width: 1240px; height: 620px; display: flex; gap: 22px; }
+  #s01 .node {
+    width: 220px; flex: none; display: grid; place-items: center; border: 3px solid var(--df-text);
+    font: 700 34px/1 var(--df-font-display); background: var(--df-surface);
+  }
+  #s01 .lanes { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  #s01 .lane { position: relative; height: 104px; background: color-mix(in oklab, var(--df-line) 35%, var(--df-bg)); padding: 14px 24px; transition: opacity .3s; }
+  #s01 .lane.off { opacity: .18; }
+  #s01 .lane h4 { margin: 0; text-align: center; font: 600 26px/1 var(--df-font-display); color: var(--c); }
+  #s01 .lane .wire { position: absolute; left: 24px; right: 24px; top: 58px; height: 6px; background: var(--c); border-radius: 3px; }
+  #s01 .lane .wire::after { content: ""; position: absolute; top: -8px; border: 11px solid transparent; }
+  #s01 .lane[data-dir="ms"] .wire::after { right: -14px; border-left: 16px solid var(--c); border-right: 0; }
+  #s01 .lane[data-dir="sm"] .wire::after { left: -14px; border-right: 16px solid var(--c); border-left: 0; }
+  #s01 .lane .sig { position: absolute; left: 0; right: 0; top: 76px; text-align: center; font: 400 17px/1 var(--df-font-mono); color: var(--df-muted); }
+  #s01 .pkt { position: absolute; top: 49px; left: 24px; padding: 4px 12px; background: var(--c); color: var(--df-surface); font: 700 18px/1 var(--df-font-mono); border-radius: 3px; }
+  #s01 .side { position: absolute; left: 1440px; top: 330px; width: 380px; }
+  #s01 .explain { margin: 34px 0 0; font: 400 30px/1.45 var(--df-font-body); color: var(--df-text); }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { gsap, el } = api;
+  const C = api.theme.colors;
+  const LANES = [
+    { id: "AW", name: "Write address", dir: "ms", c: C.accent2, sig: "AWADDR, AWLEN, AWSIZE", kind: "write", pkt: "0x100" },
+    { id: "W", name: "Write data", dir: "ms", c: C.accent, sig: "WDATA, WSTRB, WLAST", kind: "write", pkt: "D0" },
+    { id: "B", name: "Write response", dir: "sm", c: C.muted, sig: "BRESP, BID", kind: "write", pkt: "OK" },
+    { id: "AR", name: "Read address", dir: "ms", c: C.accent3, sig: "ARADDR, ARLEN, ARSIZE", kind: "read", pkt: "0x200" },
+    { id: "R", name: "Read data", dir: "sm", c: C.text, sig: "RDATA, RRESP, RLAST", kind: "read", pkt: "R0" },
+  ];
+  const wrap = el.querySelector(".lanes");
+  for (const l of LANES) {
+    const d = document.createElement("div");
+    d.className = "lane";
+    d.dataset.kind = l.kind;
+    d.dataset.dir = l.dir;
+    d.style.setProperty("--c", l.c);
+    d.innerHTML = `<h4>${l.id} ${l.name} (${l.dir === "ms" ? "M → S" : "S → M"})</h4><div class="wire"></div><div class="sig">${l.sig}</div><div class="pkt">${l.pkt}</div>`;
+    wrap.append(d);
+  }
+  const TEXT = {
+    write: "A write needs three channels: address out, data out, and a response back.",
+    read: "A read needs two: the address goes out and the data comes back with its status.",
+    both: "Write and read share no wires, so both run in the same cycle without slowing each other.",
+  };
+  const explain = el.querySelector(".explain");
+  function mode(m) {
+    for (const b of el.querySelectorAll("[data-mode]")) b.setAttribute("aria-pressed", String(b.dataset.mode === m));
+    for (const lane of el.querySelectorAll(".lane")) lane.classList.toggle("off", m !== "both" && lane.dataset.kind !== m);
+    explain.textContent = TEXT[m];
+  }
+  for (const b of el.querySelectorAll("[data-mode]")) b.addEventListener("click", () => mode(b.dataset.mode));
+
+  const pkts = [...el.querySelectorAll(".pkt")];
+  return {
+    steps: 2,
+    enter() {
+      pkts.forEach((p, i) => {
+        const lane = p.parentElement;
+        const span = lane.clientWidth - 48 - p.offsetWidth;
+        const fwd = lane.dataset.dir === "ms";
+        gsap.fromTo(p, { x: fwd ? 0 : span }, { x: fwd ? span : 0, duration: 2.4, ease: "none", repeat: -1, delay: i * 0.35 });
+      });
+    },
+    step(i) {
+      mode(i === 0 ? "write" : "both");
+    },
+  };
+});
+</script>

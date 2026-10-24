@@ -1,0 +1,26 @@
+{
+  "title": "Light theme check",
+  "style": {
+    "look": "clean technical",
+    "theme": {
+      "colors": {
+        "bg": "#f7f7f4",
+        "surface": "#ffffff",
+        "text": "#1c232a",
+        "muted": "#5c6670",
+        "line": "#d8dbd4",
+        "accent": "#2e8b80",
+        "accent2": "#4a6fb5",
+        "accent3": "#d4574e"
+      },
+      "fonts": { "display": "inter-tight", "body": "inter", "mono": "jetbrains-mono" },
+      "backdrop": ""
+    },
+    "motion": "subtle",
+    "use3d": false,
+    "interactivity": 1,
+    "density": "balanced",
+    "features": { "timer": true, "notes": true, "stepNav": true, "print": true }
+  },
+  "slides": [{ "id": "s01", "title": "Five one-way channels", "section": "Mechanism", "budgetSec": 90 }]
+}

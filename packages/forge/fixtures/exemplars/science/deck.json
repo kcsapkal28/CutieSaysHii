@@ -1,0 +1,29 @@
+{
+  "title": "Models of the world: epidemics and orbits",
+  "style": {
+    "look": "calm science, deep teal night, serif headings",
+    "theme": {
+      "colors": {
+        "bg": "#0e1c21",
+        "surface": "#152a30",
+        "text": "#e7f0ee",
+        "muted": "#8fa8a5",
+        "line": "#24393f",
+        "accent": "#6fd3c7",
+        "accent2": "#f2c46d",
+        "accent3": "#e88a7d"
+      },
+      "fonts": { "display": "source-serif-4", "body": "inter", "mono": "ibm-plex-mono" },
+      "backdrop": "radial-gradient(1400px 900px at 72% 26%, #183840 0%, rgba(24,56,64,0) 62%), linear-gradient(180deg, #10232a 0%, #0a1418 100%)"
+    },
+    "motion": "subtle",
+    "use3d": true,
+    "interactivity": 2,
+    "density": "balanced",
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "How fast does an outbreak burn?", "section": "Epidemics", "budgetSec": 180 },
+    { "id": "s02", "title": "Jupiter's clockwork moons", "section": "Orbits", "budgetSec": 120 }
+  ]
+}

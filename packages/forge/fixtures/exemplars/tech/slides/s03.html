@@ -1,0 +1,154 @@
+<section class="df-slide" id="s03">
+  <header class="head">
+    <p class="df-eyebrow">Networks · Flooding</p>
+    <h2 class="title">How a message floods a mesh</h2>
+  </header>
+  <svg class="graph" viewBox="0 0 1240 700" aria-hidden="true"><g class="edges"></g><g class="pulses"></g><g class="nodes"></g></svg>
+  <div class="side">
+    <div class="df-stat"><span class="df-stat-label">Hop</span><span class="df-stat-value hop">0</span></div>
+    <div class="df-stat"><span class="df-stat-label">Nodes reached</span><span class="df-stat-value reach">1</span></div>
+    <div class="hops"></div>
+    <p class="explain"></p>
+  </div>
+  <aside class="df-notes"><p>Each hop, every node that just heard the message repeats it to all its neighbours. Reach grows fast, then saturates.</p></aside>
+</section>
+
+<style>
+  #s03 .head { position: absolute; left: 128px; top: 96px; }
+  #s03 .head .df-eyebrow { margin: 0 0 20px; }
+  #s03 .title { margin: 0; font: 700 66px/1.05 var(--df-font-display); letter-spacing: -.028em; }
+  #s03 .graph { position: absolute; left: 100px; top: 280px; width: 1240px; height: 700px; overflow: visible; }
+  #s03 .edges line { stroke: var(--df-line); stroke-width: 2.5; transition: stroke .5s; }
+  #s03 .edges line.lit { stroke: var(--c); stroke-width: 3.5; }
+  #s03 .nodes circle { fill: var(--df-surface); stroke: var(--df-text); stroke-width: 2.5; }
+  #s03 .nodes circle.lit { fill: var(--c); stroke: var(--c); }
+  #s03 .nodes .src { fill: var(--df-text); stroke: var(--df-text); }
+  #s03 .nodes .ring { fill: none; stroke: var(--df-accent-3); stroke-width: 2; }
+  #s03 .side { position: absolute; left: 1420px; top: 330px; width: 372px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px 24px; }
+  #s03 .hops { grid-column: 1 / -1; display: grid; gap: 14px; }
+  #s03 .hops div { display: flex; align-items: center; gap: 14px; font: 500 21px/1 var(--df-font-body); color: var(--df-muted); transition: color .4s; }
+  #s03 .hops div.on { color: var(--df-text); }
+  #s03 .hops i { width: 18px; height: 18px; border-radius: 50%; background: var(--c); }
+  #s03 .hops em { margin-left: auto; font: 500 19px/1 var(--df-font-mono); font-style: normal; }
+  #s03 .explain { grid-column: 1 / -1; margin: 0; font: 400 26px/1.45 var(--df-font-body); min-height: 4.4em; }
+</style>
+
+<script>
+DF.slide("s03", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  // deterministic pseudo-random layout so every render (and every screenshot) is identical
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const nodes = [];
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 6; c++) {
+      if ((r === 0 && c === 5) || (r === 3 && c === 0)) continue;
+      nodes.push({ x: 90 + c * 212 + (rnd() - 0.5) * 120 + (r % 2) * 60, y: 80 + r * 180 + (rnd() - 0.5) * 90 });
+    }
+  }
+  // connect each node to its 2-3 nearest neighbours
+  const edges = new Map();
+  nodes.forEach((a, i) => {
+    const near = nodes.map((b, j) => [j, Math.hypot(a.x - b.x, a.y - b.y)]).filter(([j]) => j !== i).sort((p, q) => p[1] - q[1]);
+    for (const [j] of near.slice(0, i % 2 === 0 ? 4 : 3)) edges.set([Math.min(i, j), Math.max(i, j)].join("-"), [Math.min(i, j), Math.max(i, j)]);
+  });
+  const E = [...edges.values()];
+  const adj = nodes.map(() => []);
+  for (const [a, b] of E) { adj[a].push(b); adj[b].push(a); }
+  // breadth-first hops from the source
+  const dist = (n) => Math.hypot(n.x - 560, n.y - 330);
+  const SRC = nodes.reduce((best, n, i) => (dist(n) < dist(nodes[best]) ? i : best), 0);
+  const hop = nodes.map(() => Infinity);
+  hop[SRC] = 0;
+  const queue = [SRC];
+  while (queue.length) { const u = queue.shift(); for (const v of adj[u]) if (hop[v] === Infinity) { hop[v] = hop[u] + 1; queue.push(v); } }
+  const MAXHOP = Math.max(...hop.filter(Number.isFinite));
+  const HOPC = [C.text, C.accent3, C.accent, C.accent2, C.muted, C.muted, C.muted, C.muted];
+
+  const gE = el.querySelector(".edges"), gN = el.querySelector(".nodes"), gP = el.querySelector(".pulses");
+  const lines = E.map(([a, b]) => {
+    const l = document.createElementNS(NS, "line");
+    l.setAttribute("x1", nodes[a].x); l.setAttribute("y1", nodes[a].y);
+    l.setAttribute("x2", nodes[b].x); l.setAttribute("y2", nodes[b].y);
+    gE.append(l);
+    return l;
+  });
+  const ring = document.createElementNS(NS, "circle");
+  ring.setAttribute("class", "ring");
+  ring.setAttribute("cx", nodes[SRC].x); ring.setAttribute("cy", nodes[SRC].y); ring.setAttribute("r", 22);
+  gN.append(ring);
+  const dots = nodes.map((n, i) => {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", n.x); c.setAttribute("cy", n.y); c.setAttribute("r", i === SRC ? 17 : 13);
+    if (i === SRC) c.setAttribute("class", "src");
+    gN.append(c);
+    return c;
+  });
+
+  const hopsEl = el.querySelector(".hops");
+  for (let h = 1; h <= MAXHOP; h++) {
+    const d = document.createElement("div");
+    d.style.setProperty("--c", HOPC[h]);
+    d.innerHTML = `<i></i>Hop ${h}<em>+${hop.filter((x) => x === h).length}</em>`;
+    hopsEl.append(d);
+  }
+
+  // pulses travel along the edges of the newest hop
+  let frontier = [];
+  const pulses = Array.from({ length: 24 }, () => {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", 7);
+    c.style.opacity = 0;
+    gP.append(c);
+    return c;
+  });
+  api.onFrame((t) => {
+    const p = api.shot ? 0.55 : (t * 0.7) % 1;
+    pulses.forEach((c, k) => {
+      const e = frontier[k];
+      if (!e) { c.style.opacity = 0; return; }
+      const [a, b, col] = e;
+      c.setAttribute("cx", nodes[a].x + (nodes[b].x - nodes[a].x) * p);
+      c.setAttribute("cy", nodes[a].y + (nodes[b].y - nodes[a].y) * p);
+      c.setAttribute("fill", col);
+      c.style.opacity = 1;
+    });
+    const rr = 22 + ((api.shot ? 0.5 : t % 1.6) / 1.6) * 40;
+    ring.setAttribute("r", rr);
+    ring.style.opacity = 1 - (rr - 22) / 40;
+  });
+
+  const TEXT = [
+    "One node has a message. It knows nothing about the network except its own neighbours.",
+    "It repeats the message to every neighbour. Each of them does the same on the next hop.",
+    "Reach grows fast: most of the mesh hears it within a few hops, with no routing table at all.",
+    "The cost is redundancy: many nodes hear the same message several times.",
+  ];
+  const stepsN = Math.min(4, MAXHOP + 1);
+  function render(s) {
+    const h = s === stepsN - 1 ? MAXHOP : s;
+    dots.forEach((c, i) => {
+      if (i === SRC) return;
+      const lit = hop[i] <= h;
+      c.setAttribute("class", lit ? "lit" : "");
+      c.style.setProperty("--c", HOPC[hop[i]]);
+    });
+    frontier = [];
+    E.forEach(([a, b], k) => {
+      const [u, v] = hop[a] <= hop[b] ? [a, b] : [b, a];
+      const lit = hop[v] <= h && hop[v] === hop[u] + 1;
+      lines[k].setAttribute("class", lit ? "lit" : "");
+      lines[k].style.setProperty("--c", HOPC[hop[v]]);
+      if (lit && hop[v] === h) frontier.push([u, v, HOPC[hop[v]]]);
+    });
+    gsap.fromTo(dots.filter((_, i) => hop[i] === h && h > 0), { attr: { r: 4 } }, { attr: { r: 13 }, duration: 0.5, stagger: 0.04, ease: "back.out(3)" });
+    [...hopsEl.children].forEach((d, k) => d.classList.toggle("on", k + 1 <= h));
+    el.querySelector(".hop").textContent = String(h);
+    el.querySelector(".reach").textContent = `${hop.filter((x) => x <= h).length}`;
+    el.querySelector(".explain").textContent = TEXT[s];
+  }
+  return { steps: stepsN, step: render };
+});
+</script>

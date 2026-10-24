@@ -1,0 +1,29 @@
+{
+  "title": "Keeping time: a short history",
+  "style": {
+    "look": "editorial, warm paper, serif display",
+    "theme": {
+      "colors": {
+        "bg": "#f2ebdd",
+        "surface": "#fbf7ee",
+        "text": "#2a2219",
+        "muted": "#6e6253",
+        "line": "#d6c9b0",
+        "accent": "#a2412b",
+        "accent2": "#2f5d62",
+        "accent3": "#b98b2e"
+      },
+      "fonts": { "display": "fraunces", "body": "source-serif-4", "mono": "ibm-plex-mono" },
+      "backdrop": "radial-gradient(1500px 1000px at 50% 38%, #f7f1e6 0%, #efe6d4 68%, #e6dac3 100%)"
+    },
+    "motion": "subtle",
+    "use3d": false,
+    "interactivity": 0,
+    "density": "airy",
+    "features": { "timer": false, "notes": true, "stepNav": false, "print": true }
+  },
+  "slides": [
+    { "id": "s01", "title": "Six ways we learned to measure time", "section": "Timeline", "budgetSec": 150 },
+    { "id": "s02", "title": "Time is money", "section": "Ideas", "budgetSec": 60 }
+  ]
+}

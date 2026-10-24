@@ -110,6 +110,8 @@ export function usedWeights(sources: string[]): number[] {
       const n = /^\d+$/.test(v) ? Number(v) : KEYWORD_WEIGHT[v];
       if (n) found.add(n);
     }
+    // `font:` shorthand, in CSS and in canvas strings: "[italic] 300 76px/1 …"
+    for (const m of src.matchAll(/\bfont\s*[:=]\s*["'`]?\s*(?:(?:italic|oblique|normal|small-caps)\s+)*([1-9]00)\s/gi)) found.add(Number(m[1]));
     for (const m of src.matchAll(/fontWeight\s*[:=]\s*["']?(\d{3})/g)) found.add(Number(m[1]));
     for (const m of src.matchAll(/["'`](?:italic\s+)?([1-9]00)\s+\d+(?:\.\d+)?px/g)) found.add(Number(m[1]));
     if (/<(?:b|strong|h[1-6])\b/i.test(src)) found.add(700);

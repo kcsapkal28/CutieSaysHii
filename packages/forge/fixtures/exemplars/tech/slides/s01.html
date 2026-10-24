@@ -1,0 +1,158 @@
+<section class="df-slide" id="s01">
+  <header class="head">
+    <p class="df-eyebrow">HTTP · Multiplexing</p>
+    <h2 class="title">One connection, many conversations</h2>
+  </header>
+  <div class="df-toggle modes" role="group" aria-label="Protocol">
+    <button class="df-btn" data-mode="h1">HTTP/1.1</button>
+    <button class="df-btn" data-mode="h2">HTTP/2</button>
+  </div>
+
+  <div class="diagram">
+    <div class="box server"><b>Server</b><span>sends responses</span></div>
+    <div class="pipe"><span class="pipe-label">one TCP connection</span></div>
+    <div class="frames"></div>
+    <div class="box browser">
+      <b>Browser</b>
+      <div class="res"></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="df-stat"><span class="df-stat-label">Page usable at</span><span class="df-stat-value usable">0.0 s</span></div>
+    <div class="df-stat"><span class="df-stat-label">Image done at</span><span class="df-stat-value img">0.0 s</span></div>
+    <p class="explain"></p>
+  </div>
+  <p class="src">Simulated timings: one frame leaves the server every 80 ms.</p>
+  <aside class="df-notes">
+    <p>Watch the order of colours in the pipe. In HTTP/1.1 the big image blocks the CSS and JavaScript queued behind it.</p>
+    <p>HTTP/2 chops every response into frames and interleaves them, so small critical files finish first.</p>
+  </aside>
+</section>
+
+<style>
+  #s01 .head { position: absolute; left: 128px; top: 104px; }
+  #s01 .head .df-eyebrow { margin: 0 0 20px; }
+  #s01 .title { margin: 0; font: 700 66px/1.05 var(--df-font-display); letter-spacing: -.028em; }
+  #s01 .modes { position: absolute; right: 128px; top: 150px; }
+  #s01 .diagram { position: absolute; left: 128px; top: 330px; width: 1664px; height: 400px; }
+  #s01 .box { position: absolute; top: 0; height: 400px; border: 2.5px solid var(--df-text); background: var(--df-surface); padding: 30px 28px; }
+  #s01 .box b { display: block; font: 700 34px/1 var(--df-font-display); letter-spacing: -.01em; }
+  #s01 .box span { display: block; margin-top: 10px; font: 400 20px/1.2 var(--df-font-body); color: var(--df-muted); }
+  #s01 .server { left: 0; width: 230px; }
+  #s01 .browser { right: 0; width: 400px; }
+  #s01 .pipe { position: absolute; left: 262px; right: 432px; top: 150px; height: 100px; border-top: 2.5px solid var(--df-text); border-bottom: 2.5px solid var(--df-text);
+    background: repeating-linear-gradient(90deg, color-mix(in oklab, var(--df-line) 55%, transparent) 0 2px, transparent 2px 46px); }
+  #s01 .pipe-label { position: absolute; left: 0; right: 0; top: -44px; text-align: center; font: 500 18px/1 var(--df-font-mono); color: var(--df-muted); letter-spacing: .06em; }
+  #s01 .frames { position: absolute; left: 262px; right: 432px; top: 150px; height: 100px; pointer-events: none; }
+  #s01 .frame { position: absolute; top: 26px; left: 0; width: 56px; height: 48px; display: grid; place-items: center; border-radius: 4px;
+    font: 700 20px/1 var(--df-font-mono); color: #fff; background: var(--c); box-shadow: 0 2px 0 color-mix(in oklab, var(--c) 70%, #000); }
+  #s01 .res { margin-top: 34px; display: grid; gap: 22px; }
+  #s01 .row { display: grid; grid-template-columns: 74px 1fr 64px; align-items: center; gap: 14px; font: 500 20px/1 var(--df-font-body); }
+  #s01 .row .bar { height: 14px; background: color-mix(in oklab, var(--df-line) 60%, transparent); border-radius: 7px; overflow: hidden; }
+  #s01 .row .bar i { display: block; height: 100%; width: 0; background: var(--c); border-radius: inherit; }
+  #s01 .row em { font: 500 18px/1 var(--df-font-mono); font-style: normal; color: var(--df-muted); text-align: right; }
+  #s01 .row.done em { color: var(--df-text); }
+  #s01 .foot { position: absolute; left: 128px; right: 128px; top: 800px; display: grid; grid-template-columns: 300px 300px 1fr; gap: 48px; align-items: end; }
+  #s01 .foot .df-stat-value { font-size: 64px; }
+  #s01 .usable { color: var(--df-accent); }
+  #s01 .explain { margin: 0; font: 400 28px/1.42 var(--df-font-body); color: var(--df-text); max-width: 780px; }
+  #s01 .src { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 17px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  // resources and how many frames each response needs
+  const RES = [
+    { id: "html", k: "H", name: "HTML", n: 3, c: C.accent2 },
+    { id: "css", k: "C", name: "CSS", n: 3, c: C.accent },
+    { id: "js", k: "J", name: "JS", n: 4, c: C.accent3 },
+    { id: "img", k: "I", name: "Image", n: 10, c: C.muted },
+  ];
+  const R = Object.fromEntries(RES.map((r) => [r.id, r]));
+  // HTTP/1.1: responses go one after another; the image was requested first, so it blocks CSS and JS.
+  const H1 = [..."hhh", ..."iiiiiiiiii", ..."ccc", ..."jjjj"];
+  // HTTP/2: frames interleave; critical resources are prioritised.
+  const H2 = [..."hcjhcjhcjijiiiiiiiii"];
+  const KEY = { h: "html", c: "css", j: "js", i: "img" };
+  const GAP = 0.16, TRAVEL = 1.0, PAUSE = 1.6, SCALE = 0.5; // sim seconds -> displayed seconds
+
+  const TEXT = {
+    h1: "HTTP/1.1 answers one request at a time on a connection. A large image at the head of the line delays everything behind it.",
+    h2: "HTTP/2 splits responses into frames and interleaves them, so the small files the page needs arrive first.",
+  };
+
+  const layer = el.querySelector(".frames");
+  const chips = H1.map(() => {
+    const d = document.createElement("div");
+    d.className = "frame";
+    layer.append(d);
+    return d;
+  });
+  const rows = el.querySelector(".res");
+  for (const r of RES) {
+    r.row = document.createElement("div");
+    r.row.className = "row";
+    r.row.style.setProperty("--c", r.c);
+    r.row.innerHTML = `<span>${r.name}</span><div class="bar"><i></i></div><em>0%</em>`;
+    rows.append(r.row);
+  }
+
+  let mode = "h1", t0 = 0, clock = 0;
+  const order = () => (mode === "h1" ? H1 : H2).map((c) => KEY[c]);
+  const doneAt = (ids) => {
+    const seq = order();
+    let last = 0;
+    seq.forEach((id, k) => { if (ids.includes(id)) last = k; });
+    return (last * GAP + TRAVEL) * SCALE;
+  };
+
+  function draw(t) {
+    const seq = order();
+    const width = layer.clientWidth - 56;
+    const got = Object.fromEntries(RES.map((r) => [r.id, 0]));
+    seq.forEach((id, k) => {
+      const p = (t - k * GAP) / TRAVEL;
+      const chip = chips[k];
+      chip.style.setProperty("--c", R[id].c);
+      chip.textContent = R[id].k;
+      chip.style.opacity = p >= 0 && p <= 1 ? "1" : "0";
+      chip.style.transform = `translateX(${Math.max(0, Math.min(1, p)) * width}px)`;
+      if (p > 1) got[id]++;
+    });
+    for (const r of RES) {
+      const f = got[r.id] / r.n;
+      r.row.querySelector("i").style.width = `${f * 100}%`;
+      r.row.querySelector("em").textContent = `${Math.round(f * 100)}%`;
+      r.row.classList.toggle("done", f >= 1);
+    }
+  }
+
+  function setMode(m) {
+    mode = m;
+    t0 = clock;
+    for (const b of el.querySelectorAll("[data-mode]")) b.setAttribute("aria-pressed", String(b.dataset.mode === m));
+    el.querySelector(".explain").textContent = TEXT[m];
+    const usable = { v: 0 }, img = { v: 0 };
+    const out = (o, sel) => () => (el.querySelector(sel).textContent = `${o.v.toFixed(1)} s`);
+    gsap.to(usable, { v: doneAt(["html", "css", "js"]), duration: 0.9, ease: "power2.out", onUpdate: out(usable, ".usable") });
+    gsap.to(img, { v: doneAt(["img"]), duration: 0.9, ease: "power2.out", onUpdate: out(img, ".img") });
+  }
+  for (const b of el.querySelectorAll("[data-mode]")) b.addEventListener("click", () => setMode(b.dataset.mode));
+
+  const period = H1.length * GAP + TRAVEL + PAUSE;
+  api.onFrame((t) => {
+    clock = t;
+    // shot mode freezes a representative moment: frames mid-pipe, bars part-filled
+    const local = api.shot ? 2.3 : (t - t0) % period;
+    draw(api.reducedMotion && !api.shot ? period : local);
+  });
+
+  return {
+    steps: 2,
+    step(i) { setMode(i === 0 ? "h1" : "h2"); },
+  };
+});
+</script>

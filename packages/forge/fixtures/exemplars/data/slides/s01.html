@@ -1,0 +1,110 @@
+<section class="df-slide" id="s01">
+  <header class="head">
+    <p class="df-eyebrow">Northwind · Monthly churn</p>
+    <h2 class="title">Fixing onboarding <span class="hl">halved churn</span></h2>
+  </header>
+  <svg class="chart" viewBox="0 0 1400 620" aria-label="Monthly churn rate, January to December">
+    <g class="grid"></g><g class="bars"></g><g class="labels"></g><g class="notes"></g>
+  </svg>
+  <aside class="side">
+    <div class="df-stat"><span class="df-stat-label">Monthly churn</span><span class="df-stat-value big">6.0%</span></div>
+    <p class="delta"><b>−50%</b> in six months</p>
+    <p class="say"></p>
+  </aside>
+  <p class="foot">Fictional company and data, for illustration.</p>
+  <aside class="df-notes"><p>Build it in four beats: the flat baseline, the launch, the drop, the headline number. Do not show the result before the cause.</p></aside>
+</section>
+
+<style>
+  #s01 .head { position: absolute; left: 128px; top: 92px; }
+  #s01 .head .df-eyebrow { margin: 0 0 20px; }
+  #s01 .title { margin: 0; font: 700 78px/1 var(--df-font-display); letter-spacing: -.035em; }
+  #s01 .hl { color: var(--df-bg); background: var(--df-accent); padding: 0 .14em; box-decoration-break: clone; }
+  #s01 .chart { position: absolute; left: 100px; top: 300px; width: 1400px; height: 620px; overflow: visible; }
+  #s01 .grid line { stroke: var(--df-line); stroke-width: 1.5; }
+  #s01 .grid text, #s01 .labels text.m { fill: var(--df-muted); font: 500 18px var(--df-font-mono); }
+  #s01 .labels text.v { fill: var(--df-text); font: 600 20px var(--df-font-mono); text-anchor: middle; }
+  #s01 .labels text.m { text-anchor: middle; }
+  #s01 .notes text { font: 600 22px var(--df-font-body); }
+  #s01 .side { position: absolute; left: 1560px; top: 330px; width: 300px; }
+  #s01 .big { font-size: 104px; color: var(--df-text); }
+  #s01 .delta { margin: 26px 0 0; font: 500 30px/1.2 var(--df-font-body); color: var(--df-muted); }
+  #s01 .delta b { display: block; font: 700 64px/1 var(--df-font-display); color: var(--df-accent); letter-spacing: -.03em; margin-bottom: 6px; }
+  #s01 .say { margin: 36px 0 0; font: 400 24px/1.45 var(--df-font-body); color: var(--df-text); }
+  #s01 .foot { position: absolute; left: 128px; bottom: 44px; margin: 0; font: 400 17px/1 var(--df-font-mono); color: var(--df-muted); }
+</style>
+
+<script>
+DF.slide("s01", (api) => {
+  const { el, gsap } = api;
+  const C = api.theme.colors;
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, parent, text) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (text !== undefined) n.textContent = text;
+    parent.append(n);
+    return n;
+  };
+  const DATA = [6.1, 5.9, 6.3, 6.0, 6.2, 5.8, 4.9, 4.1, 3.6, 3.3, 3.1, 3.0];
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const X0 = 90, X1 = 1380, Y0 = 560, YMAX = 7, H = 500;
+  const bw = (X1 - X0) / DATA.length;
+  const y = (v) => Y0 - (v / YMAX) * H;
+
+  const grid = el.querySelector(".grid"), bars = el.querySelector(".bars"), labels = el.querySelector(".labels"), notes = el.querySelector(".notes");
+  for (const v of [0, 2, 4, 6]) {
+    mk("line", { x1: X0, x2: X1, y1: y(v), y2: y(v) }, grid);
+    mk("text", { x: 0, y: y(v) + 6 }, grid, `${v}%`);
+  }
+  const rects = DATA.map((v, i) => {
+    const x = X0 + i * bw + bw * 0.18;
+    mk("text", { class: "m", x: x + bw * 0.32, y: Y0 + 36 }, labels, MONTHS[i]);
+    const r = mk("rect", { x, width: bw * 0.64, y: Y0, height: 0, rx: 4, style: `fill: ${i < 6 ? `color-mix(in oklab, ${C.text} 28%, ${C.bg})` : C.accent}` }, bars);
+    r.val = mk("text", { class: "v", x: x + bw * 0.32, y: y(v) - 14, opacity: 0 }, labels, v.toFixed(1));
+    return r;
+  });
+  // annotations
+  const flat = mk("g", { opacity: 0 }, notes);
+  mk("line", { x1: X0 + 10, x2: X0 + bw * 6 - 10, y1: y(6.6), y2: y(6.6), stroke: C.muted, "stroke-width": 2, "stroke-dasharray": "6 6" }, flat);
+  mk("text", { x: X0 + 10, y: y(6.6) - 16, fill: C.muted }, flat, "Flat at about 6% for six months");
+  const launch = mk("g", { opacity: 0 }, notes);
+  const lx = X0 + bw * 6;
+  mk("line", { x1: lx, x2: lx, y1: y(7) - 10, y2: Y0, stroke: C.accent2, "stroke-width": 3, "stroke-dasharray": "2 8", "stroke-linecap": "round" }, launch);
+  mk("text", { x: lx + 16, y: y(7) + 14, fill: C.accent2 }, launch, "New onboarding ships");
+  const trend = mk("path", { d: `M${X0 + bw * 5.5},${y(5.8) - 40} C${X0 + bw * 8},${y(5.8) - 30} ${X0 + bw * 9.5},${y(3.3) - 60} ${X0 + bw * 11.5},${y(3.0) - 44}`, fill: "none", stroke: C.accent, "stroke-width": 3, opacity: 0 }, notes);
+  const tlen = trend.getTotalLength();
+  trend.setAttribute("stroke-dasharray", tlen);
+
+  const big = el.querySelector(".big"), delta = el.querySelector(".delta"), say = el.querySelector(".say");
+  const SAY = [
+    "Churn sat stubbornly near 6% a month: one in sixteen customers left every month.",
+    "In July the team shipped a guided setup that gets new users to their first report on day one.",
+    "Churn fell every month after the launch, with no change in pricing or product.",
+    "By December it was 3.0%: half of where it started, compounding into far more retained revenue.",
+  ];
+  const grow = (idx, on) => gsap.to(idx.map((i) => rects[i]), {
+    attr: { y: (k) => (on ? y(DATA[idx[k]]) : Y0), height: (k) => (on ? Y0 - y(DATA[idx[k]]) : 0) },
+    duration: 0.9, stagger: 0.06, ease: "power3.out", overwrite: true,
+  });
+  const show = (n, on) => gsap.to(n, { opacity: on ? 1 : 0, duration: 0.5, overwrite: true });
+  const counter = { v: 6.0 };
+
+  return {
+    steps: 4,
+    step(i) {
+      grow([0, 1, 2, 3, 4, 5], true);
+      grow([6, 7, 8, 9, 10, 11], i >= 2);
+      rects.forEach((r, k) => show(r.val, k < 6 || i >= 2));
+      show(flat, i === 0 || i === 1);
+      show(launch, i >= 1);
+      gsap.to(trend, { opacity: i >= 3 ? 1 : 0, strokeDashoffset: i >= 3 ? 0 : tlen, duration: 1.1, ease: "power2.inOut", overwrite: true });
+      show(delta, i >= 3);
+      gsap.to(counter, { v: i >= 3 ? 3.0 : 6.0, duration: 1.2, ease: "power2.out", overwrite: true,
+        onUpdate: () => (big.textContent = `${counter.v.toFixed(1)}%`) });
+      big.style.color = i >= 3 ? C.accent : C.text;
+      say.textContent = SAY[i];
+    },
+  };
+});
+</script>

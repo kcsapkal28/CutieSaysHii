@@ -82,9 +82,10 @@ const S02 = `<section class="df-slide" id="s02">
 #s02 .chain { position: absolute; left: var(--pad); right: var(--pad); top: 500px; height: 170px; display: flex; justify-content: space-between; align-items: center; }
 #s02 .wire { position: absolute; left: 90px; right: 90px; top: 50%; height: 3px; background: linear-gradient(90deg, var(--df-accent), var(--df-accent-3)); opacity: .55; }
 #s02 .blk { position: relative; z-index: 1; width: 230px; height: 140px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px;
-  font: 600 30px/1 var(--df-font-display); background: var(--df-surface); border: 1.5px solid var(--df-line); border-radius: 18px; }
+  font: 600 30px/1 var(--df-font-display); background: var(--df-panel-bg); border: max(1.5px, var(--df-border-w)) solid var(--df-border-color);
+  border-radius: var(--df-radius); box-shadow: var(--df-shadow); backdrop-filter: blur(var(--df-blur)); }
 #s02 .blk span { font: 400 20px/1 var(--df-font-mono); color: var(--df-muted); }
-#s02 .dsp { border-color: var(--df-accent-2); box-shadow: 0 0 0 6px color-mix(in oklab, var(--df-accent-2) 20%, transparent); }
+#s02 .dsp { border-color: var(--df-accent-2); box-shadow: 0 0 0 6px color-mix(in oklab, var(--df-accent-2) 20%, transparent), var(--df-shadow); }
 #s02 .pk { position: absolute; z-index: 2; left: 90px; top: calc(50% - 8px); width: 16px; height: 16px; border-radius: 50%; background: var(--df-accent); box-shadow: 0 0 16px var(--df-accent); }
 #s02 .ctl { position: absolute; left: var(--pad); top: 760px; display: flex; align-items: center; gap: 56px; }
 #s02 .rng { display: flex; align-items: center; gap: 20px; width: 520px; font: 500 22px/1 var(--df-font-body); color: var(--df-muted); }

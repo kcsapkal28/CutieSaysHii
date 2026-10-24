@@ -13,7 +13,7 @@ import type { DeckConfig, Engine, ShootResult, Style } from "../contract.ts";
 import type { ImageData, Llm, Thinking } from "../llm.ts";
 import { attemptScore, onlyNits, runCritic, sampleSteps } from "../agents/critic.ts";
 import { runBuilder, warmBuilder, type BuildFix, type BuildMode, type Exemplar } from "../agents/builder.ts";
-import type { CriticReport, Issue, Outline, Script, Storyboard, StoryboardSlide } from "../agents/schemas.ts";
+import type { CriticReport, Issue, IssueKind, Outline, Script, Storyboard, StoryboardSlide } from "../agents/schemas.ts";
 import { BUILD_DEFAULTS, DEFAULT_MODELS, DEFAULT_THINKING } from "./config.ts";
 import type { OnEvent, Verdict } from "./events.ts";
 import { measuredNotes, precheck, PRECHECK_FAILED_SCORE, precheckIssues, type Precheck, type PrecheckKind } from "./precheck.ts";
@@ -67,6 +67,8 @@ export type RoundRecord = {
   verdict?: Verdict;
   score?: number;
   issues?: number;
+  /** The reviewed issues' failure classes, in rank order (for counting classes per run). */
+  kinds?: IssueKind[];
   errors?: string[];
   error?: string;
 };
@@ -107,7 +109,7 @@ async function pool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>
 }
 
 const contractIssues = (issues: string[]): Issue[] =>
-  issues.map((what) => ({ severity: "high", what, where: "slide source", fix: "Make the fragment follow the slide contract." }));
+  issues.map((what) => ({ severity: "high", kind: "error", what, where: "slide source", fix: "Make the fragment follow the slide contract." }));
 
 export type SlideJob = {
   slide: Script["slides"][number];
@@ -268,7 +270,7 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
           { model: models.critic, thinking: thinking.critic, passScore: o.passScore ?? d.passScore, maxIssues: o.maxIssues ?? d.maxIssues },
         );
         writeJson(join(roundDir, "review.json"), { ...report, errors });
-        Object.assign(record, { verdict: report.verdict, score: report.score, issues: report.issues.length, errors });
+        Object.assign(record, { verdict: report.verdict, score: report.score, issues: report.issues.length, kinds: report.issues.map((i) => i.kind), errors });
         o.onEvent({ type: "slide:verdict", id: slide.id, round, verdict: report.verdict, score: report.score, issues: report.issues.length, errors: errors.length });
 
         const score = attemptScore(report, errors.length);

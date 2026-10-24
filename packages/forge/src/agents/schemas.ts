@@ -150,6 +150,9 @@ export const StoryboardSlide = z.object({
     })
     .optional(),
   data: z.string().optional().describe("For data-viz, timeline, map and comparison: the actual values, units, dates, places or items"),
+  focus: z.string().optional().describe("The focal region (a rough box on the canvas) and what in it must never be covered by text, chips or controls."),
+  anchors: z.string().optional().describe('One line per callout, "callout → what it marks @ where": the point its leader ends on, or where a legend entry or readout sits.'),
+  legend: z.string().optional().describe('When colour, dash or size encodes meaning: one "token = meaning" per line.'),
   reducedMotion: z.string().describe("What the slide shows when motion is off"),
   entry: z.string().optional().describe("What is on screen at step 1, picking up where the previous slide left off (or a clean cut)."),
   exit: z.string().optional().describe("The state at the last step, set up so the next slide can pick it up."),
@@ -225,18 +228,50 @@ export function toStoryboard(o: Outline): Storyboard {
 
 // ---- critic ----
 
+/**
+ * The failure classes every issue is filed under (see prompts/visual-bar.md and eval/failure-classes.md), so runs can
+ * count them: labels, leaders and legends; steps that don't visibly change; collisions; contrast; storyboard elements
+ * missing; sparse canvas; tiny text; clipped text; a drawing that contradicts the model or data; unrecognisable or
+ * badly lit/framed objects; controls and simulations; theme misuse; generic polish; console/page/contract errors.
+ */
+export const ISSUE_KINDS = [
+  "labels",
+  "steps",
+  "overlap",
+  "contrast",
+  "storyboard",
+  "sparse",
+  "tiny-text",
+  "clipped",
+  "accuracy",
+  "form",
+  "interaction",
+  "theme",
+  "polish",
+  "error",
+] as const;
+export const IssueKind = z.enum(ISSUE_KINDS);
+export type IssueKind = z.infer<typeof IssueKind>;
+
 export const Issue = z.object({
   severity: z.enum(["high", "medium", "low"]),
+  kind: IssueKind.describe("The failure class this issue belongs to (the visual bar's kinds, plus interaction, theme, polish, error)."),
   what: z.string(),
-  where: z.string().describe("Step number and a CSS selector when you can tell it, else the region, e.g. 'step 2, #s03 .legend (bottom-left)'"),
-  fix: z.string().describe("A concrete code-level fix, with the measured or target number when there is one"),
+  where: z
+    .string()
+    .describe("The step number(s), then a CSS selector when you can tell it, else a region in 1920×1080 px, e.g. 'step 2, #s03 .legend, x 1320–1700, y 900–960'"),
+  fix: z.string().describe("A concrete code-level change with numbers (px, ratios, durations, values), never 'improve' or 'consider'"),
 });
 export type Issue = z.infer<typeof Issue>;
 
 export const CriticReport = z.object({
   verdict: z.enum(["pass", "fix"]),
-  score: z.number().min(0).max(10).describe("Polish against the reference decks: 10 = indistinguishable, 6 = decent but generic, 3 = broken."),
+  score: z
+    .number()
+    .min(0)
+    .max(10)
+    .describe("9–10 nothing above low; 7–8 storyboard complete, steps change, labels land, at most a few medium; 5–6 one high or generic; 3–4 several high; 0–2 broken."),
   summary: z.string(),
-  issues: z.array(Issue).describe("At most 5, the most important first; leave out anything that doesn't matter."),
+  issues: z.array(Issue).describe("At most 5, the most important first, each filed under its kind; leave out anything that doesn't matter."),
 });
 export type CriticReport = z.infer<typeof CriticReport>;

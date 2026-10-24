@@ -209,7 +209,7 @@ export function arcSchema(style: Style, techniqueIds: string[] = []) {
 // ---- pass 2: one card per slide ----
 
 /** Hard caps on a card's fields, generous next to the guidance in the descriptions: past them the card is sent back. */
-export const CARD_LIMITS = { titleChars: 90, calloutChars: 60, callouts: 10, notesWords: 220, conceptChars: 1000, beatChars: 300 };
+export const CARD_LIMITS = { titleChars: 90, calloutChars: 60, callouts: 10, notesWords: 220, conceptChars: 1000, beatChars: 300, focusChars: 400, anchorsChars: 1200, legendChars: 500 };
 
 /** "beat — motion" lines (also "–", "|" or "::" as the separator; a line without one has motion "none") → step objects. */
 export function parseSteps(text: string): { beat: string; motion: string }[] {
@@ -233,7 +233,22 @@ const CardVisual = Visual.omit({ explainer: true, technique: true }).extend({
       "What the viewer sees, in 2–4 sentences (about 600 characters at most): the objects, where they sit on the 1920×1080 canvas, their colours as theme tokens, what moves, in which direction and how fast.",
     ),
   why: oneSentence("Why this visual explains the point better than the alternatives"),
-  layout: z.string().describe("One or two sentences (about 250 characters): where the title, the visual, the callouts and any caption sit."),
+  layout: z
+    .string()
+    .describe("One or two sentences (about 250 characters): px regions that don't intersect for the title block, the main visual (at least half the canvas), any side column and the caption."),
+  focus: z
+    .string()
+    .describe('One sentence: the focal region as a rough box and what in it must never be covered, e.g. "x 160–1200, y 260–960: the three gates and the stream between them".'),
+  anchors: z
+    .string()
+    .optional()
+    .describe(
+      'Required when there are callouts. ONE PER LINE, "callout → what it marks @ where": the exact point its leader ends on and roughly where, e.g. "Inlet → left end of the upper pipe @ x≈420 y≈380"; legend entries and readouts say where they sit.',
+    ),
+  legend: z
+    .string()
+    .optional()
+    .describe('When colour, dash or size encodes meaning: ONE PER LINE, "token = meaning" (e.g. "accent = what flows"). Omit when colour means nothing.'),
   interaction: z.object({
     kind: StoryboardSlide.shape.interaction.shape.kind,
     description: z.string().describe("One sentence: what the viewer does and what visibly changes. Empty when kind is none."),
@@ -242,21 +257,21 @@ const CardVisual = Visual.omit({ explainer: true, technique: true }).extend({
   steps: z
     .string()
     .describe(
-      '1–6 presenter clicks, ONE PER LINE, each as "beat — motion": the beat is the on-screen state at that step as one short phrase (under about 140 characters, reachable in any order), the motion a few words, e.g. "Tokens reach the gate — tokens slide right, 0.8 s" or "All five gates lit — none".',
+      '1–6 presenter clicks, ONE PER LINE, each as "beat — motion". The beat (under about 140 characters, standing alone since any step can be shown first) says what visibly changes from the previous step and the state it leaves; every beat changes a large part of the picture (appears, moves, grows, splits, recolours, or the key number changes), never only a highlight or a label. The motion is a few words. E.g. "Second gate opens: 40 dots pass, 12 drop away, count reads 1,200 — dots fall 40px, 0.6 s".',
     )
     .transform(parseSteps),
   object3d: Object3d.optional().describe("For 3d-object slides: 4–10 parts, every field a short phrase."),
   simulation: z
     .object({
-      model: z.string().describe("State and update rules precise enough to code, in at most 4 sentences or a formula."),
-      controls: z.array(z.string()).describe('Each a short label with its range, e.g. "consumer rate 1–20 /s".'),
+      model: z.string().describe("State and update rules precise enough to code, in at most 4 sentences or a formula, with the parameter values the steps show."),
+      controls: z.array(z.string()).describe('Each a short label with its range and default, e.g. "consumer rate 1–20 /s, default 8".'),
       readouts: z.array(z.string()).describe("Each a short label with its unit."),
     })
     .optional(),
   data: z
     .string()
     .optional()
-    .describe('For data-viz, timeline, map and comparison: the actual values as a compact list ("label: value unit; …"), about 600 characters at most.'),
+    .describe('For data-viz, timeline, map and comparison: the actual values as a compact list ("label: value unit; …"), every value with its unit, about 600 characters at most.'),
   reducedMotion: oneSentence("The still frame that tells the same story"),
   entry: oneSentence("The state at step 1, picking up the previous slide's handoff (or a clean start after a cut)"),
   exit: oneSentence("The state at the last step, setting up this slide's handoff to the next slide"),
@@ -290,6 +305,10 @@ export function cardProblems(slide: { id: string; explainer: string }, card: Car
   v.steps.forEach((s, i) => {
     if (s.beat.length > L.beatChars) problems.push(`${id}: visual.steps.${i}.beat is ${s.beat.length} characters; make each beat one short phrase`);
   });
+  if (card.callouts.length && !v.anchors?.trim()) problems.push(`${id}: visual.anchors is missing; give one "callout → what it marks @ where" line per callout`);
+  if (v.focus.length > L.focusChars) problems.push(`${id}: visual.focus is ${v.focus.length} characters; one sentence naming the box and what it holds`);
+  if ((v.anchors?.length ?? 0) > L.anchorsChars) problems.push(`${id}: visual.anchors is ${v.anchors!.length} characters; one short line per callout`);
+  if ((v.legend?.length ?? 0) > L.legendChars) problems.push(`${id}: visual.legend is ${v.legend!.length} characters; one "token = meaning" line per colour`);
   return problems;
 }
 

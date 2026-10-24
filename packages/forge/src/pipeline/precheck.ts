@@ -1,6 +1,6 @@
 // The deterministic pre-check's place in the build loop: what blocks the critic, and how measured findings are
 // worded for the builder (as fix issues) and the critic (as context). Findings come from the shooter (measure.ts).
-import type { Issue } from "../agents/schemas.ts";
+import type { Issue, IssueKind } from "../agents/schemas.ts";
 import type { Finding, FindingKind, ShootResult } from "../contract.ts";
 
 /** Kinds the build loop reports: the measured ones plus the shooter's console errors and external requests. */
@@ -78,11 +78,24 @@ function suggestion(f: Finding): string {
   }
 }
 
+/** The failure class each measured finding counts under (the critic's issue kinds). */
+export const FINDING_ISSUE_KIND: Record<FindingKind, IssueKind> = {
+  "clipped-text": "clipped",
+  "off-canvas": "clipped",
+  "text-overlap": "overlap",
+  "blank-render": "error",
+  "dead-canvas": "error",
+  "tiny-text": "tiny-text",
+  "low-contrast": "contrast",
+  "dead-step": "steps",
+};
+
 /** Findings as the builder's next-round fix issues: blocking ones high, warnings medium. */
 export function precheckIssues(findings: Finding[]): Issue[] {
   const ordered = [...findings.filter((f) => f.severity === "error"), ...findings.filter((f) => f.severity === "warn")];
   return ordered.map((f) => ({
     severity: f.severity === "error" ? "high" : "medium",
+    kind: FINDING_ISSUE_KIND[f.kind],
     what: `Measured (${KIND_LABEL[f.kind]}): ${f.detail}.`,
     where: `step ${f.step + 1}, ${f.selector}`,
     fix: suggestion(f),

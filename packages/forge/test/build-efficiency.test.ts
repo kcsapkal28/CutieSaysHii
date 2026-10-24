@@ -163,7 +163,7 @@ describe("patch-style fix rounds", () => {
 });
 
 describe("escalation and the stop rule", () => {
-  const issue = (severity: Issue["severity"]): Issue => ({ severity, what: `${severity} thing`, where: "step 1, #s01 h1", fix: "Do it" });
+  const issue = (severity: Issue["severity"]): Issue => ({ severity, kind: "labels", what: `${severity} thing`, where: "step 1, #s01 h1", fix: "Do it" });
 
   it("is off by default", async () => {
     llm = fakeLlm(handlers({ review_slide: () => review("fix", 4) }));

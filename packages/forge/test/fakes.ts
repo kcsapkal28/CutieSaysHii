@@ -153,6 +153,9 @@ export const cardOut = (id = "s01", visual: Record<string, unknown> = {}) => ({
     concept: "Two waves sum to flat.",
     why: "Shows cancellation directly.",
     layout: "Wave centre, title top-left.",
+    focus: "x 160–1500, y 300–900: the two waves and their sum.",
+    anchors: "Outer mic → left end of the noise wave @ x≈200 y≈520",
+    legend: "accent = noise; accent2 = anti-noise",
     interaction: { kind: "slider", description: "Drag phase." },
     steps: "Noise wave — draw\nAnti-noise added — fade",
     simulation: { model: "sum of two sines", controls: ["phase"], readouts: ["residual dB"] },
@@ -212,5 +215,5 @@ export const review = (verdict: "pass" | "fix", score = verdict === "pass" ? 8 :
   verdict,
   score,
   summary: verdict === "pass" ? "Good." : "Needs work.",
-  issues: verdict === "pass" ? [] : [{ severity: "high", what: "Title clipped", where: "step 1, top", fix: "Reduce to 64px" }],
+  issues: verdict === "pass" ? [] : [{ severity: "high", kind: "clipped", what: "Title clipped", where: "step 1, top", fix: "Reduce to 64px" }],
 });

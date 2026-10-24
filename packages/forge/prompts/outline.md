@@ -16,7 +16,7 @@ The deck can be about anything: a technology, a scientific process, a historical
   - `point`: the one idea, as a full sentence a viewer should be able to repeat afterwards.
   - `role` and `budgetSec`.
   - `explainer` and `technique`: the primary way the slide shows its point (see below).
-  - `composition`: a short label for the layout on the 1920×1080 canvas ("hero object right, title left", "full-bleed timeline", "centred number"), so neighbours visibly differ.
+  - `composition`: a short label for the layout on the 1920×1080 canvas ("hero object right, title left", "full-bleed timeline", "centred number"), so neighbours visibly differ. In every composition the main visual takes at least half the canvas.
   - `interaction`: what the viewer can do (kind only; the writer details it).
   - `handoff`: what carries visually into the next slide (an object, a colour, a line, a number), or `cut` for a clean break. The two writers of neighbouring slides both see it, so the exit of one slide and the entry of the next line up.
   - `facts`: the ids of the research items (`[R7]`) the slide's point, words and visual draw on: the numbers, steps, dates, names and caveats its writer must use. The writer sees only these items (plus the summary), so include every fact the slide needs and leave out the rest; usually 3–8.

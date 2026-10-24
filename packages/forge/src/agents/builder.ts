@@ -7,6 +7,8 @@ import { z } from "zod";
 import type { Style } from "../contract.ts";
 import { designBrief } from "../design-styles.ts";
 import { MODELS, type ImageData, type Llm, type Part, type SystemBlock, type Thinking } from "../llm.ts";
+import { THEME_VARS } from "../theme.ts";
+import { contrastRatio, HEX } from "./contrast.ts";
 import { FORGE_DIR, loadPrompt } from "./prompts.ts";
 import { exemplarSection, loadExemplars, MAX_EXEMPLAR_CHARS, MAX_EXEMPLARS, pickExemplars, techniqueRules, type Exemplar } from "./exemplars.ts";
 import type { Issue, ScriptSlide, Storyboard, StoryboardSlide } from "./schemas.ts";
@@ -96,7 +98,7 @@ export function builderSchema(id: string, previousHtml?: string) {
       for (const message of checkSlideHtml(html, id)) fail(message, d.html === undefined ? "edits" : "html");
     })
     .transform((d) => ({
-      html: d.html ?? applyEdits(previousHtml!, d.edits!).html,
+      html: fixTokenNames(d.html ?? applyEdits(previousHtml!, d.edits!).html),
       steps: d.steps,
       summary: d.summary,
       edits: d.html === undefined ? d.edits!.length : 0,
@@ -120,6 +122,46 @@ export function builderStatic(shellTypesFile = SHELL_TYPES, shellCssFile = SHELL
   return system + techniqueRules();
 }
 
+/**
+ * Theme variable names models guess wrong (`--df-accent2` for `--df-accent-2`), mapped to the shell's. An undefined
+ * var() renders black (SVG fills) or transparent/inherited (CSS), which reviews kept reporting as contrast and
+ * missing-colour failures.
+ */
+export function fixTokenNames(html: string): string {
+  return html.replace(/--df-accent-?([123])\b/g, (_, n: string) => (n === "1" ? "--df-accent" : `--df-accent-${n}`));
+}
+
+/**
+ * The theme for the builder: each colour by its exact CSS variable with its value, its WCAG contrast on bg and
+ * surface, and (for accents) which text colour reads on it as a fill; then fonts and backdrop.
+ */
+export function themeTokens(theme: Style["theme"]): string {
+  const c = theme.colors;
+  const ratio = (a: string, b: string) => (HEX.test(a) && HEX.test(b) ? contrastRatio(a, b) : NaN);
+  const fmt = (r: number) => (Number.isNaN(r) ? "?" : `${r.toFixed(1)}:1`);
+  const keys = Object.keys(THEME_VARS.colors) as (keyof typeof c)[];
+  const lines = keys.map((k) => {
+    const head = `- ${k} → var(${THEME_VARS.colors[k]}) = ${c[k]}`;
+    if (k === "bg") return head;
+    if (k === "surface") return `${head} (panels, chips)`;
+    const onBg = ratio(c[k], c.bg);
+    let line = `${head}: ${fmt(onBg)} on bg, ${fmt(ratio(c[k], c.surface))} on surface`;
+    if (onBg < 3) line += "; never text, and shapes in it need a var(--df-text) outline";
+    else if (onBg < 4.5) line += "; text from 24px and marks only";
+    if (k.startsWith("accent")) {
+      const [best] = (["bg", "text"] as const).map((t) => ({ t, r: ratio(c[t], c[k]) })).sort((a, b) => (b.r || 0) - (a.r || 0));
+      line += `; text on an ${k} fill: var(${THEME_VARS.colors[best!.t]}) (${fmt(best!.r)})`;
+    }
+    return line;
+  });
+  return [
+    "Theme tokens. In CSS use exactly these variable names (the storyboard's accent2 is var(--df-accent-2)); any other name (--df-accent2, --accent3, --blue) is undefined and renders black or transparent. In JS: api.theme.colors.<name>.",
+    "Text under 24px needs 4.5:1 against what it sits on; larger text and meaningful lines or shapes 3:1, dimmed states included.",
+    ...lines,
+    `Fonts: ${JSON.stringify(theme.fonts)}; backdrop: ${theme.backdrop ?? "bg"}`,
+  ].join("\n");
+}
+
 /** The deck-wide brief (style, design, theme tokens, throughline): identical for every slide of this deck. */
 export function builderDeck(input: Pick<BuilderInput, "deckTitle" | "style" | "deck">): string {
   const { style, deck } = input;
@@ -131,8 +173,7 @@ export function builderDeck(input: Pick<BuilderInput, "deckTitle" | "style" | "d
     "",
     designBrief(style),
     "",
-    "Theme tokens (CSS variables --df-* in CSS; api.theme in JS):",
-    JSON.stringify(style.theme),
+    themeTokens(style.theme),
     "",
     `Deck visual throughline: ${deck.visualThroughline}`,
     `Shared motifs:\n${deck.motifs.map((m) => `- ${m}`).join("\n")}`,
@@ -189,7 +230,7 @@ export function builderUser(input: BuilderInput, mode: BuildMode = input.fix ? "
     });
   }
   if (fix) {
-    const issues = fix.issues.map((i) => `- [${i.severity}] ${i.what} (where: ${i.where}). Fix: ${i.fix}`).join("\n") || "- (none)";
+    const issues = fix.issues.map((i) => `- [${i.severity}${i.kind ? `, ${i.kind}` : ""}] ${i.what} (where: ${i.where}). Fix: ${i.fix}`).join("\n") || "- (none)";
     const errors = fix.errors.length ? fix.errors.map((e) => `- ${e}`).join("\n") : "- (none)";
     const scored =
       fix.score === undefined

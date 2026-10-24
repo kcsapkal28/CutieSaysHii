@@ -213,7 +213,7 @@ describe("build fix loop", () => {
     expect(builderCalls.map((r) => r.model)).toEqual([MODELS.sonnet, MODELS.sonnet]);
     const revision = JSON.stringify(builderCalls[1]!.messages[0]);
     expect(revision).toMatch(/This is a revision/);
-    expect(revision).toMatch(/\[high\] Title clipped \(where: step 1, top\)\. Fix: Reduce to 64px/);
+    expect(revision).toMatch(/\[high, clipped\] Title clipped \(where: step 1, top\)\. Fix: Reduce to 64px/);
     expect(builderCalls[1]!.messages[0]!.content.some((c) => c.type === "image")).toBe(true);
     expect(llm.requests.filter((r) => toolOf(r) === "review_slide").every((r) => r.model === MODELS.sonnet)).toBe(true);
 
@@ -250,7 +250,7 @@ describe("build fix loop", () => {
   it("does not escalate when the final critique has no high-severity issue", async () => {
     await upToOutline();
     llm = fakeLlm(
-      handlers({ review_slide: () => ({ ...review("fix", 6), issues: [{ severity: "medium", what: "Legend tight", where: "step 2", fix: "Add gap" }] }) }),
+      handlers({ review_slide: () => ({ ...review("fix", 6), issues: [{ severity: "medium", kind: "labels", what: "Legend tight", where: "step 2", fix: "Add gap" }] }) }),
     );
     const summary = await runStage(project, "build", { ...opts(), maxRounds: 2 });
     expect(summary!.slides.map((s) => s.rounds.length)).toEqual([2, 2]);
@@ -268,7 +268,7 @@ describe("build fix loop", () => {
     expect(summary!.slides[0]).toMatchObject({ verdict: "pass", bestRound: 2 });
     const second = llm.requests.filter((r) => toolOf(r) === "write_slide" && slideOf(r) === "s01")[1]!;
     const texts = second.messages[0]!.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
-    expect(texts).toContain('- [high] s01: selector ".x" must start with "#s01" (where: slide source)');
+    expect(texts).toContain('- [high, error] s01: selector ".x" must start with "#s01" (where: slide source)');
   });
 
   it("sends the critic at most 3 steps (first and last included), and the builder and critic run without thinking", async () => {
@@ -340,11 +340,11 @@ describe("deterministic pre-check in the build loop", () => {
 
     const fixText = texts(builderCalls()[1]!);
     expect(fixText).toContain("This is a revision");
-    expect(fixText).toContain("- [high] Measured (text clipped): text \"Every request is checked\" is cut off by its container #s01 > div.card");
+    expect(fixText).toContain("- [high, clipped] Measured (text clipped): text \"Every request is checked\" is cut off by its container #s01 > div.card");
     expect(fixText).toContain("46px past the container's bottom edge (container is 620×130px)");
     expect(fixText).toContain("(where: step 2, #s01 > div.card > p)");
     expect(fixText).toMatch(/Fix: Make #s01 > div\.card taller than 130px/);
-    expect(fixText).toContain("- [medium] Measured (tiny text): text \"Source: survey\" renders at 12px");
+    expect(fixText).toContain("- [medium, tiny-text] Measured (tiny text): text \"Source: survey\" renders at 12px");
     expect(builderCalls()[1]!.messages[0]!.content.some((c) => c.type === "image")).toBe(true);
 
     expect(events).toContainEqual({ type: "slide:precheck", id: "s01", round: 1, errors: 1, warnings: 1, kinds: ["clipped-text"] });

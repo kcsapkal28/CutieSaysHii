@@ -6,12 +6,11 @@ import { Style, type Engine } from "../contract.ts";
 import { createProxyLlm, type Llm } from "../llm.ts";
 import type { Exemplar } from "../agents/builder.ts";
 import { runResearcher, type WebSearch } from "../agents/researcher.ts";
-import { Brief, Outline, Script, Storyboard } from "../agents/schemas.ts";
-import { runOutline, runScript } from "../agents/scriptwriter.ts";
-import { runStoryboarder } from "../agents/storyboarder.ts";
+import { runOutline } from "../agents/outliner.ts";
+import { Brief, Outline, toScript, toStoryboard } from "../agents/schemas.ts";
 import { runStylist } from "../agents/stylist.ts";
 import { runBuild, type BuildOptions, type BuildSummary } from "./build.ts";
-import { DEFAULT_MODELS, type AgentName } from "./config.ts";
+import { DEFAULT_MODELS, OUTLINE_DEFAULTS, type AgentName } from "./config.ts";
 import { meteredLlm, type OnEvent } from "./events.ts";
 import { invalidateAfter, isStageDone, readJson, STAGES, writeJson, type Project, type Stage } from "./project.ts";
 import { createSharedEngine, type ClosableEngine } from "./shared-engine.ts";
@@ -28,6 +27,8 @@ export type PipelineOptions = {
   concurrency?: number;
   maxRounds?: number;
   escalate?: boolean;
+  /** Outline: slide cards written at once (default in config.ts). */
+  outlineConcurrency?: number;
   /** Builder thinking on draft and fix rounds (default "off", see config.ts). */
   builderThinking?: "off" | "model";
   /** Web search for the researcher (milestone 3). */
@@ -52,8 +53,9 @@ export const loadBrief = (p: Project) => readJson(file(p, "brief.json"), (v) => 
 export const loadStyle = (p: Project) => readJson(file(p, "style.json"), (v) => Style.parse(v));
 export const loadResearch = (p: Project) => readFileSync(file(p, "research.md"), "utf8");
 export const loadOutline = (p: Project) => readJson(file(p, "outline.json"), (v) => Outline.parse(v));
-export const loadScript = (p: Project) => readJson(file(p, "script.json"), (v) => Script.parse(v));
-export const loadStoryboard = (p: Project) => readJson(file(p, "storyboard.json"), (v) => Storyboard.parse(v));
+/** The builder's per-slide words and visuals, derived from outline.json. */
+export const loadScript = (p: Project) => toScript(loadOutline(p));
+export const loadStoryboard = (p: Project) => toStoryboard(loadOutline(p));
 
 /** Build options from pipeline options (engine and llm already resolved). */
 export function buildOptions(o: PipelineOptions, llm: Llm, engine: Engine, onEvent: OnEvent): BuildOptions {
@@ -121,23 +123,23 @@ async function execute(p: Project, stage: Stage, o: PipelineOptions, llm: Llm, o
       writeJson(file(p, "research.json"), research);
       return;
     }
-    case "outline":
-      writeJson(file(p, "outline.json"), await runOutline(llm, brief, loadResearch(p), model(o, "outline")));
-      return;
-    case "script":
-      writeJson(
-        file(p, "script.json"),
-        await runScript(llm, { brief, style: loadStyle(p), outline: loadOutline(p), researchMd: loadResearch(p) }, model(o, "script")),
+    case "outline": {
+      const outline = await runOutline(
+        llm,
+        { brief, style: loadStyle(p), researchMd: loadResearch(p) },
+        {
+          ...model(o, "outline"),
+          concurrency: o.outlineConcurrency ?? OUTLINE_DEFAULTS.concurrency,
+          onArc: (arc) => onEvent({ type: "outline:arc", ...arc }),
+          onCard: (card) => onEvent({ type: "outline:card", ...card }),
+        },
       );
+      writeJson(file(p, "outline.json"), outline);
       return;
-    case "storyboard":
-      writeJson(
-        file(p, "storyboard.json"),
-        await runStoryboarder(llm, { brief, style: loadStyle(p), script: loadScript(p), researchMd: loadResearch(p) }, model(o, "storyboarder")),
-      );
-      return;
+    }
     case "build": {
-      const inputs = { style: loadStyle(p), outline: loadOutline(p), script: loadScript(p), storyboard: loadStoryboard(p) };
+      const outline = loadOutline(p);
+      const inputs = { style: loadStyle(p), outline, script: toScript(outline), storyboard: toStoryboard(outline) };
       return withEngine(o.engine, (engine) => runBuild(p, inputs, buildOptions(o, llm, engine, onEvent)));
     }
   }
@@ -145,7 +147,7 @@ async function execute(p: Project, stage: Stage, o: PipelineOptions, llm: Llm, o
 
 /**
  * Saves a user-edited stage file (Studio edits) and invalidates every later stage.
- * `data` is the parsed JSON for style/outline/script/storyboard, or the markdown string for research.
+ * `data` is the parsed JSON for style/outline, or the markdown string for research.
  */
 export function saveStageFile(project: Project, stage: Exclude<Stage, "build">, data: unknown): { invalidated: Stage[] } {
   switch (stage) {
@@ -159,12 +161,6 @@ export function saveStageFile(project: Project, stage: Exclude<Stage, "build">, 
       break;
     case "outline":
       writeJson(file(project, "outline.json"), Outline.parse(data));
-      break;
-    case "script":
-      writeJson(file(project, "script.json"), Script.parse(data));
-      break;
-    case "storyboard":
-      writeJson(file(project, "storyboard.json"), Storyboard.parse(data));
       break;
     default:
       throw new StageError(`${String(stage)} can't be saved directly; use reviseSlide for slide changes`);

@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
-const PORT = 3217;
+// E2E_PORT lets two checkouts run the smoke test at once.
+const PORT = Number(process.env.E2E_PORT ?? 3217);
 
 export default defineConfig({
   testDir: "e2e",

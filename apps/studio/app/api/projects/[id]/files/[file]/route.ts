@@ -4,7 +4,7 @@ import type { StageFileName } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const FILES: StageFileName[] = ["brief.json", "style.json", "research.md", "outline.json", "script.json", "storyboard.json"];
+const FILES: StageFileName[] = ["brief.json", "style.json", "research.md", "outline.json"];
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string; file: string }> }) {
   try {

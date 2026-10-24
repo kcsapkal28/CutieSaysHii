@@ -72,6 +72,10 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
           },
         ];
       }
+      case "outline:arc":
+        return [{ type: "progress", stage: context, message: `Arc planned: ${e.slides.length} slide${e.slides.length === 1 ? "" : "s"} in ${e.sections} section${e.sections === 1 ? "" : "s"} · writing the cards`, at: now() }];
+      case "outline:card":
+        return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id} card written: “${e.title}” (${e.done}/${e.total})`, at: now() }];
       case "slide:round": {
         const out: PipelineEvent[] = [];
         if (!started.has(e.id)) {

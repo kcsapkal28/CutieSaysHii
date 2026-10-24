@@ -65,7 +65,7 @@ export default async function Home() {
       <main className="mx-auto max-w-[1200px] px-8 pb-24 pt-14">
         <h1 className="font-display text-[40px] font-normal leading-[1.05] tracking-[-0.02em]">Decks</h1>
         <p className="mt-3 max-w-[60ch] text-[14px] text-sub">
-          Each deck ends as one self-contained HTML file: agents research, script and storyboard it with you, then build every slide and check it in a real browser.
+          Each deck ends as one self-contained HTML file: agents research and outline it with you, then build every slide and check it in a real browser.
         </p>
 
         {projects.length === 0 ? (

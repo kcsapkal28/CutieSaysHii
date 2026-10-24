@@ -1,5 +1,5 @@
 // Fake but realistic stage outputs for an "Inside ANC earbuds" deck.
-import type { Brief, Outline, Script, Storyboard } from "../types";
+import type { Brief, Outline, OutlineSlide, Visual } from "../types";
 
 export const ANC_BRIEF: Brief = {
   topic: "How active noise cancellation works in wireless earbuds",
@@ -42,7 +42,7 @@ Active noise cancellation (ANC) plays a sound wave that is the inverse of incomi
 6. Liebich et al., *Ear-tip seal and ANC performance*, JAES, 2019.
 `;
 
-export const ANC_OUTLINE: Outline = {
+const PLAN: { title: string; sections: { name: string; slides: { id: string; title: string; point: string }[] }[] } = {
   title: "Inside ANC",
   sections: [
     {
@@ -76,7 +76,7 @@ export const ANC_OUTLINE: Outline = {
   ],
 };
 
-export const ANC_SCRIPT: Script = {
+const WORDS: { slides: { id: string; title: string; keyMessage: string; narration: string; budgetSec: number }[] } = {
   slides: [
     { id: "s01", title: "Inside ANC", keyMessage: "ANC makes sound to remove sound.", narration: "A wireless noise-cancelling earbud. Let's look inside to see how signal processing makes it quieter.", budgetSec: 60 },
     { id: "s02", title: "Sound is a pressure wave", keyMessage: "Noise is pressure going up and down; an inverted wave cancels it.", narration: "Sound is just air pressure rising and falling. If we add a second wave that falls exactly when the first one rises, the two sum to nothing.", budgetSec: 100 },
@@ -91,7 +91,7 @@ export const ANC_SCRIPT: Script = {
   ],
 };
 
-export const ANC_STORYBOARD: Storyboard = {
+const BOARD: { slides: { id: string; layout: string; visual: string; interaction: string; motionBeats: string[]; object3d?: string }[] } = {
   slides: [
     { id: "s01", layout: "Title left, hero object right, caption bottom centre", visual: "3d-object", interaction: "Slow idle rotation of the earbud", motionBeats: ["Title fades up", "Earbud rotates into three-quarter view"], object3d: "Earbud: ellipsoid head, capsule stem, translucent ear tip, metal nozzle" },
     { id: "s02", layout: "Full-width canvas with headline above", visual: "simulation", interaction: "None; animated longitudinal wave", motionBeats: ["Particles compress and spread", "Pressure curve traces underneath"] },
@@ -104,6 +104,73 @@ export const ANC_STORYBOARD: Storyboard = {
     { id: "s09", layout: "Mode toggle above a two-mic diagram", visual: "diagram", interaction: "Toggle ANC / Transparency / Off", motionBeats: ["Mic paths light per mode"] },
     { id: "s10", layout: "Attenuation chart with three curves", visual: "chart", interaction: "Step adds the combined curve", motionBeats: ["Passive curve", "Active curve", "Combined"] },
   ],
+};
+
+const EXPLAINER: Record<string, Visual["explainer"]> = { diagram: "animated-diagram", chart: "data-viz" };
+const TECHNIQUE: Record<string, string> = {
+  "3d-object": "exploded-3d, annotated-labels",
+  simulation: "parametric-sim",
+  "animated-diagram": "particle-flow",
+  "data-viz": "data-story",
+  comparison: "comparison",
+};
+const INTERACTION: Record<string, Visual["interaction"]["kind"]> = { s04: "click", s07: "slider", s09: "toggle" };
+
+function visualOf(b: (typeof BOARD.slides)[number], i: number): Visual {
+  const explainer = EXPLAINER[b.visual] ?? (b.visual as Visual["explainer"]);
+  const [name, parts] = (b.object3d ?? "").split(":");
+  const kind = INTERACTION[b.id] ?? "none";
+  return {
+    concept: b.layout,
+    explainer,
+    technique: TECHNIQUE[explainer] ?? "annotated-labels",
+    why: "Shows the point happening instead of describing it.",
+    layout: b.layout,
+    interaction: { kind, description: kind === "none" ? "" : b.interaction },
+    steps: b.motionBeats.map((beat) => ({ beat, motion: "ease in" })),
+    ...(b.object3d
+      ? {
+          object3d: {
+            name: name!.trim(),
+            parts: parts!.split(",").map((p) => ({ name: p.trim().toLowerCase().replace(/\W+/g, "-"), label: p.trim(), geometry: "Lathe and capsule primitives", material: "glossy white plastic", color: "#f4f4f6", placement: "Stacked along the stem; spreads along x when exploded" })),
+            camera: "Three-quarter view, 35mm",
+            lighting: "Key, rim and soft ambient with a contact shadow",
+            states: ["assembled", "exploded"],
+          },
+        }
+      : {}),
+    ...(explainer === "simulation" ? { simulation: { model: "Sum of noise and phase-shifted anti-noise sines", controls: ["phase error"], readouts: ["residual dB"] } } : {}),
+    reducedMotion: `Final state: ${b.motionBeats.at(-1)}`,
+    entry: i === 0 ? "Clean start on the deck title" : "Picks up the previous slide's earbud and colour code",
+    exit: b.motionBeats.at(-1) ?? "",
+  };
+}
+
+/** The unified outline.json: the plan, the words and the visual per slide. */
+export const ANC_OUTLINE: Outline = {
+  title: PLAN.title,
+  subtitle: "How a 5-gram bud makes sound to remove sound",
+  throughline: "Noise is a pressure wave, and an inverted copy cancels it. Doing that inside 20 µs takes two microphones, a dedicated DSP and a good seal.",
+  totalSec: 1200,
+  visualThroughline: "One white earbud, with cyan for noise and violet for anti-noise on every slide.",
+  motifs: ["cyan noise particles", "violet anti-noise", "mono part numbers on leader lines"],
+  sections: PLAN.sections.map((sec) => ({
+    name: sec.name,
+    slides: sec.slides.map((p): OutlineSlide => {
+      const i = WORDS.slides.findIndex((w) => w.id === p.id);
+      const w = WORDS.slides[i]!;
+      return {
+        id: p.id,
+        title: w.title,
+        point: p.point,
+        role: i === 0 ? "opener" : i === WORDS.slides.length - 1 ? "closer" : "mechanism",
+        callouts: [],
+        notes: w.narration,
+        budgetSec: w.budgetSec,
+        visual: visualOf(BOARD.slides[i]!, i),
+      };
+    }),
+  })),
 };
 
 /** What the critic "finds" per slide in the mock build: one array per round that failed. */
@@ -131,12 +198,13 @@ export const RESEARCH_LOG = [
   "Searching: ear tip seal ANC attenuation dB",
   "Writing research.md with 6 sources",
 ];
-export const OUTLINE_LOG = ["Grouping facts into a narrative arc", "Budgeting 10 slides for 20 minutes", "Drafting section titles", "Checking every slide makes one point"];
-export const SCRIPT_LOG = ["Writing narration for s01–s04", "Writing narration for s05–s08", "Writing narration for s09–s10", "Balancing time budgets to 20:00"];
-export const STORYBOARD_LOG = [
-  "Choosing a visual for each key message",
-  "s01, s04: specifying procedural earbud parts",
-  "s07: designing the phase-error simulation",
-  "Planning motion beats per step",
-  "Checking interactivity level against the style",
+
+/** The outline run: the arc pass, then one line per card (slide id first, so the activity panel badges it). */
+export const OUTLINE_LOG: { message: string; slideId?: string }[] = [
+  { message: "Planning the arc: sections, one point per slide, time budgets" },
+  { message: "Choosing an explainer and a composition per slide so neighbours differ" },
+  { message: "Arc planned: 10 slides in 4 sections · writing the cards" },
+  ...ANC_OUTLINE.sections
+    .flatMap((s) => s.slides)
+    .map((s, i) => ({ slideId: s.id, message: `${s.id} card written: “${s.title}” (${i + 1}/10)` })),
 ];

@@ -15,27 +15,18 @@ import {
   type ProjectSummary,
   type ResearchRefineRequest,
   type ResearchRefineResult,
-  type Script,
   type SlideBuildState,
   type StageFileName,
   type StageName,
   type StageState,
   type Usage,
   type VersionInfo,
+  outlineSlides,
 } from "../types";
-import {
-  ANC_BRIEF,
-  ANC_CRITIC,
-  ANC_OUTLINE,
-  ANC_RESEARCH,
-  ANC_SCRIPT,
-  ANC_STORYBOARD,
-  OUTLINE_LOG,
-  RESEARCH_LOG,
-  SCRIPT_LOG,
-  STORYBOARD_LOG,
-} from "./anc";
+import { ANC_BRIEF, ANC_CRITIC, ANC_OUTLINE, ANC_RESEARCH, OUTLINE_LOG, RESEARCH_LOG } from "./anc";
 import { MOCK_SLIDE_IDS, slideSource, type SlideOpts } from "./slides";
+
+const ANC_SLIDES = outlineSlides(ANC_OUTLINE);
 
 interface MockVersion {
   info: VersionInfo;
@@ -114,21 +105,17 @@ function seed(): Map<string, MockProject> {
     updatedAt: hoursAgo(0.4),
     stageState: {
       research: done(29, { inputTokens: 48_200, outputTokens: 6_100, costUsd: 0.24 }, RESEARCH_LOG),
-      outline: done(28.5, { inputTokens: 12_400, outputTokens: 2_300, costUsd: 0.07 }, OUTLINE_LOG),
-      script: done(28, { inputTokens: 15_800, outputTokens: 5_400, costUsd: 0.13 }, SCRIPT_LOG),
-      storyboard: done(27, { inputTokens: 31_000, outputTokens: 9_800, costUsd: 1.2 }, STORYBOARD_LOG),
-      build: done(26, { inputTokens: 612_000, outputTokens: 188_000, costUsd: 23.4 }, ANC_SCRIPT.slides.map((s) => `${s.id} passed after ${(ANC_CRITIC[s.id]?.length ?? 0) + 1} round(s)`)),
+      outline: done(27, { inputTokens: 59_200, outputTokens: 17_500, costUsd: 1.4 }, OUTLINE_LOG.map((l) => l.message)),
+      build: done(26, { inputTokens: 612_000, outputTokens: 188_000, costUsd: 23.4 }, ANC_SLIDES.map((s) => `${s.id} passed after ${(ANC_CRITIC[s.id]?.length ?? 0) + 1} round(s)`)),
     },
     files: {
       "brief.json": json(ANC_BRIEF),
       "style.json": json(cinematic),
       "research.md": ANC_RESEARCH,
       "outline.json": json(ANC_OUTLINE),
-      "script.json": json(ANC_SCRIPT),
-      "storyboard.json": json(ANC_STORYBOARD),
     },
     build: {
-      slides: ANC_SCRIPT.slides.map((s) => {
+      slides: ANC_SLIDES.map((s) => {
         const fails = ANC_CRITIC[s.id] ?? [];
         return {
           id: s.id,
@@ -231,7 +218,7 @@ function parseStyle(p: MockProject): Style | null {
 
 function summary(p: MockProject): ProjectSummary {
   const latest = p.versions.at(-1);
-  const slideCount = safeJson<Script>(p.files["script.json"])?.slides.length ?? 0;
+  const slideCount = outlineSlides(safeJson<Outline>(p.files["outline.json"])).length;
   return {
     id: p.id,
     title: p.title,
@@ -260,14 +247,10 @@ function need(id: string): MockProject {
 const STAGE_OUTPUT: Record<Exclude<StageName, "build">, () => string> = {
   research: () => ANC_RESEARCH,
   outline: () => json(ANC_OUTLINE),
-  script: () => json(ANC_SCRIPT),
-  storyboard: () => json(ANC_STORYBOARD),
 };
-const STAGE_LOG: Record<Exclude<StageName, "build">, string[]> = {
-  research: RESEARCH_LOG,
+const STAGE_LOG: Record<Exclude<StageName, "build">, { message: string; slideId?: string }[]> = {
+  research: RESEARCH_LOG.map((message) => ({ message })),
   outline: OUTLINE_LOG,
-  script: SCRIPT_LOG,
-  storyboard: STORYBOARD_LOG,
 };
 
 function reviseOpts(prev: Partial<SlideOpts>, instruction: string): Partial<SlideOpts> {
@@ -430,10 +413,11 @@ export class MockBackend implements StudioBackend {
       if (stage !== "build") {
         const lines = STAGE_LOG[stage];
         const output = STAGE_OUTPUT[stage]();
-        const isOpus = stage === "storyboard";
+        const isOpus = stage === "outline";
         for (let i = 0; i < lines.length; i++) {
-          await sleep(stage === "research" ? 750 : 650, sig);
-          yield log(lines[i]!);
+          // Outline cards are written concurrently, so they land faster than the arc lines.
+          await sleep(stage === "research" ? 750 : lines[i]!.slideId ? 260 : 650, sig);
+          yield log(lines[i]!.message, lines[i]!.slideId);
           yield use(isOpus ? SLIDE_MODEL : TEXT_MODEL, 4200 + i * 900, 600 + i * 140, isOpus ? [15, 75] : [3, 15]);
           if (stage === "research" && i >= 3) {
             const cut = Math.floor((output.length * (i - 2)) / (lines.length - 3));
@@ -471,7 +455,7 @@ export class MockBackend implements StudioBackend {
     use: (model: string, i: number, o: number, perM: [number, number]) => PipelineEvent,
     sig?: AbortSignal,
   ): AsyncGenerator<PipelineEvent> {
-    const script = ANC_SCRIPT.slides.filter((s) => MOCK_SLIDE_IDS.includes(s.id));
+    const script = ANC_SLIDES.filter((s) => MOCK_SLIDE_IDS.includes(s.id));
     p.build = { slides: script.map((s) => ({ id: s.id, title: s.title, status: "queued", rounds: 0, issues: [] })) };
     yield log(`Building ${script.length} slides with ${SLIDE_MODEL}`);
     for (const s of p.build.slides) {
@@ -587,7 +571,7 @@ export class MockBackend implements StudioBackend {
       const config: DeckConfig = {
         title: p.title,
         style: v.style,
-        slides: ANC_SCRIPT.slides.map((s) => ({ id: s.id, title: s.title, section: sectionOf(s.id), budgetSec: s.budgetSec })),
+        slides: ANC_SLIDES.map((s) => ({ id: s.id, title: s.title, section: sectionOf(s.id), budgetSec: s.budgetSec })),
       };
       const slides = Object.fromEntries(MOCK_SLIDE_IDS.map((sid) => [sid, slideSource(sid, v.opts[sid])]));
       hit = engine().then((e) => e.bundleHtml({ config, slides }));

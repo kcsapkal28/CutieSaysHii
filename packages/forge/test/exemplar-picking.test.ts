@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { catalogueText, exemplarSection, loadCatalogue, loadExemplars, pickExemplars, type Exemplar } from "../src/agents/exemplars.ts";
-import { catalogueIds, storyboardProblems } from "../src/agents/storyboarder.ts";
+import { ArcDraft, arcProblems, arcSlides, catalogueIds } from "../src/agents/outliner.ts";
 import { Style } from "../src/contract.ts";
-import { Storyboard } from "../src/agents/schemas.ts";
-import { storyboardOut, styleOut } from "./fakes.ts";
+import { arcOut, styleOut } from "./fakes.ts";
 
 const ex = (id: string, techniques: string[], deck: string, theme = deck, domain = deck): Exemplar => ({
   id,
@@ -51,11 +50,11 @@ describe("exemplar selection by technique", () => {
     expect(section).toMatch(/Do not copy their subject, wording, palette, layout or composition/);
   });
 
-  it("the storyboard must use catalogue technique ids", () => {
+  it("the outline's arc must use catalogue technique ids, vary explainers and compositions, and respect the style", () => {
     const ids = catalogueIds();
     expect(ids).toContain("map-geo");
-    const sb = storyboardOut(["s01", "s02"]);
-    sb.slides[0]!.technique = "made-up-technique";
+    const arc = ArcDraft.parse(arcOut());
+    arc.sections[0]!.slides[0]!.technique = "made-up-technique";
     const style = Style.parse({
       look: "x",
       theme: { colors: styleOut().colors, fonts: styleOut().fonts },
@@ -65,8 +64,24 @@ describe("exemplar selection by technique", () => {
       density: "balanced",
       features: {},
     });
-    expect(storyboardProblems(Storyboard.parse(sb), ["s01", "s02"], style, ids).join("\n")).toMatch(/unknown technique id\(s\) made-up-technique/);
-    for (const s of sb.slides) s.technique = "parametric-sim, annotated-labels";
-    expect(storyboardProblems(Storyboard.parse(sb), ["s01", "s02"], style, ids)).toEqual([]);
+    expect(arcProblems(arcSlides(arc), style, ids).join("\n")).toMatch(/s01: unknown technique id\(s\) made-up-technique/);
+    arc.sections[0]!.slides[0]!.technique = "parametric-sim, annotated-labels";
+    expect(arcProblems(arcSlides(arc), style, ids)).toEqual([]);
+
+    // Neighbours sharing a composition, and too many interactive kinds for a light deck.
+    arc.sections[1]!.slides[0]!.composition = " Hero right,  title left ";
+    expect(arcProblems(arcSlides(arc), { ...style, interactivity: 1 }, ids)).toEqual([
+      "s02: interactivity is 1 (light); use click, hover or toggle, not slider",
+      's01 and s02 share the composition " Hero right,  title left "; vary the layout',
+    ]);
+  });
+
+  it("the arc varies explainers across a longer deck", () => {
+    const style = Style.parse({ look: "x", theme: { colors: styleOut().colors, fonts: styleOut().fonts }, motion: "rich", use3d: true, interactivity: 2, density: "balanced", features: {} });
+    const slide = (explainer: string, i: number) => ({ ...arcOut().sections[0]!.slides[0]!, explainer, composition: `layout ${i}` });
+    const arc = ArcDraft.parse({ ...arcOut(), sections: [{ name: "A", slides: ["timeline", "timeline", "timeline", "map", "map"].map(slide) }, arcOut().sections[1]] });
+    const problems = arcProblems(arcSlides(arc), style);
+    expect(problems).toContain("s01–s03: three timeline slides in a row; vary the explainer");
+    expect(problems).toHaveLength(1);
   });
 });

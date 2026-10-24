@@ -6,12 +6,13 @@
 // loadProject reports its live state so the UI can poll it.
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import type { ForgeEvent, Outline as FOutline, Script as FScript, Storyboard as FStoryboard } from "@deckforge/forge/pipeline";
+import type { ForgeEvent } from "@deckforge/forge/pipeline";
 import type { Style } from "@deckforge/forge";
 import { NotFound, type DeckRef, type RunOptions, type StudioBackend } from "../backend";
 import type { PipelineEvent } from "../events";
 import { createForgeEventAdapter, studioUsage } from "../pipeline-adapter";
 import {
+  outlineSlides,
   STAGES,
   type Brief,
   type Outline,
@@ -19,25 +20,17 @@ import {
   type ProjectSummary,
   type ResearchRefineRequest,
   type ResearchRefineResult,
-  type Script,
   type SlideBuildState,
   type StageFileName,
   type StageName,
   type StageState,
-  type Storyboard,
   type Usage,
   type VersionInfo,
 } from "../types";
 import { engine, pipeline } from "./engine";
-import { mergeOutline, mergeScript, mergeStoryboard, outlineView, scriptView, storyboardView } from "./file-views";
+import { upgradeStudioState, type StageRecord } from "./legacy";
 import { activeRun, startRun, subscribe } from "./runs";
 
-interface StageRecord {
-  log: { at: string; message: string }[];
-  usage: Usage;
-  error?: string;
-  updatedAt: string | null;
-}
 interface StudioState {
   approvals: Partial<Record<StageName, string>>;
   stages: Partial<Record<StageName, StageRecord>>;
@@ -50,9 +43,15 @@ interface Live {
   slides?: SlideBuildState[];
 }
 
-const g = globalThis as unknown as { __studioLive?: Map<string, Live>; __studioDraft?: Map<string, { key: string; html: Promise<string> }> };
+const g = globalThis as unknown as {
+  __studioLive?: Map<string, Live>;
+  __studioDraft?: Map<string, { key: string; html: Promise<string> }>;
+  __studioMigrated?: Set<string>;
+};
 const live = (g.__studioLive ??= new Map());
 const draftCache = (g.__studioDraft ??= new Map());
+/** Project dirs already checked for the old three-file outline (see the engine's pipeline/migrate.ts). */
+const migrated = (g.__studioMigrated ??= new Set());
 
 const now = () => new Date().toISOString();
 const zero = (): Usage => ({ inputTokens: 0, outputTokens: 0, costUsd: 0 });
@@ -139,8 +138,24 @@ export class RealBackend implements StudioBackend {
     const dir = this.dir(id);
     return { dir, slug: id };
   }
+  /** The project dir, after upgrading an old project's files (once per process) to the merged Outline stage. */
+  private async ready(id: string): Promise<string> {
+    const dir = this.dir(id);
+    if (!migrated.has(dir)) {
+      (await pipeline()).migrateProject({ dir });
+      migrated.add(dir);
+    }
+    return dir;
+  }
   private state(dir: string): StudioState {
-    return readJson<StudioState>(join(dir, "studio.json")) ?? { approvals: {}, stages: {} };
+    const st = readJson<StudioState>(join(dir, "studio.json")) ?? { approvals: {}, stages: {} };
+    const upgraded = upgradeStudioState(st);
+    if (!upgraded) return st;
+    this.saveState(dir, upgraded);
+    return upgraded;
+  }
+  private outline(dir: string): Outline | null {
+    return readJson<Outline>(join(dir, "outline.json"));
   }
   private saveState(dir: string, s: StudioState): void {
     writeFileSync(join(dir, "studio.json"), json(s));
@@ -154,8 +169,7 @@ export class RealBackend implements StudioBackend {
       .sort((a, b) => a - b);
   }
   private titles(dir: string): Record<string, string> {
-    const s = readJson<FScript>(join(dir, "script.json"));
-    return Object.fromEntries((s?.slides ?? []).map((x) => [x.id, x.title]));
+    return Object.fromEntries(outlineSlides(this.outline(dir)).map((x) => [x.id, x.title]));
   }
 
   private studioBrief(dir: string): Brief {
@@ -171,8 +185,6 @@ export class RealBackend implements StudioBackend {
     const done: Record<StageName, boolean> = {
       research: has("research.md"),
       outline: has("outline.json"),
-      script: has("script.json"),
-      storyboard: has("storyboard.json"),
       build: has("build.json"),
     };
     const status = (s: StageName): StageState["status"] => {
@@ -187,21 +199,22 @@ export class RealBackend implements StudioBackend {
         return [s, { status: status(s), updatedAt: r?.updatedAt ?? null, usage: r?.usage ?? zero(), log: r?.log ?? [], ...(r?.error ? { error: r.error } : {}) }];
       }),
     ) as Record<StageName, StageState>;
+    if (!done.outline && !l && has("legacy/outline.json")) {
+      // An old project whose outline couldn't be upgraded (see migrate.ts): say why the stage needs a run.
+      const o = stageState.outline;
+      o.log = [...o.log, { at: o.updatedAt ?? now(), message: "An outline in the older format is kept in legacy/. Run the outline to plan this deck in the current format." }];
+    }
 
-    const outline = readJson<FOutline>(join(dir, "outline.json"));
-    const script = readJson<FScript>(join(dir, "script.json"));
-    const board = readJson<FStoryboard>(join(dir, "storyboard.json"));
+    const outline = this.outline(dir);
     const brief = this.studioBrief(dir);
     const files: Project["files"] = { "brief.json": json(brief) };
     if (has("style.json")) files["style.json"] = readFileSync(join(dir, "style.json"), "utf8");
     if (has("research.md")) files["research.md"] = readFileSync(join(dir, "research.md"), "utf8");
-    if (outline) files["outline.json"] = json(outlineView(outline));
-    if (script) files["script.json"] = json(scriptView(script, outline));
-    if (board) files["storyboard.json"] = json(storyboardView(board));
+    if (outline) files["outline.json"] = json(outline);
 
     let slides: SlideBuildState[] | null = l?.slides ?? st.build?.slides ?? null;
-    if (slides && script) {
-      // Keep titles current and drop slides that are no longer in the script.
+    if (slides && outline) {
+      // Keep titles current and drop slides that are no longer in the outline.
       const t = this.titles(dir);
       slides = slides.filter((s) => t[s.id]).map((s) => ({ ...s, title: t[s.id]! }));
     }
@@ -217,7 +230,7 @@ export class RealBackend implements StudioBackend {
       hasStyle: has("style.json"),
       latestVersion: versions.at(-1) ?? null,
       style: readJson<Style>(join(dir, "style.json")),
-      slideCount: script?.slides.length ?? 0,
+      slideCount: outlineSlides(outline).length,
       brief,
       stageState,
       files,
@@ -241,7 +254,7 @@ export class RealBackend implements StudioBackend {
     for (const id of readdirSync(d)) {
       if (!ID.test(id) || !existsSync(join(d, id, "brief.json"))) continue;
       try {
-        const { brief: _b, stageState: _s, files: _f, build: _x, ...summary } = this.snapshot(id, join(d, id));
+        const { brief: _b, stageState: _s, files: _f, build: _x, ...summary } = this.snapshot(id, await this.ready(id));
         out.push(summary);
       } catch {
         /* skip unreadable projects */
@@ -252,7 +265,7 @@ export class RealBackend implements StudioBackend {
 
   async loadProject(id: string): Promise<Project | null> {
     try {
-      return this.snapshot(id, this.dir(id));
+      return this.snapshot(id, await this.ready(id));
     } catch (e) {
       if (e instanceof NotFound) return null;
       throw e;
@@ -260,7 +273,7 @@ export class RealBackend implements StudioBackend {
   }
 
   async approveStage(id: string, stage: StageName): Promise<Project> {
-    const dir = this.dir(id);
+    const dir = await this.ready(id);
     const p = this.snapshot(id, dir);
     const s = p.stageState[stage].status;
     if (s !== "review" && s !== "approved") throw new Error(`${stage} has no output to approve yet`);
@@ -271,8 +284,8 @@ export class RealBackend implements StudioBackend {
   }
 
   async saveStageFile(id: string, file: StageFileName, content: string): Promise<Project> {
-    const project = this.fp(id);
-    const { dir } = project;
+    const dir = await this.ready(id);
+    const project = { dir, slug: id };
     if (activeRun(id)) throw new Error("Wait for the current run to finish before editing.");
     const f = await pipeline();
     const read = <T>(name: string) => readJson<T>(join(dir, name));
@@ -310,24 +323,11 @@ export class RealBackend implements StudioBackend {
         if (content !== (existsSync(join(dir, "research.md")) ? readFileSync(join(dir, "research.md"), "utf8") : null)) save("research", content);
         break;
       case "outline.json": {
-        const o = read<FOutline>("outline.json");
+        // The editor works on the file's own shape; the pipeline validates it on save.
+        const o = this.outline(dir);
         if (!o) throw new Error("Run the outline first.");
-        const next = mergeOutline(o, JSON.parse(content) as Outline);
+        const next = JSON.parse(content) as Outline;
         if (!same(o, next)) save("outline", next);
-        break;
-      }
-      case "script.json": {
-        const s = read<FScript>("script.json");
-        if (!s) throw new Error("Run the script first.");
-        const next = mergeScript(s, read<FOutline>("outline.json"), JSON.parse(content) as Script);
-        if (!same(s, next)) save("script", next);
-        break;
-      }
-      case "storyboard.json": {
-        const b = read<FStoryboard>("storyboard.json");
-        if (!b) throw new Error("Run the storyboard first.");
-        const next = mergeStoryboard(b, JSON.parse(content) as Storyboard);
-        if (!same(b, next)) save("storyboard", next);
         break;
       }
     }
@@ -395,8 +395,8 @@ export class RealBackend implements StudioBackend {
   }
 
   async *runStage(id: string, stage: StageName, opts: RunOptions = {}): AsyncIterable<PipelineEvent> {
-    const project = this.fp(id);
-    const { dir } = project;
+    const dir = await this.ready(id);
+    const project = { dir, slug: id };
     const existing = activeRun(id);
     if (existing) {
       if (existing.kind === "stage" && existing.stage === stage) {
@@ -445,8 +445,8 @@ export class RealBackend implements StudioBackend {
   }
 
   async *reviseSlide(id: string, slideId: string, instruction: string, opts: RunOptions = {}): AsyncIterable<PipelineEvent> {
-    const project = this.fp(id);
-    const { dir } = project;
+    const dir = await this.ready(id);
+    const project = { dir, slug: id };
     const existing = activeRun(id);
     if (existing) {
       if (existing.kind === "revise" && existing.slideId === slideId) {
@@ -521,7 +521,7 @@ export class RealBackend implements StudioBackend {
   }
 
   async getDeckHtml(id: string, version: DeckRef): Promise<string | null> {
-    const dir = this.dir(id);
+    const dir = await this.ready(id);
     if (version !== "draft") {
       const v = version === "latest" ? this.versionsOf(dir).at(-1) : version;
       const file = v === undefined ? null : join(dir, "versions", String(v), "deck.html");
@@ -529,18 +529,19 @@ export class RealBackend implements StudioBackend {
     }
     // Draft: whatever slides/<id>.html exist right now, bundled on demand (cached until a slide file changes).
     const slidesDir = join(dir, "slides");
-    const script = readJson<FScript>(join(dir, "script.json"));
     const style = readJson<Style>(join(dir, "style.json"));
-    const outline = readJson<FOutline>(join(dir, "outline.json"));
-    if (!existsSync(slidesDir) || !script || !style) return null;
-    const ids = script.slides.map((s) => s.id).filter((sid) => existsSync(join(slidesDir, `${sid}.html`)));
+    const outline = this.outline(dir);
+    if (!existsSync(slidesDir) || !outline || !style) return null;
+    const ids = outlineSlides(outline)
+      .map((s) => s.id)
+      .filter((sid) => existsSync(join(slidesDir, `${sid}.html`)));
     if (!ids.length) return null;
     const key = ids.map((sid) => `${sid}:${statSync(join(slidesDir, `${sid}.html`)).mtimeMs}`).join("|");
     const hit = draftCache.get(id);
     if (hit?.key === key) return hit.html;
     const html = (async () => {
-      const [{ bundleHtml }, { deckConfig }] = await Promise.all([engine(), pipeline()]);
-      const config = deckConfig(outline?.title ?? script.title, style, script, ids);
+      const [{ bundleHtml }, { deckConfig, toScript }] = await Promise.all([engine(), pipeline()]);
+      const config = deckConfig(outline.title, style, toScript(outline), ids);
       const slides = Object.fromEntries(ids.map((sid) => [sid, readFileSync(join(slidesDir, `${sid}.html`), "utf8")]));
       return bundleHtml({ config, slides });
     })();

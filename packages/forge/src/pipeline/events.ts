@@ -15,6 +15,10 @@ export type ForgeEvent =
   | { type: "stage:error"; stage: Stage; error: string }
   /** One LLM call completed (`label` is the agent, e.g. "storyboarder" or "builder:s03"). */
   | { type: "usage"; stage: Stage | "revise"; label: string; model: string; ms: number; usage: Usage }
+  /** Outline, first pass: the arc is planned (slide ids and points); the cards are written next. */
+  | { type: "outline:arc"; title: string; sections: number; slides: { id: string; point: string }[] }
+  /** Outline, second pass: one slide's card is written (`done` of `total`; cards finish in any order). */
+  | { type: "outline:card"; id: string; title: string; done: number; total: number }
   /**
    * A slide's round moved to a new phase: build (the builder is writing it, with `model`), bundle (single-slide preview),
    * shoot (screenshots in Chromium), critic (vision review). `escalated` marks the extra Opus round.

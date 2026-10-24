@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, deckUrl, streamEvents } from "@/lib/client/api";
-import type { Script, Style, VersionInfo } from "@/lib/types";
+import { outlineSlides, type Outline, type Style, type VersionInfo } from "@/lib/types";
 import { IconArrowRight, IconChat, IconCheck, IconCompare, IconDownload, IconExternal, IconHistory, IconSend, IconUndo, IconX } from "./icons";
 import { useProject } from "./project-shell";
 import { SlideFrame } from "./slide-frame";
@@ -24,11 +24,11 @@ const PHASE: Record<string, string> = { build: "Rewriting the slide", shoot: "Sc
 
 export function DeckViewer() {
   const { project, refresh } = useProject();
-  const script = (() => {
+  const slides = (() => {
     try {
-      return JSON.parse(project.files["script.json"] ?? "") as Script;
+      return outlineSlides(JSON.parse(project.files["outline.json"] ?? "") as Outline);
     } catch {
-      return null;
+      return [];
     }
   })();
   const style = (() => {
@@ -38,8 +38,8 @@ export function DeckViewer() {
       return null;
     }
   })();
-  const slideIds = script?.slides.map((s) => s.id) ?? [];
-  const titleOf = (id: string) => script?.slides.find((s) => s.id === id)?.title ?? id;
+  const slideIds = slides.map((s) => s.id);
+  const titleOf = (id: string) => slides.find((s) => s.id === id)?.title ?? id;
 
   const [versions, setVersions] = useState<VersionInfo[]>([]);
   const [vLoading, setVLoading] = useState(true);

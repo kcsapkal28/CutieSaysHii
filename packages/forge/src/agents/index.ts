@@ -2,11 +2,10 @@ export { builderSchema, builderSystem, builderUser, runBuilder, type BuildFix, t
 export * from "./contrast.ts";
 export * from "./critic.ts";
 export * from "./exemplars.ts";
+export * from "./outliner.ts";
 export * from "./research-refiner.ts";
 export * from "./researcher.ts";
 export * from "./schemas.ts";
-export * from "./scriptwriter.ts";
 export * from "./slide-check.ts";
-export * from "./storyboarder.ts";
 export * from "./stylist.ts";
 export { loadPrompt } from "./prompts.ts";

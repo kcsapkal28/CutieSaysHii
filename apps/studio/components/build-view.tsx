@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api, deckUrl } from "@/lib/client/api";
 import type { PipelineEvent } from "@/lib/events";
-import type { Script, SlideBuildState, Storyboard } from "@/lib/types";
+import { outlineSlides, type Outline, type OutlineSlide, type SlideBuildState } from "@/lib/types";
 import { IconArrowRight, IconCheck, IconPlay, IconRefresh, IconStop } from "./icons";
 import { useProject } from "./project-shell";
 import { SlideFrame } from "./slide-frame";
@@ -21,9 +21,9 @@ function parse<T>(raw?: string): T | null {
   }
 }
 
-function initialSlides(script: Script | null, saved: SlideBuildState[] | undefined): SlideBuildState[] {
+function initialSlides(cards: OutlineSlide[], saved: SlideBuildState[] | undefined): SlideBuildState[] {
   if (saved?.length) return saved;
-  return (script?.slides ?? []).map((s) => ({ id: s.id, title: s.title, status: "queued", rounds: 0, issues: [] }));
+  return cards.map((s) => ({ id: s.id, title: s.title, status: "queued", rounds: 0, issues: [] }));
 }
 
 function Verdict({ s }: { s: SlideBuildState }) {
@@ -53,9 +53,8 @@ export function BuildView() {
   const { project, refresh } = useProject();
   const router = useRouter();
   const search = useSearchParams();
-  const script = parse<Script>(project.files["script.json"]);
-  const board = parse<Storyboard>(project.files["storyboard.json"]);
-  const [slides, setSlides] = useState<SlideBuildState[]>(() => initialSlides(script, project.build?.slides));
+  const cards = outlineSlides(parse<Outline>(project.files["outline.json"]));
+  const [slides, setSlides] = useState<SlideBuildState[]>(() => initialSlides(cards, project.build?.slides));
   const [selected, setSelected] = useState<string | null>(slides[0]?.id ?? null);
   const [pinned, setPinned] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -89,7 +88,7 @@ export function BuildView() {
     if (!run.local && project.build?.slides) setSlides(project.build.slides);
   }, [run.local, project.build]);
 
-  const blocked = project.stages.storyboard !== "approved";
+  const blocked = project.stages.outline !== "approved";
   useEffect(() => {
     if (autoRan.current) return;
     if (search.get("run") === "1" && st.status === "idle" && !blocked) {
@@ -101,8 +100,7 @@ export function BuildView() {
 
   const done = slides.filter((s) => s.status === "done").length;
   const sel = slides.find((s) => s.id === selected) ?? slides[0];
-  const selBoard = board?.slides.find((s) => s.id === sel?.id);
-  const selScript = script?.slides.find((s) => s.id === sel?.id);
+  const selCard = cards.find((s) => s.id === sel?.id);
   const finished = !run.running && st.status !== "idle" && done === slides.length && slides.length > 0;
   const deckRef = run.running || !project.latestVersion ? "draft" : project.latestVersion;
 
@@ -129,11 +127,11 @@ export function BuildView() {
     return (
       <div className="grid h-full place-items-center">
         <EmptyState
-          title="Approve the storyboard first"
-          body="The builder writes each slide from the approved storyboard."
+          title="Approve the outline first"
+          body="The builder writes each slide from its card in the approved outline."
           action={
-            <Link href={`/p/${project.id}/storyboard`} className="inline-flex h-8 items-center gap-2 rounded-lg bg-raised px-3 text-[13px] font-medium ring-1 ring-line hover:bg-hover">
-              Go to storyboard <IconArrowRight size={14} />
+            <Link href={`/p/${project.id}/outline`} className="inline-flex h-8 items-center gap-2 rounded-lg bg-raised px-3 text-[13px] font-medium ring-1 ring-line hover:bg-hover">
+              Go to outline <IconArrowRight size={14} />
             </Link>
           }
         />
@@ -168,7 +166,7 @@ export function BuildView() {
               <IconPlay size={13} /> Start build
             </Button>
           ) : (
-            <Button variant="ghost" onClick={() => void run.start()} title="Rebuild every slide from the storyboard">
+            <Button variant="ghost" onClick={() => void run.start()} title="Rebuild every slide from the outline">
               <IconRefresh size={14} /> Rebuild
             </Button>
           )}
@@ -211,7 +209,7 @@ export function BuildView() {
                   </div>
                 </div>
               ) : (
-                <EmptyState title="No slides to build" body="The script has no slides. Go back and approve a script first." />
+                <EmptyState title="No slides to build" body="The outline has no slides. Go back and approve an outline first." />
               )}
             </div>
           </div>
@@ -284,7 +282,7 @@ export function BuildView() {
                 <Verdict s={sel} />
               </div>
               <h2 className="mt-3 text-[15px] font-semibold leading-[1.35]">{sel.title}</h2>
-              {selScript && <p className="mt-1.5 text-[12.5px] leading-[1.5] text-sub">{selScript.keyMessage}</p>}
+              {selCard && <p className="mt-1.5 text-[12.5px] leading-[1.5] text-sub">{selCard.point}</p>}
 
               <h3 className="mt-6 text-[12px] font-semibold text-fg">Critic</h3>
               {sel.issues.length === 0 ? (
@@ -305,22 +303,24 @@ export function BuildView() {
                 </ol>
               )}
 
-              {selBoard && (
+              {selCard && (
                 <>
-                  <h3 className="mt-6 text-[12px] font-semibold text-fg">Storyboard</h3>
+                  <h3 className="mt-6 text-[12px] font-semibold text-fg">Visual direction</h3>
                   <dl className="mt-2 space-y-2 text-[12.5px]">
                     <div>
                       <dt className="text-dim">Visual</dt>
-                      <dd className="text-sub">{selBoard.layout}</dd>
+                      <dd className="text-sub">{selCard.visual.concept}</dd>
                     </div>
                     <div>
                       <dt className="text-dim">Interaction</dt>
-                      <dd className="text-sub">{selBoard.interaction}</dd>
+                      <dd className="text-sub">{selCard.visual.interaction.kind === "none" ? "None" : selCard.visual.interaction.description}</dd>
                     </div>
-                    {selBoard.object3d && (
+                    {selCard.visual.object3d && (
                       <div>
                         <dt className="text-dim">3D object</dt>
-                        <dd className="text-sub">{selBoard.object3d}</dd>
+                        <dd className="text-sub">
+                          {selCard.visual.object3d.name}: {selCard.visual.object3d.parts.map((p) => p.label).join(", ")}
+                        </dd>
                       </div>
                     )}
                   </dl>

@@ -201,7 +201,8 @@ export function diagramFills(): string[] {
 
 /**
  * Image-slide text (the caption, and the kicker when shown) reaches 4.5:1. Text that overlaps the picture must sit on
- * an opaque --df-bg plate below the template root, since a picture has no single background colour.
+ * an opaque --df-bg plate below the template root, since a picture has no single background colour, and must be
+ * painted above it. A bleed picture covers the slide; a split picture reaches its top, bottom and left edges.
  */
 export function imageCaptionLegible(): string[] {
   const s = window.Reveal.getCurrentSlide();
@@ -214,10 +215,20 @@ export function imageCaptionLegible(): string[] {
   const overlaps = (r: DOMRect) => r.left < pic.right - 1 && r.right > pic.left + 1 && r.top < pic.bottom - 1 && r.bottom > pic.top + 1;
   const bg = m.resolveColour("var(--df-bg)");
   const out: string[] = [];
+  // bleed covers the whole slide; split reaches its top, bottom and left edges.
+  const layout = document.querySelector(".reveal")?.getAttribute("data-df-image-layout");
+  const box = s.getBoundingClientRect();
+  const edges = layout === "bleed" ? (["top", "right", "bottom", "left"] as const) : layout === "split" ? (["top", "bottom", "left"] as const) : [];
+  for (const e of edges)
+    if (Math.abs(pic[e] - box[e]) > 1) out.push(`${s.id}: ${layout} picture ${e} ${pic[e].toFixed(0)} is not the slide's ${box[e].toFixed(0)}`);
   for (const [what, el] of [["caption", caption], ["kicker", s.querySelector(".df-kicker")]] as const) {
     if (!el || !m.isShown(el) || !el.textContent?.trim()) continue;
     let fill = m.effectiveBackground(el);
-    if (overlaps(el.getBoundingClientRect())) {
+    const r = el.getBoundingClientRect();
+    if (overlaps(r)) {
+      // Paint order: what shows at the text's centre is the text, not the picture.
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      if (!hit || !el.contains(hit)) out.push(`${s.id}: ${what} is painted under <${hit?.localName ?? "nothing"}.${hit?.classList[0] ?? ""}>`);
       let plate: Element | null = el;
       while (plate && !plate.matches(".df-slide, section") && m.parseColour(getComputedStyle(plate).backgroundColor)[3] < 1)
         plate = plate.parentElement;

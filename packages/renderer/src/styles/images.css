@@ -132,29 +132,30 @@
   text-align: center;
 }
 
-/* bleed and split: the picture leaves the frame and sits behind the slide's text. The body region stays static
-   so the figure is positioned against the slide, not against the region; its z-index still stacks it. */
-[data-df-image-layout="bleed"] .df-slide--image [data-region="body"],
-[data-df-image-layout="split"] .df-slide--image [data-region="body"] {
-  position: static;
-  z-index: 1;
-  grid-area: 1 / 1 / -1 / 8;
+/* bleed and split: the picture leaves the frame and sits behind the slide's text. The body region holds only the
+   figure and generates no box, so however another sheet positions or stacks regions, it can be neither the
+   figure's containing block nor its stacking context: the figure is placed against the slide itself. */
+[data-df-image-layout="bleed"] .df-slide--image [data-region="body"]:not([hidden]),
+[data-df-image-layout="split"] .df-slide--image [data-region="body"]:not([hidden]) {
+  display: contents;
 }
 
+/* Stacking: the figure ties .df-deco at 0 and follows it in the DOM, so it paints above the decoration; the
+   kicker and caption (grid items, which stack without positioning) sit at 1 or above. */
 [data-df-image-layout="bleed"] .df-slide--image .df-image,
 [data-df-image-layout="split"] .df-slide--image .df-image {
   position: absolute;
+  z-index: 0;
   max-width: none;
   border: 0;
   border-radius: 0;
 }
 
-/* Grid items stack by z-index without positioning: decoration (0), picture (1), then the slide's text. */
 [data-df-image-layout="bleed"] .df-slide--image .df-kicker,
 [data-df-image-layout="bleed"] .df-slide--image .df-caption,
 [data-df-image-layout="split"] .df-slide--image .df-kicker,
 [data-df-image-layout="split"] .df-slide--image .df-caption {
-  z-index: 2;
+  z-index: 1;
 }
 
 /* bleed: full frame, with kicker and caption on opaque --df-bg plates so both stay AA over any picture. */
@@ -184,11 +185,12 @@
   font-size: var(--df-size-lead);
 }
 
-/* split: the picture covers columns 1-7 and bleeds off the top, bottom and left edges (its right edge is grid
-   line 8 of a frame padded by --df-pad); the caption is set large in columns 9-12. */
+/* split: the picture covers columns 1-7 and bleeds off the top, bottom and left edges; the caption is set large
+   in columns 9-12. An absolutely positioned grid child takes grid lines as its edges, and `auto` is the padding
+   edge, so the right edge is grid line 8 whatever padding the frame has. */
 [data-df-image-layout="split"] .df-slide--image .df-image {
-  inset: 0 auto 0 0;
-  width: calc(var(--df-pad) + (100% - 2 * var(--df-pad) + var(--df-gap)) * 7 / 12 - var(--df-gap));
+  grid-area: auto / auto / auto / 8;
+  inset: 0;
 }
 
 [data-df-image-layout="split"] .df-slide--image .df-kicker {

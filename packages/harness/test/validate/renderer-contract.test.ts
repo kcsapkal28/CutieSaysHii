@@ -19,8 +19,6 @@ type Sentinel = { value: string; field: string };
 const KNOWN_VISIBLE_DIFFERENCES = [
   // A single-series chart has no legend; the series name is only in the SVG's <title>.
   "chart Chart.series.name: counted, not shown",
-  // Axis ticks and the footer print the unit; it is a symbol, not words.
-  "chart Chart.unit: shown, not counted",
   // Code is bounded by the lines/cols limits instead.
   "code Code.code: shown, not counted",
   // image.hbs has no title region and no footer.

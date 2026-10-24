@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { goldenChoices, resolveMotionPlan, resolveTheme, type Catalog } from "@deckforge/catalog";
@@ -70,6 +70,7 @@ describe("createRendererPort", () => {
   });
 
   it("stale dist.tmp-* and dist.old-* from a crashed run are removed at the start", async () => {
+    await previousDist();
     await mkdir(join(jobDir, "dist.tmp-0-abc123", "assets"), { recursive: true });
     await mkdir(join(jobDir, "dist.old-def456"), { recursive: true });
     await mkdir(join(jobDir, "accepted"), { recursive: true });
@@ -78,8 +79,54 @@ describe("createRendererPort", () => {
     const port = createRendererPort(c, { build: async (input) => (seen.push((await readdir(jobDir)).sort()), build(input)) });
     await port.build(request(), new AbortController().signal);
 
-    expect(seen).toEqual([["accepted"]]);
+    // dist exists, so the leftovers are only cleared, never restored over it.
+    expect(seen).toEqual([["accepted", "dist"]]);
     expect((await readdir(jobDir)).sort()).toEqual(["accepted", "dist"]);
+  });
+
+  it("a crash between the two renames: the next render restores dist.old-* first, then promotes", async () => {
+    // The crash state: dist was moved aside, the staged build never took its place.
+    await mkdir(join(jobDir, "dist.old-abc123"), { recursive: true });
+    await writeFile(join(jobDir, "dist.old-abc123", "index.html"), "previous");
+    await mkdir(join(jobDir, "dist.tmp-1-def456", "assets"), { recursive: true });
+    const seen: { entries: string[]; index: string }[] = [];
+    const port = createRendererPort(c, {
+      build: async (input) => {
+        seen.push({ entries: (await readdir(jobDir)).sort(), index: await readFile(join(outDir, "index.html"), "utf8") });
+        return build(input);
+      },
+    });
+    await port.build(request(), new AbortController().signal);
+
+    expect(seen).toEqual([{ entries: ["dist"], index: "previous" }]);
+    expect(await readdir(jobDir)).toEqual(["dist"]);
+    expect(await readFile(join(outDir, "index.html"), "utf8")).toContain("<!doctype html>");
+  });
+
+  it("a crash between the two renames, then a failed build: the restored dist survives", async () => {
+    await mkdir(join(jobDir, "dist.old-abc123"), { recursive: true });
+    await writeFile(join(jobDir, "dist.old-abc123", "index.html"), "previous");
+    await mkdir(join(jobDir, "dist.tmp-1-def456"), { recursive: true });
+    const port = createRendererPort(c);
+    const broken = request({ motion: { ...request().motion, slides: {} } });
+
+    await expect(port.build(broken, new AbortController().signal)).rejects.toBeInstanceOf(RenderFailedError);
+    expect(await readdir(jobDir)).toEqual(["dist"]);
+    expect(await readFile(join(outDir, "index.html"), "utf8")).toBe("previous");
+  });
+
+  it("with several dist.old-* and no dist, the newest is restored", async () => {
+    for (const [name, mtime] of [["dist.old-aaaaaa", 1_000], ["dist.old-bbbbbb", 3_000], ["dist.old-cccccc", 2_000]] as const) {
+      await mkdir(join(jobDir, name), { recursive: true });
+      await writeFile(join(jobDir, name, "index.html"), name);
+      await utimes(join(jobDir, name), mtime, mtime);
+    }
+    const seen: string[] = [];
+    const port = createRendererPort(c, { build: async () => (seen.push(await readFile(join(outDir, "index.html"), "utf8")), Promise.reject(new Error("boom"))) });
+
+    await expect(port.build(request(), new AbortController().signal)).rejects.toBeInstanceOf(RenderFailedError);
+    expect(seen).toEqual(["dist.old-bbbbbb"]);
+    expect(await readdir(jobDir)).toEqual(["dist"]);
   });
 
   it("abort mid-build keeps the previous dist and removes the tmp dir", async () => {

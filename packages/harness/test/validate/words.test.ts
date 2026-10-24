@@ -1,4 +1,4 @@
-import type { Slide } from "@deckforge/schemas";
+import type { Block, Slide } from "@deckforge/schemas";
 import { describe, expect, it } from "vitest";
 import { countWords, emphasisTexts, visibleTexts, visibleWords } from "../../src/validate/words.ts";
 
@@ -50,6 +50,13 @@ describe("visibleWords", () => {
     ]);
     // paragraph 3 + quote 4 + timeline 4+2 + chart 2+2 + quiz 3+3 = 23
     expect(visibleWords(s)).toBe(23);
+  });
+
+  it("counts a chart's unit: the axis ticks and the footer print it", () => {
+    const chart: Extract<Block, { type: "Chart" }> = { type: "Chart", kind: "bar", labels: ["2010"], series: [{ name: "capacity", values: [1] }] };
+    expect(visibleWords(slide([chart]))).toBe(2);
+    expect(visibleWords(slide([{ ...chart, unit: "GW" }]))).toBe(3);
+    expect(visibleWords(slide([{ ...chart, unit: "million tonnes" }]))).toBe(4);
   });
 
   it("image alt is the caption when there is no Paragraph", () => {

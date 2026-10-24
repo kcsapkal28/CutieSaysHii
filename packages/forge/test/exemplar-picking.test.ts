@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { catalogueText, exemplarSection, loadCatalogue, loadExemplars, pickExemplars, type Exemplar } from "../src/agents/exemplars.ts";
+import { catalogueText, EXPLAINER_TECHNIQUES, exemplarSection, loadCatalogue, loadExemplars, pickExemplars, type Exemplar } from "../src/agents/exemplars.ts";
+import type { StoryboardSlide } from "../src/agents/schemas.ts";
 import { ArcDraft, arcProblems, arcSlides, catalogueIds } from "../src/agents/outliner.ts";
 import { Style } from "../src/contract.ts";
 import { arcOut, styleOut } from "./fakes.ts";
@@ -36,6 +37,30 @@ describe("exemplar selection by technique", () => {
     const all = [ex("dark/1", ["timeline"], "dark", "dark cinematic"), ex("paper/1", ["timeline"], "paper", "editorial paper")];
     const picks = pickExemplars(all, { explainer: "timeline", technique: "something-new" }, { avoid: "Warm editorial paper ground" });
     expect(picks[0]!.id).toBe("dark/1");
+  });
+
+  it("on the real library, every technique gets two exemplars that use it, from two different decks", () => {
+    const all = loadExemplars();
+    const explainerOf = (t: string) =>
+      (Object.entries(EXPLAINER_TECHNIQUES).find(([, ts]) => ts.includes(t))?.[0] ?? "animated-diagram") as StoryboardSlide["explainer"];
+    for (const t of loadCatalogue()!.techniques.keys()) {
+      const picks = pickExemplars(all, { explainer: explainerOf(t), technique: t });
+      expect(picks.length, t).toBe(2);
+      expect(picks.every((p) => p.techniques.includes(t)), `${t}: ${picks.map((p) => p.id).join(", ")}`).toBe(true);
+      expect(new Set(picks.map((p) => p.deck)).size, t).toBe(2);
+    }
+  });
+
+  it("on the real library, a deck that looks like an exemplar deck is shown a different look first", () => {
+    const all = loadExemplars();
+    for (const t of loadCatalogue()!.techniques.keys()) {
+      const users = all.filter((e) => e.techniques.includes(t) && e.techniques.length === 1);
+      for (const own of users) {
+        if (!users.some((u) => u.deck !== own.deck)) continue;
+        const picks = pickExemplars(all, { explainer: "animated-diagram", technique: t }, { avoid: `${own.theme} ${own.domain}` });
+        expect(picks[0]!.deck, `${t} avoiding ${own.id}`).not.toBe(own.deck);
+      }
+    }
   });
 
   it("never offers a key-takeaways card grid unless asked", () => {

@@ -16,6 +16,10 @@ const FIXTURES = [
   ["exemplar-history", dir("../fixtures/exemplars/history")],
   ["exemplar-data", dir("../fixtures/exemplars/data")],
   ["exemplar-science", dir("../fixtures/exemplars/science")],
+  ["exemplar-field", dir("../fixtures/exemplars/field")],
+  ["exemplar-night", dir("../fixtures/exemplars/night")],
+  ["exemplar-folio", dir("../fixtures/exemplars/folio")],
+  ["exemplar-poster", dir("../fixtures/exemplars/poster")],
   ["light-check", dir("./fixtures/light")],
 ] as const;
 
@@ -40,6 +44,11 @@ describe.concurrent("shoot every slide and step", () => {
     // Calibration of the deterministic pre-check (measure.ts): known-good slides must not trip a single blocking check.
     const blocking = Object.values(r.findings ?? {}).flat().filter((f) => f.severity === "error");
     expect(blocking.map((f) => `${f.kind} ${f.selector}: ${f.detail}`)).toEqual([]);
+    // The exemplar library teaches the builder: no text under the minimum, and every step changes the picture.
+    if (name !== "light-check") {
+      const taught = Object.values(r.findings ?? {}).flat().filter((f) => f.kind === "tiny-text" || f.kind === "dead-step");
+      expect(taught.map((f) => `${f.kind} ${f.selector}: ${f.detail}`)).toEqual([]);
+    }
     expect(Object.keys(r.findings ?? {}).sort()).toEqual(project.config.slides.map((s) => s.id).sort());
     for (const s of project.config.slides) {
       const steps = r.steps[s.id] ?? 0;
@@ -106,6 +115,27 @@ describe("interactivity", () => {
     expect(p1).not.toBe(p0);
     await page.locator("#s01 .vax").fill("85");
     await expect(page.locator("#s01 .verdict").textContent()).resolves.toMatch(/fizzles/);
+    await page.close();
+  });
+
+  it("field s03: angle slider and air toggle change the kick's range", { timeout: 30_000 }, async () => {
+    const page = await open("exemplar-field", "s03");
+    const range = page.locator("#s03 .range");
+    const r0 = await range.textContent();
+    await page.locator("#s03 .ang").fill("20");
+    await expect.poll(() => range.textContent()).not.toBe(r0);
+    const r1 = await range.textContent();
+    await page.locator('#s03 [data-air="1"]').click();
+    await expect.poll(() => range.textContent()).not.toBe(r1);
+    await page.close();
+  });
+
+  it("night s04: the density slider changes the traffic readouts", { timeout: 30_000 }, async () => {
+    const page = await open("exemplar-night", "s04");
+    const speed = page.locator("#s04 .speed");
+    const s0 = await speed.textContent();
+    await page.locator("#s04 .dens").fill("50");
+    await expect.poll(() => speed.textContent()).not.toBe(s0);
     await page.close();
   });
 

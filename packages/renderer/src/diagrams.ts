@@ -5,22 +5,23 @@ import { diagramKey } from "./blocks/render.ts";
 import { bundleDiagramPage } from "./bundle.ts";
 import { compileDeckCss } from "./css.ts";
 import type { Job, Outcome, RenderRequest } from "./diagram-page/main.ts";
-import { legibleOn } from "./theme/compile.ts";
-import { assertSafe, UNSAFE_IN_QUOTES, UnsafeThemeValueError } from "./theme/safe.ts";
-
-const HEX = /^#[0-9a-f]{6}$/i;
+import { diagramFonts, mermaidThemeVariables } from "./diagram-theme.ts";
 
 export type DiagramResult = { svgs: Map<string, string>; warnings: string[] };
 export type DiagramOptions = { timeoutMs?: number };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 // Config keys a diagram's own %%{init}%% directive must not be able to override.
-const SECURE_KEYS = ["secure", "securityLevel", "startOnLoad", "maxTextSize", "themeCSS", "themeVariables", "fontFamily"];
+const SECURE_KEYS = [
+  "secure", "securityLevel", "startOnLoad", "maxTextSize", "themeCSS", "themeVariables", "fontFamily", "fontSize", "theme",
+];
 
 // Reveal toggles or queries these at runtime, so they are reserved even where deck.css never names them.
+// It binds clicks on .navigate-* and .enter-fullscreen anywhere in the deck.
 const REVEAL_CLASSES = [
   "fragment", "visible", "current-fragment", "present", "past", "future", "stack",
   "reveal", "slides", "notes", "controls", "progress", "slide-number", "backgrounds",
+  "navigate-prev", "navigate-next", "enter-fullscreen",
 ];
 
 const CSS_ESCAPE = /\\(?:([0-9a-f]{1,6})[ \t\n\f\r]?|([^\n]))/gi;
@@ -32,13 +33,27 @@ const decodeCssEscapes = (s: string) =>
     hex === undefined ? (ch ?? "") : String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff) || 0xfffd),
   );
 
-/** Every class name a selector in `css` mentions (escapes decoded), ignoring declarations, comments and strings. */
+// [class], [class~=…], [ns|class^=…], [*|class], … : matches tokens that no list of class names can enumerate.
+const CLASS_ATTRIBUTE_SELECTOR = /\[\s*(?:(?:[\w-]*|\*)\|)?class\s*(?:[~|^$*]?=|\])/i;
+
+export class UnenumerableClassSelectorError extends Error {
+  constructor(public readonly prelude: string) {
+    super(`a selector matches class attributes, so its reserved class names cannot be enumerated: ${prelude.trim()}`);
+    this.name = "UnenumerableClassSelectorError";
+  }
+}
+
+/**
+ * Every class name a selector in `css` mentions (escapes decoded), ignoring declarations, comments and strings.
+ * Fails closed: throws UnenumerableClassSelectorError when a selector tests the class attribute itself.
+ */
 export function selectorClassNames(css: string): string[] {
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g, '""');
   const names = new Set<string>();
   // A prelude (selector or at-rule) is the text before each "{", back to the previous "}", ";" or "{".
   for (const chunk of text.split("{").slice(0, -1)) {
     const prelude = chunk.slice(Math.max(chunk.lastIndexOf("}"), chunk.lastIndexOf(";")) + 1);
+    if (CLASS_ATTRIBUTE_SELECTOR.test(prelude)) throw new UnenumerableClassSelectorError(prelude);
     for (const m of prelude.matchAll(CLASS_SELECTOR)) names.add(decodeCssEscapes(m[1] ?? ""));
   }
   return [...names];
@@ -47,32 +62,19 @@ export function selectorClassNames(css: string): string[] {
 /**
  * Class tokens a diagram may not carry: Reveal's state/structure classes and every class the compiled
  * deck.css selects on (computed from the stylesheet itself, so it can never go stale). The sanitiser
- * additionally reserves every `r-*` and `df-*` token.
+ * additionally reserves every `r-*` and `df-*` token. A deck.css selector on the class attribute itself
+ * throws UnenumerableClassSelectorError, which fails the build.
  */
 export async function reservedClassNames(): Promise<string[]> {
   return [...new Set([...REVEAL_CLASSES, ...selectorClassNames(await compileDeckCss())])].sort();
 }
 
-// Mermaid inlines these into the SVG's <style>, so they get the same vetting as theme CSS.
-function themeVariables(theme: ThemeSpec): Record<string, string> {
-  const colour = (name: string, value: string) => {
-    if (!HEX.test(value)) throw new UnsafeThemeValueError(`roles.${name}`);
-    return value;
-  };
-  const { roles, type } = theme;
-  // Node labels use the text colour, so nodes are filled with surface: text/surface is the pair compile asserts.
-  return {
-    primaryColor: colour("surface", roles.surface),
-    primaryBorderColor: legibleOn(roles, colour("primary", roles.primary)),
-    primaryTextColor: colour("text", roles.text),
-    lineColor: colour("textMuted", roles.textMuted),
-    background: colour("bg", roles.bg),
-    fontFamily: `"${assertSafe("type.body.font", type.body.font, UNSAFE_IN_QUOTES)}", sans-serif`,
-  };
-}
-
 export function mermaidConfig(theme: ThemeSpec): Record<string, unknown> {
-  return { startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: themeVariables(theme), secure: SECURE_KEYS, handDrawnSeed: 1 };
+  // Mermaid inlines the theme variables into the SVG's <style>; mermaidThemeVariables vets every one.
+  const themeVariables = mermaidThemeVariables(theme);
+  // Sequence diagrams measure and draw their text from the top-level font, not the theme's CSS.
+  const font = { fontFamily: themeVariables.fontFamily, fontSize: parseFloat(String(themeVariables.fontSize)) };
+  return { startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables, ...font, secure: SECURE_KEYS, handDrawnSeed: 1 };
 }
 
 
@@ -107,6 +109,7 @@ export async function renderDiagrams(
       jobs: [...jobs.values()],
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       reservedClasses: await reservedClassNames(),
+      fonts: await diagramFonts(theme),
     };
     // A string expression, not a function: nothing transpiled for the host is ever serialised into the page.
     const outcomes = (await page.evaluate(

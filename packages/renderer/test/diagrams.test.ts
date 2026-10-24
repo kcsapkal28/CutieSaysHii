@@ -1,12 +1,14 @@
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { JSDOM } from "jsdom";
 import { chromium, type Page } from "playwright";
-import { goldenChoices, resolveTheme } from "@deckforge/catalog";
+import { contrastRatio, defaultsForFamily, goldenChoices, resolveTheme, type Catalog } from "@deckforge/catalog";
 import { loadCatalog } from "@deckforge/catalog/node";
-import type { ThemeSpec } from "@deckforge/schemas";
+import type { DeckSpec, ThemeSpec } from "@deckforge/schemas";
 import { beforeAll, describe, expect, it } from "vitest";
 import { diagramKey } from "../src/blocks/render.ts";
 import { bundleDiagramPage } from "../src/bundle.ts";
+import { mermaidThemeVariables } from "../src/diagram-theme.ts";
 import { mermaidConfig, renderDiagrams, reservedClassNames } from "../src/diagrams.ts";
 
 // url(http://evil.example/escN.png) written with CSS escapes, each backslash re-escaped N-1 more times.
@@ -69,6 +71,57 @@ const DATA_URL = /\bdata:/i;
 
 const ruleCount = (svg: string) => styleTexts(svg).join("").split("}").length - 1;
 
+const NAMED_COLOURS: Record<string, string> = {
+  white: "#FFFFFF", black: "#000000", grey: "#808080", gray: "#808080", lightgrey: "#D3D3D3", lightgray: "#D3D3D3",
+};
+const COLOUR = /#([0-9a-f]{3,8})\b|\b(rgb|hsl)a?\(([^)]*)\)|\b(white|black|gr[ae]y|lightgr[ae]y)\b/gi;
+const hex6 = (rgb: number[]) => `#${rgb.map((x) => Math.round(Math.min(255, Math.max(0, x))).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+function hslToRgb(h: number, s: number, l: number): number[] {
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (((n + h / 30) % 12) + 12) % 12;
+    return 255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)));
+  };
+  return [f(0), f(8), f(4)];
+}
+/** A CSS colour value (hex, rgb(a), hsl(a) or a few names) as #RRGGBB with alpha dropped. */
+function normaliseColour([whole, hex, fn, args, name]: RegExpMatchArray): string {
+  if (name) return NAMED_COLOURS[name.toLowerCase()]!;
+  if (hex) return `#${(hex.length <= 4 ? [...hex.slice(0, 3)].map((x) => x + x).join("") : hex.slice(0, 6))}`.toUpperCase();
+  const n = (args ?? "").split(/[\s,/]+/).filter(Boolean).map(parseFloat);
+  if (fn?.toLowerCase() === "rgb") return hex6(n.slice(0, 3));
+  if (fn?.toLowerCase() === "hsl") return hex6(hslToRgb(n[0]!, n[1]! / 100, n[2]! / 100));
+  throw new Error(`unparsed colour ${whole}`);
+}
+
+// Pseudo-classes and elements jsdom cannot match against a static document.
+const DYNAMIC = /::?(?:hover|focus(?:-visible|-within)?|active|before|after|marker)\b/g;
+/**
+ * Every colour in the declarations of an svg's <style> rules. With `paintedOnly`, only rules whose selector
+ * matches an element of the svg: Mermaid hard-codes colours for elements this diagram never draws
+ * (`.node .katex path`, `[data-look="neo"] … .state-start`). A selector jsdom cannot evaluate counts.
+ */
+function styleColours(svg: string, paintedOnly: boolean): Set<string> {
+  const doc = new JSDOM(svg).window.document;
+  const out = new Set<string>();
+  for (const [, selector, body] of styleTexts(svg).join("").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    let used = true;
+    if (paintedOnly) {
+      try {
+        used = doc.querySelector(selector!.replace(DYNAMIC, "").trim()) !== null;
+      } catch {
+        // kept: fail towards counting it
+      }
+    }
+    if (!used) continue;
+    for (const decl of body!.split(";")) {
+      const value = decl.slice(decl.indexOf(":") + 1);
+      if (decl.includes(":")) for (const m of value.matchAll(COLOUR)) out.add(normaliseColour(m));
+    }
+  }
+  return out;
+}
+
 async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
   const browser = await chromium.launch();
   try {
@@ -93,14 +146,116 @@ const RAW_HOSTILE_SVG = [
   `<svg><style>.e{content:"a;}.f{background:url(http:evil.example/s11.png)}"}</style><rect class="e f"/></svg>`,
 ];
 
+let c: Catalog;
 let theme: ThemeSpec;
 let hostileRun: Promise<Map<string, string>> | undefined;
 const hostileSvgs = () => (hostileRun ??= renderDiagrams(HOSTILE, theme).then((r) => r.svgs));
 beforeAll(async () => {
-  const c = await loadCatalog();
+  c = await loadCatalog();
   const choices = goldenChoices(c)[0];
   if (!choices) throw new Error("no golden choices");
   theme = resolveTheme(c, choices);
+});
+
+/** The family's golden choices with its default type and motion, and optionally another allowed palette. */
+function themeFor(familyId: string, paletteId?: string): ThemeSpec {
+  const golden = goldenChoices(c).find((g) => g.styleFamilyId === familyId);
+  if (!golden) throw new Error(`no golden choices for ${familyId}`);
+  return resolveTheme(c, { ...golden, ...defaultsForFamily(c, familyId), ...(paletteId ? { paletteId } : {}) });
+}
+
+const combos = () =>
+  c.styles.families.flatMap((f) =>
+    f.allowedPalettes.map((paletteId) => ({ label: `${f.id} + ${paletteId}`, theme: themeFor(f.id, paletteId) })),
+  );
+
+const SIX = [1, 2, 3, 4, 5, 6];
+const TWELVE = Array.from({ length: 12 }, (_, n) => n);
+const THEMED_KEYS = [
+  ...["primary", "secondary", "tertiary"].flatMap((k) => [`${k}Color`, `${k}TextColor`, `${k}BorderColor`]),
+  "mainBkg", "nodeBorder", "nodeTextColor",
+  "textColor", "titleColor", "lineColor", "background", "edgeLabelBackground",
+  "clusterBkg", "clusterBorder", "noteBkgColor", "noteTextColor", "noteBorderColor",
+  "actorBkg", "actorBorder", "actorTextColor", "actorLineColor", "signalColor", "signalTextColor",
+  "labelBoxBkgColor", "labelBoxBorderColor", "labelTextColor", "loopTextColor",
+  ...SIX.map((n) => `pie${n}`),
+  "pieStrokeColor", "pieOuterStrokeColor", "pieTitleTextColor", "pieLegendTextColor",
+  "pieSectionTextColor", "pieSectionTextSize",
+  ...TWELVE.flatMap((n) => [`cScale${n}`, `cScaleLabel${n}`]),
+  "fontFamily", "fontSize", "darkMode",
+];
+const NOT_COLOURS = ["pieSectionTextSize", "fontFamily", "fontSize", "darkMode"];
+
+// Each text colour and the fill Mermaid draws it on.
+const TEXT_ON: [string, string][] = [
+  ["primaryTextColor", "primaryColor"],
+  ["secondaryTextColor", "secondaryColor"],
+  ["tertiaryTextColor", "tertiaryColor"],
+  ["nodeTextColor", "mainBkg"],
+  ["textColor", "background"],
+  ["textColor", "edgeLabelBackground"],
+  ["titleColor", "background"],
+  ["titleColor", "clusterBkg"],
+  ["noteTextColor", "noteBkgColor"],
+  ["actorTextColor", "actorBkg"],
+  ["signalTextColor", "background"],
+  ["labelTextColor", "labelBoxBkgColor"],
+  ["loopTextColor", "background"],
+  ["pieTitleTextColor", "background"],
+  ["pieLegendTextColor", "background"],
+  ...TWELVE.map((n): [string, string] => [`cScaleLabel${n}`, `cScale${n}`]),
+];
+const LINES = ["lineColor", "signalColor", "actorLineColor", "nodeBorder", "clusterBorder", ...SIX.map((n) => `pie${n}`)];
+
+describe("mermaidThemeVariables", () => {
+  it("mermaid theme variables cover every themed key", () => {
+    const vars = mermaidThemeVariables(theme);
+    expect(Object.keys(vars).sort()).toEqual([...THEMED_KEYS].sort());
+    for (const [key, value] of Object.entries(vars))
+      if (!NOT_COLOURS.includes(key)) expect(value, key).toMatch(/^#[0-9A-F]{6}$/);
+    expect(vars.fontSize).toBe("28px");
+    expect(vars.fontFamily).toBe(`"${theme.type.body.font}", sans-serif`);
+  });
+
+  it("every mermaid text pair passes AA and every line 3:1 for every family × allowed palette", () => {
+    const failures: string[] = [];
+    for (const { label, theme } of combos()) {
+      const v = mermaidThemeVariables(theme) as Record<string, string>;
+      const ratio = (a: string, b: string) => contrastRatio(v[a]!, v[b]!);
+      for (const [fg, bg] of TEXT_ON) if (ratio(fg, bg) < 4.5) failures.push(`${label} ${fg}/${bg} ${ratio(fg, bg).toFixed(2)}`);
+      for (const line of LINES) if (ratio(line, "background") < 3) failures.push(`${label} ${line} ${ratio(line, "background").toFixed(2)}`);
+      // Wedge labels are drawn only when they pass AA on every wedge; otherwise the legend carries the values.
+      const wedge = Math.min(...SIX.map((n) => ratio("pieSectionTextColor", `pie${n}`)));
+      const other = v.pieSectionTextColor === v.textColor ? "background" : "textColor";
+      const otherWedge = Math.min(...SIX.map((n) => contrastRatio(v[other]!, v[`pie${n}`]!)));
+      expect(wedge, label).toBeGreaterThanOrEqual(otherWedge);
+      expect(v.pieSectionTextSize, label).toBe(wedge < 4.5 ? "0px" : "24px");
+    }
+    expect(failures).toEqual([]);
+  });
+
+  it("darkMode follows the palette mode", () => {
+    const modes = new Set<string>();
+    for (const { label, theme } of combos()) {
+      expect(mermaidThemeVariables(theme).darkMode, label).toBe(theme.mode === "dark");
+      modes.add(theme.mode);
+    }
+    expect([...modes].sort()).toEqual(["dark", "light"]);
+  });
+
+  it("normalises role case and rejects a role that is not a hex", () => {
+    const lower = { ...theme, roles: Object.fromEntries(Object.entries(theme.roles).map(([k, v]) => [k, v.toLowerCase()])) };
+    const vars = mermaidThemeVariables(lower as ThemeSpec);
+    expect(vars).toEqual(mermaidThemeVariables(theme));
+    expect(vars.background).toBe(theme.roles.bg.toUpperCase());
+    expect(() => mermaidThemeVariables({ ...theme, roles: { ...theme.roles, accent: "red}" } })).toThrow(/roles\.accent/);
+  });
+
+  it("mermaidConfig uses the theme variables on Mermaid's base theme", () => {
+    const config = mermaidConfig(theme);
+    expect(config.theme).toBe("base");
+    expect(config.themeVariables).toEqual(mermaidThemeVariables(theme));
+  });
 });
 
 describe("renderDiagrams", () => {
@@ -282,6 +437,54 @@ describe("renderDiagrams", () => {
     expect([...svgs.values()][0]?.toLowerCase()).toContain(theme.roles.primary.toLowerCase());
   }, 60_000);
 
+  // Review Focus 5: theme "base" alone leaves clusters, edge labels and notes in Mermaid's light defaults.
+  it("a dark-theme flowchart with a cluster and edge label carries no mermaid default colours", async () => {
+    const stress = JSON.parse(await readFile(new URL("../fixtures/stress.deck.json", import.meta.url), "utf8")) as DeckSpec;
+    const source = stress.slides
+      .flatMap((s) => s.body.flatMap((b) => (b.type === "Diagram" ? [b.mermaid] : [])))
+      .find((m) => /^flowchart[\s\S]*subgraph[\s\S]*-->\|/.test(m));
+    if (!source) throw new Error("stress deck has no flowchart with a cluster and edge label");
+    const dark = themeFor("atmospheric");
+    expect(dark.mode).toBe("dark");
+
+    const vars = mermaidThemeVariables(dark);
+    // Control: only the node, line and background keys this pass started from, which must leak a default.
+    const partial = Object.fromEntries(
+      ["primaryColor", "primaryBorderColor", "primaryTextColor", "lineColor", "background", "fontFamily"].map((k) => [k, vars[k]]),
+    );
+    const [rawDefaults, rawPartial] = await withPage(async (page) => {
+      await page.addScriptTag({ path: createRequire(import.meta.url).resolve("mermaid/dist/mermaid.min.js") });
+      return page.evaluate(
+        async ({ src, configs }) => {
+          const m = (globalThis as unknown as {
+            mermaid: { initialize(c: unknown): void; render(id: string, s: string): Promise<{ svg: string }> };
+          }).mermaid;
+          const out: string[] = [];
+          for (const [i, config] of configs.entries()) {
+            m.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base", ...config });
+            out.push((await m.render(`d-raw${i}`, src)).svg);
+          }
+          return out;
+        },
+        { src: source, configs: [{}, { themeVariables: partial }] },
+      );
+    });
+    const defaults = styleColours(rawDefaults ?? "", false);
+    const ours = new Set(Object.values(vars).flatMap((v) => (typeof v === "string" && /^#[0-9A-F]{6}$/.test(v) ? [v] : [])));
+    const leaks = (svg: string) => [...styleColours(svg, true)].filter((h) => defaults.has(h) && !ours.has(h));
+    expect(defaults.size).toBeGreaterThan(0);
+    expect(leaks(rawPartial ?? "")).not.toEqual([]);
+
+    const { svgs, warnings } = await renderDiagrams([source], dark);
+    expect(warnings).toEqual([]);
+    const svg = svgs.get(diagramKey(source)) ?? "";
+    const painted = styleColours(svg, true);
+    expect(painted.size).toBeGreaterThan(0);
+    expect(leaks(svg)).toEqual([]);
+    // Stronger: everything the diagram paints is one of the theme's own colours.
+    expect([...painted].filter((h) => !ours.has(h))).toEqual([]);
+  }, 60_000);
+
   it("a diagram that exceeds the timeout becomes a warning, not a hang", async () => {
     const source = "graph TD; A-->B";
     const { svgs, warnings } = await renderDiagrams([source], theme, { timeoutMs: 1 });
@@ -321,6 +524,39 @@ describe("renderDiagrams", () => {
     expect(svgs.get(diagramKey(RANDOMISED.gantt))).not.toMatch(/class="today"/);
     expect(svgs.get(diagramKey(RANDOMISED.ganttFrontmatter))).not.toMatch(/class="today"/);
     expect(svgs.get(diagramKey(own))).toMatch(/class="today"/);
+  }, 60_000);
+
+  // Only Mermaid's own directive (todayMarker, whitespace, a value) counts as the author setting the marker.
+  it("gantt today-marker detection sees past multi-line directives and tasks named todayMarker…", async () => {
+    const task = (name: string) => `gantt\n dateFormat YYYY-MM-DD\n section A\n ${name} :a1, 2024-01-01, 30d`;
+    const multiLine = `%%{init: {\n  "gantt": {"barHeight": 30}\n}}%%\n${task("Build")}`;
+    const sources = [multiLine, task("todayMarker-review"), task("todayMarkers")];
+    const { svgs, warnings } = await renderDiagrams(sources, theme);
+    expect(warnings).toEqual([]);
+    for (const source of sources) expect(svgs.get(diagramKey(source)), source).not.toMatch(/class="today"/);
+  }, 60_000);
+
+  it("a diagram's own init directive cannot switch theme or font size", async () => {
+    const plain = "graph TD\n A[One] --> B[Two]";
+    const hijack = `%%{init: {"theme": "forest", "fontSize": 8}}%%\n${plain}`;
+    const { svgs, warnings } = await renderDiagrams([plain, hijack], theme);
+    expect(warnings).toEqual([]);
+    const [a, b] = [plain, hijack].map((s) => svgs.get(diagramKey(s)) ?? "");
+    expect(styleColours(b!, false)).toEqual(styleColours(a!, false));
+    expect(b).toMatch(/font-size:28px/);
+  }, 60_000);
+
+  it("a pie whose wedge labels are hidden shows its values in the legend", async () => {
+    const source = 'pie title Fate\n  "Electricity" : 22\n  "Heat" : 55';
+    const shown = combos().find(({ theme }) => mermaidThemeVariables(theme).pieSectionTextSize === "24px");
+    const hidden = combos().find(({ theme }) => mermaidThemeVariables(theme).pieSectionTextSize === "0px");
+    if (!shown || !hidden) throw new Error("expected palettes that both show and hide pie wedge labels");
+    const legend = async (t: ThemeSpec) => {
+      const svg = (await renderDiagrams([source], t)).svgs.get(diagramKey(source)) ?? "";
+      return Array.from(new JSDOM(svg).window.document.querySelectorAll(".legend text"), (el) => el.textContent);
+    };
+    expect(await legend(hidden.theme)).toEqual(["Electricity [22]", "Heat [55]"]);
+    expect(await legend(shown.theme)).toEqual(["Electricity", "Heat"]);
   }, 60_000);
 
   it("keeps good diagrams when a sibling fails", async () => {

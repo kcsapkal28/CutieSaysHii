@@ -1,5 +1,8 @@
-// The build loop. Per slide: builder → single-slide preview bundle → shoot → critic → fix, for `maxRounds` rounds,
-// plus one escalated fix attempt when the final critique still has a high-severity issue; the best attempt is kept.
+// The build loop. Per slide: builder → single-slide preview bundle → shoot (+ deterministic pre-check) → critic → fix,
+// for `maxRounds` critic rounds, plus one escalated fix attempt when the final round still has a high-severity problem;
+// the best attempt is kept. A round whose pre-check finds hard failures (clipped/overlapping/off-canvas text, a blank
+// render, a dead canvas, console errors, external requests) skips the critic and goes straight back to the builder with
+// the measured facts; up to `precheckRetries` such rounds per slide don't use up a critic round.
 // The build stage runs it for every slide (concurrently), then bundles the full deck to versions/<n>/deck.html.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,6 +14,7 @@ import { runBuilder, type BuildFix, type Exemplar } from "../agents/builder.ts";
 import type { CriticReport, Issue, Outline, Script, Storyboard, StoryboardSlide } from "../agents/schemas.ts";
 import { BUILD_DEFAULTS, DEFAULT_MODELS } from "./config.ts";
 import type { OnEvent, Verdict } from "./events.ts";
+import { measuredNotes, precheck, PRECHECK_FAILED_SCORE, precheckIssues, type PrecheckKind } from "./precheck.ts";
 import { nextVersion, writeJson, type Project } from "./project.ts";
 
 export type BuildOptions = {
@@ -20,6 +24,8 @@ export type BuildOptions = {
   concurrency?: number;
   maxRounds?: number;
   escalate?: boolean;
+  /** Extra builder attempts per slide for rounds the pre-check fails (they don't count against `maxRounds`). */
+  precheckRetries?: number;
   models?: { builder?: string; builderEscalation?: string; critic?: string };
   /** Builder thinking for draft and fix rounds ("off" = fast); the escalated round always uses the model's own. */
   builderThinking?: "off" | "model";
@@ -34,6 +40,8 @@ export type RoundRecord = {
   round: number;
   model: string;
   escalated?: boolean;
+  /** Set when the deterministic pre-check found hard failures, so the critic was skipped this round. */
+  precheck?: { errors: number; warnings: number; kinds: PrecheckKind[] };
   verdict?: Verdict;
   score?: number;
   issues?: number;
@@ -105,15 +113,19 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
   const build: SlideBuild = { id: slide.id, verdict: "failed", bestRound: 0, rounds: [], score: 0, issues: [] };
   let best: { html: string; score: number } | undefined;
   let fix = job.initialFix;
+  const shrink = o.shrinkImage ?? asPng;
+  let retries = o.precheckRetries ?? BUILD_DEFAULTS.precheckRetries;
+  let slot = 0; // index into `plan`: the critic round this attempt belongs to
 
-  for (let round = 1; round <= plan.length; round++) {
-    const { model, escalated } = plan[round - 1]!;
+  for (let round = 1; slot < plan.length; round++) {
+    const { model, escalated } = plan[slot]!;
     const tag = escalated ? { escalated: true } : {};
     const record: RoundRecord = { round, model, ...tag };
     build.rounds.push(record);
     const roundDir = join(job.shotsDir, `r${round}`);
     mkdirSync(roundDir, { recursive: true });
     let report: CriticReport | undefined;
+    let failedPrecheck = false;
     try {
       o.onEvent({ type: "slide:round", id: slide.id, round, phase: "build", model, ...tag });
       const built = await runBuilder(
@@ -143,39 +155,69 @@ export async function buildSlide(inputs: BuildInputs, job: SlideJob, o: BuildOpt
         return file;
       });
       o.onEvent({ type: "slide:shots", id: slide.id, round, files });
-      const errors = [
-        ...(shot.errors[slide.id] ?? []),
-        ...(shot.errors.deck ?? []),
-        ...shot.externalRequests.map((u) => `external request (the deck must be self-contained): ${u}`),
-      ];
 
-      o.onEvent({ type: "slide:round", id: slide.id, round, phase: "critic" });
-      // Full-size PNGs of every step overflow the proxy's request limit: review ≤ 4 steps, downscaled.
-      const shrink = o.shrinkImage ?? asPng;
-      const reviewed = await Promise.all(sampleSteps(shots).map(async (s) => ({ step: s.step, image: await shrink(s.png) })));
-      report = await runCritic(
-        o.llm,
-        { slide, board, shots: reviewed, steps: shot.steps[slide.id] ?? shots.length, errors, ...(job.instruction ? { instruction: job.instruction } : {}) },
-        { model: models.critic },
-      );
-      writeJson(join(roundDir, "review.json"), { ...report, errors });
-      Object.assign(record, { verdict: report.verdict, score: report.score, issues: report.issues.length, errors });
-      o.onEvent({ type: "slide:verdict", id: slide.id, round, verdict: report.verdict, score: report.score, issues: report.issues.length, errors: errors.length });
+      const pre = precheck(shot, slide.id);
+      const { errors } = pre;
+      writeJson(join(roundDir, "precheck.json"), { findings: pre.findings, errors });
+      o.onEvent({ type: "slide:precheck", id: slide.id, round, errors: pre.hard, warnings: pre.warnings.length, kinds: pre.kinds });
 
-      const score = attemptScore(report, errors.length);
-      if (!best || score > best.score) {
-        best = { html: built.html, score };
-        Object.assign(build, { verdict: report.verdict, bestRound: round, score: report.score, issues: report.issues });
+      if (pre.hard > 0) {
+        // Measured failures: no critic this round. The builder gets the facts (and the step that shows the first one).
+        failedPrecheck = true;
+        const issues = precheckIssues(pre.findings);
+        Object.assign(record, { precheck: { errors: pre.hard, warnings: pre.warnings.length, kinds: pre.kinds }, errors });
+        const score = PRECHECK_FAILED_SCORE - pre.hard;
+        if (!best || score > best.score) {
+          best = { html: built.html, score };
+          Object.assign(build, { verdict: "fix", bestRound: round, score: 0, issues });
+        }
+        const at = pre.blocking[0]?.step;
+        const view = shots.find((s) => s.step === at) ?? shots.at(-1);
+        const screenshot = view ? await shrink(view.png) : undefined;
+        fix = { previousHtml: built.html, issues, errors, ...(screenshot ? { screenshot } : {}), ...(job.instruction ? { instruction: job.instruction } : {}) };
+      } else {
+        o.onEvent({ type: "slide:round", id: slide.id, round, phase: "critic" });
+        // Full-size PNGs of every step overflow the proxy's request limit: review ≤ 4 steps, downscaled.
+        const reviewed = await Promise.all(sampleSteps(shots).map(async (s) => ({ step: s.step, image: await shrink(s.png) })));
+        report = await runCritic(
+          o.llm,
+          {
+            slide,
+            board,
+            shots: reviewed,
+            steps: shot.steps[slide.id] ?? shots.length,
+            errors,
+            measured: measuredNotes(pre.warnings),
+            ...(job.instruction ? { instruction: job.instruction } : {}),
+          },
+          { model: models.critic },
+        );
+        writeJson(join(roundDir, "review.json"), { ...report, errors });
+        Object.assign(record, { verdict: report.verdict, score: report.score, issues: report.issues.length, errors });
+        o.onEvent({ type: "slide:verdict", id: slide.id, round, verdict: report.verdict, score: report.score, issues: report.issues.length, errors: errors.length });
+
+        const score = attemptScore(report, errors.length);
+        if (!best || score > best.score) {
+          best = { html: built.html, score };
+          Object.assign(build, { verdict: report.verdict, bestRound: round, score: report.score, issues: report.issues });
+        }
+        if (report.verdict === "pass") break;
+        const last = reviewed.at(-1);
+        fix = { previousHtml: built.html, issues: report.issues, errors, ...(last ? { screenshot: last.image } : {}), ...(job.instruction ? { instruction: job.instruction } : {}) };
       }
-      if (report.verdict === "pass") break;
-      const last = reviewed.at(-1);
-      fix = { previousHtml: built.html, issues: report.issues, errors, ...(last ? { screenshot: last.image } : {}), ...(job.instruction ? { instruction: job.instruction } : {}) };
     } catch (e) {
       record.error = e instanceof Error ? e.message : String(e);
       o.onEvent({ type: "slide:error", id: slide.id, round, error: record.error });
     }
-    const final = round === plan.length;
-    if (final && escalate && !escalated && models.escalation !== model && report?.verdict === "fix" && report.issues.some((i) => i.severity === "high")) {
+    // A pre-check failure retries without using up the critic round, while retries last.
+    if (failedPrecheck && retries > 0) {
+      retries--;
+      continue;
+    }
+    slot++;
+    const final = slot === plan.length;
+    const serious = failedPrecheck || (report?.verdict === "fix" && report.issues.some((i) => i.severity === "high"));
+    if (final && escalate && !escalated && models.escalation !== model && serious) {
       plan.push({ model: models.escalation, escalated: true });
       o.onEvent({ type: "slide:escalate", id: slide.id, round: round + 1, model: models.escalation });
     }

@@ -1,7 +1,7 @@
 // Maps the agent pipeline's events (`ForgeEvent`, packages/forge/src/pipeline/events.ts) onto the Studio's
 // PipelineEvent stream (lib/events.ts). RealBackend feeds every `onEvent` callback through this and streams the results
 // from runStage / reviseSlide.
-import type { ForgeEvent, Usage as ForgeUsage } from "@deckforge/forge/pipeline";
+import type { ForgeEvent, PrecheckKind, Usage as ForgeUsage } from "@deckforge/forge/pipeline";
 import type { PipelineEvent } from "./events";
 import { STAGES, type StageName, type Usage } from "./types";
 
@@ -22,6 +22,18 @@ const modelName = (model: string) => (/opus/i.test(model) ? "Opus" : /sonnet/i.t
 const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const PHASE_TEXT = { build: "builder is writing the slide", bundle: "bundling a one-slide preview", shoot: "taking screenshots of every step", critic: "critic is reviewing the screenshots" } as const;
+const PRECHECK_TEXT: Record<PrecheckKind, string> = {
+  "clipped-text": "text clipped",
+  "off-canvas": "off canvas",
+  "text-overlap": "overlapping text",
+  "blank-render": "blank render",
+  "dead-canvas": "canvas draws nothing",
+  "tiny-text": "tiny text",
+  "low-contrast": "low contrast",
+  "dead-step": "a step changes nothing",
+  "console-error": "console error",
+  "external-request": "external request",
+};
 
 /** One LLM call's forge usage as the Studio shows it (cache tokens count as input). */
 export function studioUsage(model: string, u: ForgeUsage): Usage {
@@ -92,6 +104,16 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
           { type: "progress", stage: context, slideId: e.id, message: detail, at: now() },
           { type: "critic.verdict", slideId: e.id, round: e.round, verdict: e.verdict === "pass" ? "pass" : "revise", issues },
         ];
+      }
+      case "slide:precheck": {
+        const what = e.kinds.slice(0, 3).map((kind) => PRECHECK_TEXT[kind]).join(", ");
+        const n = e.errors || e.warnings;
+        const message = e.errors
+          ? `${e.id} round ${e.round}: ${n} ${e.kinds.some((kind) => kind === "console-error" || kind === "external-request") ? "" : "layout "}problem${n === 1 ? "" : "s"} found (${what}), fixing without the critic`
+          : e.warnings
+            ? `${e.id} round ${e.round}: layout checks passed, ${n} warning${n === 1 ? "" : "s"} for the critic (${what})`
+            : `${e.id} round ${e.round}: layout checks passed`;
+        return [{ type: "progress", stage: context, slideId: e.id, message, at: now() }];
       }
       case "slide:error":
         return [{ type: "progress", stage: context, slideId: e.id, message: `${e.id} round ${e.round} failed: ${e.error}`, at: now() }];

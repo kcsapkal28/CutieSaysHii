@@ -11,6 +11,8 @@ export type CriticInput = {
   /** Steps the slide reported (from the shooter). */
   steps: number;
   errors: string[];
+  /** Warnings measured by the deterministic pre-check (tiny text, low contrast, a step that changes nothing), one per line. */
+  measured?: string[];
   /** A presenter's change request this version was built for; it outranks the storyboard. */
   instruction?: string;
 };
@@ -27,6 +29,7 @@ export async function runCritic(llm: Llm, input: CriticInput, opts: { model?: st
         `On-slide copy:\n${JSON.stringify({ kicker: slide.kicker, subtitle: slide.subtitle, callouts: slide.callouts }, null, 2)}`,
         `The slide reports ${input.steps} step(s); the storyboard planned ${board.steps.length}.`,
         `Console and page errors:\n${errors.length ? errors.map((e) => `- ${e}`).join("\n") : "- (none)"}`,
+        `Measured by the pre-check (facts from the rendered page, not guesses):\n${input.measured?.length ? input.measured.map((m) => `- ${m}`).join("\n") : "- (nothing flagged)"}`,
         `Screenshots follow (${shots.length} of ${input.steps} steps, rendered at 1920×1080 and downscaled).`,
       ].join("\n\n"),
     },

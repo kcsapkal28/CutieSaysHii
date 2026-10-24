@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
-import { CANVAS, type ShootResult, type Shot } from "./contract.ts";
+import { CANVAS, type Finding, type ShootResult, type Shot } from "./contract.ts";
+import { measureStep, slideFindings, type StepMeasure } from "./measure.ts";
 
 const READY_TIMEOUT_MS = 30_000;
 const MAX_STEPS = 24;
@@ -30,8 +31,16 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   });
 }
 
-async function shootSlide(page: Page, url: string, id: string, push: (key: string, msg: string) => void): Promise<{ shots: Shot[]; steps: number }> {
+async function shootSlide(
+  page: Page,
+  url: string,
+  id: string,
+  push: (key: string, msg: string) => void,
+  measure: boolean,
+): Promise<{ shots: Shot[]; steps: number; findings: Finding[] }> {
   const shots: Shot[] = [];
+  const measured: StepMeasure[] = [];
+  const alive = new Set<string>();
   await page.goto(`${url}?df-shot=${encodeURIComponent(id)}&step=0`, { waitUntil: "load" });
   const ok = await withTimeout(
     page.evaluate(() => (window.__dfReady ? window.__dfReady.then(() => true) : false)),
@@ -40,7 +49,7 @@ async function shootSlide(page: Page, url: string, id: string, push: (key: strin
   );
   if (!ok) {
     push("deck", "the shell did not load (window.__dfReady is missing)");
-    return { shots, steps: 0 };
+    return { shots, steps: 0, findings: [] };
   }
   const steps = Math.min(MAX_STEPS, (await page.evaluate(() => window.__dfSteps ?? 1)) || 1);
   for (let step = 0; step < steps; step++) {
@@ -53,16 +62,19 @@ async function shootSlide(page: Page, url: string, id: string, push: (key: strin
     }
     const png = await page.screenshot({ type: "png" });
     shots.push({ slideId: id, step, png });
+    // The pre-check is advisory plumbing: if measuring itself fails, the slide is judged without it.
+    if (measure) measured.push(await measureStep(page, id, step, png, alive).catch(() => ({ step, findings: [], canvases: [] })));
   }
-  return { shots, steps };
+  return { shots, steps, findings: measure ? slideFindings(id, measured, shots.map((s) => s.png)) : [] };
 }
 
-/** Engine.shoot. Pass `browser` to reuse one Chromium across calls. */
-export async function shootDeck(input: { deckFile: string; slideIds?: string[]; browser?: Browser }): Promise<ShootResult> {
+/** Engine.shoot. Pass `browser` to reuse one Chromium across calls; `measure: false` skips the pre-check (measure.ts). */
+export async function shootDeck(input: { deckFile: string; slideIds?: string[]; browser?: Browser; measure?: boolean }): Promise<ShootResult> {
   const deckFile = resolve(input.deckFile);
   const all = deckSlideIds(deckFile);
   const ids = input.slideIds?.length ? input.slideIds : all;
-  const result: ShootResult = { shots: [], steps: {}, errors: {}, externalRequests: [] };
+  const result: ShootResult = { shots: [], steps: {}, errors: {}, externalRequests: [], findings: {} };
+  const findings = result.findings!;
   const push = (key: string, msg: string) => (result.errors[key] ??= []).push(msg);
   for (const id of ids) {
     result.errors[id] = [];
@@ -90,9 +102,10 @@ export async function shootDeck(input: { deckFile: string; slideIds?: string[]; 
         if (LOCAL.test(req.url())) push(id, `request failed: ${req.url()} (${req.failure()?.errorText ?? "?"})`);
       });
       try {
-        const r = await shootSlide(page, url, id, push);
+        const r = await shootSlide(page, url, id, push, input.measure ?? true);
         result.shots.push(...r.shots);
         result.steps[id] = r.steps;
+        findings[id] = r.findings;
       } catch (e) {
         push(id, `shoot failed: ${(e as Error).message}`);
       } finally {

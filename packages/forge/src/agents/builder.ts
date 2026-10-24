@@ -17,7 +17,7 @@ export type BuildFix = {
   previousHtml: string;
   issues: Issue[];
   errors: string[];
-  /** One screenshot of the previous render (the last step), so the builder sees what the critic saw. */
+  /** One screenshot of the previous render (the step of the first measured failure, else the last step reviewed). */
   screenshot?: ImageData;
   /** A presenter's change request (per-slide chat); it outranks the storyboard. */
   instruction?: string;
@@ -109,7 +109,7 @@ export function builderUser(input: BuilderInput): Part[] {
         `\n\nThis is a revision of the current version.\n\nReview issues:\n${issues}\n\n` +
         `Console, page and contract errors:\n${errors}\n\nCurrent version:\n\`\`\`html\n${fix.previousHtml}\n\`\`\`\n\n` +
         "Fix every issue and error while keeping what works. Return the complete revised fragment." +
-        (fix.screenshot ? " The screenshot below is the current render of the last step." : ""),
+        (fix.screenshot ? " The screenshot below is the current render of one step (the step of the first measured issue, otherwise the last step)." : ""),
     });
     if (fix.screenshot) parts.push({ type: "image", ...fix.screenshot });
   }

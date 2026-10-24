@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ContractError } from "../src/check.ts";
+import type { Finding } from "../src/contract.ts";
 import { MODELS, type WireRequest } from "../src/llm.ts";
 import {
   createProject,
@@ -18,6 +19,7 @@ import {
   type ForgeEvent,
   type PipelineOptions,
   type Project,
+  BUILD_DEFAULTS,
 } from "../src/pipeline/index.ts";
 import {
   fakeEngine,
@@ -228,11 +230,12 @@ describe("build fix loop", () => {
     expect(review.thinking).toBeUndefined();
   });
 
-  it("turns console errors into a fix even when the critic says pass", async () => {
+  it("sends console errors straight back to the builder without calling the critic", async () => {
     engine = fakeEngine({ errors: (f) => (f.includes("/r1/") ? ["TypeError: x is undefined"] : []) });
     await runAll(project, { auto: true, ...opts() });
     const build = JSON.parse(readFileSync(join(project.dir, "build.json"), "utf8"));
-    expect(build.slides[0].rounds.map((r: { verdict: string }) => r.verdict)).toEqual(["fix", "pass"]);
+    expect(build.slides[0].rounds.map((r: { verdict?: string; precheck?: { kinds: string[] } }) => r.verdict ?? r.precheck?.kinds)).toEqual([["console-error"], "pass"]);
+    expect(llm.requests.filter((r) => toolOf(r) === "review_slide")).toHaveLength(IDS.length);
   });
 
   it("uses a placeholder when every round fails to build", async () => {
@@ -242,6 +245,114 @@ describe("build fix loop", () => {
     expect(summary.slides[0]!.rounds).toHaveLength(2);
     expect(summary.slides[0]!.rounds.every((r) => r.error)).toBe(true);
     expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain('class="df-slide" id="s01"');
+  });
+});
+
+const clipped: Finding = {
+  kind: "clipped-text",
+  severity: "error",
+  step: 1,
+  selector: "#s01 > div.card > p",
+  detail: 'text "Every request is checked" is cut off by its container #s01 > div.card (overflow: hidden): it extends 46px past the container\'s bottom edge (container is 620×130px)',
+  measured: { overflowPx: 46, side: "bottom", container: "#s01 > div.card", containerW: 620, containerH: 130, lines: 3, hiddenLines: 0 },
+};
+const tiny: Finding = {
+  kind: "tiny-text",
+  severity: "warn",
+  step: 0,
+  selector: "#s01 > p.src",
+  detail: 'text "Source: survey" renders at 12px, below the 16px minimum for a 1920×1080 slide',
+  measured: { fontPx: 12, minPx: 16 },
+};
+const texts = (req: WireRequest) => req.messages[0]!.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
+const builderCalls = (id = "s01") => llm.requests.filter((r) => toolOf(r) === "write_slide" && slideOf(r) === id);
+const criticCalls = (id = "s01") => llm.requests.filter((r) => toolOf(r) === "review_slide" && slideOf(r) === id);
+
+describe("deterministic pre-check in the build loop", () => {
+  it("skips the critic on a measured failure and sends the measured facts to the builder", async () => {
+    await upToStoryboard();
+    engine = fakeEngine({ findings: (f) => (f.includes("/s01/r1/") ? [clipped, tiny] : []) });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
+
+    const s01 = summary!.slides[0]!;
+    expect(s01).toMatchObject({ verdict: "pass", bestRound: 2 });
+    expect(s01.rounds[0]).toMatchObject({ round: 1, precheck: { errors: 1, warnings: 1, kinds: ["clipped-text"] } });
+    expect(s01.rounds[0]!.verdict).toBeUndefined();
+    expect(s01.rounds[1]).toMatchObject({ round: 2, verdict: "pass" });
+    // The critic saw only the clean round 2.
+    expect(criticCalls()).toHaveLength(1);
+    expect(JSON.stringify(criticCalls()[0]!.messages[0])).not.toContain("cut off");
+
+    const fixText = texts(builderCalls()[1]!);
+    expect(fixText).toContain("This is a revision");
+    expect(fixText).toContain("- [high] Measured (text clipped): text \"Every request is checked\" is cut off by its container #s01 > div.card");
+    expect(fixText).toContain("46px past the container's bottom edge (container is 620×130px)");
+    expect(fixText).toContain("(where: step 2, #s01 > div.card > p)");
+    expect(fixText).toMatch(/Fix: Make #s01 > div\.card taller than 130px/);
+    expect(fixText).toContain("- [medium] Measured (tiny text): text \"Source: survey\" renders at 12px");
+    expect(builderCalls()[1]!.messages[0]!.content.some((c) => c.type === "image")).toBe(true);
+
+    expect(events).toContainEqual({ type: "slide:precheck", id: "s01", round: 1, errors: 1, warnings: 1, kinds: ["clipped-text"] });
+    expect(events).toContainEqual({ type: "slide:precheck", id: "s01", round: 2, errors: 0, warnings: 0, kinds: [] });
+    expect(events.some((e) => e.type === "slide:round" && e.id === "s01" && e.round === 1 && e.phase === "critic")).toBe(false);
+    expect(JSON.parse(readFileSync(join(project.dir, "shots/s01/r1/precheck.json"), "utf8")).findings).toHaveLength(2);
+  });
+
+  it("does not use up a critic round, and caps the extra attempts", async () => {
+    await upToStoryboard();
+    engine = fakeEngine({ findings: () => [clipped] });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
+
+    // maxRounds (2) + precheckRetries (2) + the escalated round (a pre-check failure is serious): 5 attempts, no critic.
+    const s01 = summary!.slides[0]!;
+    expect(s01.rounds.map((r) => [r.round, r.model, r.escalated ?? false, r.precheck?.errors])).toEqual([
+      [1, MODELS.sonnet, false, 1],
+      [2, MODELS.sonnet, false, 1],
+      [3, MODELS.sonnet, false, 1],
+      [4, MODELS.sonnet, false, 1],
+      [5, MODELS.opus, true, 1],
+    ]);
+    expect(builderCalls()).toHaveLength(5);
+    expect(criticCalls()).toHaveLength(0);
+    expect(events).toContainEqual({ type: "slide:escalate", id: "s01", round: 5, model: MODELS.opus });
+    // Nothing better exists, so the first pre-check-failed attempt is kept (not the placeholder).
+    expect(s01).toMatchObject({ verdict: "fix", bestRound: 1, score: 0 });
+    expect(s01.issues[0]).toMatchObject({ severity: "high", what: expect.stringMatching(/^Measured \(text clipped\)/) });
+    expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain('id="s01"');
+    expect(BUILD_DEFAULTS.precheckRetries).toBe(2);
+  });
+
+  it("ranks any critic-reviewed attempt above a pre-check failure", async () => {
+    await upToStoryboard();
+    engine = fakeEngine({ findings: (f) => (f.includes("/s01/r1/") || f.includes("/s01/r3/") ? [clipped] : []) });
+    llm = fakeLlm(
+      handlers({
+        write_slide: (req) => ({ html: slideHtml(slideOf(req), `attempt${builderCalls(slideOf(req)).length}`), steps: 2, summary: "Built." }),
+        review_slide: () => ({ ...review("fix", 1), issues: Array.from({ length: 8 }, () => review("fix").issues[0]) }),
+      }),
+    );
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1, escalate: false });
+    const s01 = summary!.slides[0]!;
+    // r1 pre-check (retry), r2 critic (round 1 of 2), r3 pre-check (retry), r4 critic (round 2 of 2).
+    expect(s01.rounds.map((r) => (r.precheck ? "pre" : r.verdict))).toEqual(["pre", "fix", "pre", "fix"]);
+    expect(s01).toMatchObject({ verdict: "fix", bestRound: 2, score: 1 });
+    expect(readFileSync(join(project.dir, "slides/s01.html"), "utf8")).toContain("attempt2");
+  });
+
+  it("passes a clean slide to the critic as before, with warnings as measured context", async () => {
+    await upToStoryboard();
+    engine = fakeEngine({ findings: () => [tiny] });
+    const summary = await runStage(project, "build", { ...opts(), concurrency: 1 });
+
+    expect(summary!.slides.map((s) => [s.verdict, s.rounds.length, s.rounds[0]!.precheck])).toEqual([
+      ["pass", 1, undefined],
+      ["pass", 1, undefined],
+    ]);
+    expect(criticCalls()).toHaveLength(1);
+    const critique = texts(criticCalls()[0]!);
+    expect(critique).toContain("Measured by the pre-check (facts from the rendered page, not guesses):");
+    expect(critique).toContain('- tiny text (step 1, #s01 > p.src): text "Source: survey" renders at 12px');
+    expect(events).toContainEqual({ type: "slide:precheck", id: "s01", round: 1, errors: 0, warnings: 1, kinds: ["tiny-text"] });
   });
 });
 

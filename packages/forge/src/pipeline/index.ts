@@ -15,6 +15,7 @@ export { reviseSlide, listVersions } from "./revise.ts";
 export type { ReviseResult, VersionInfo } from "./revise.ts";
 export type { BuildSummary, SlideBuild, RoundRecord, VersionMeta } from "./build.ts";
 export type { ForgeEvent, OnEvent, Verdict } from "./events.ts";
+export type { PrecheckKind } from "./precheck.ts";
 export { DEFAULT_MODELS, BUILD_DEFAULTS } from "./config.ts";
 export type { AgentName } from "./config.ts";
 export { createSharedEngine } from "./shared-engine.ts";

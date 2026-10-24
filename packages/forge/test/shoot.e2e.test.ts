@@ -1,5 +1,6 @@
 // End to end: bundle the proof deck, every exemplar deck and the light fixture; shoot every slide and step in
-// Chromium and expect zero errors and zero external requests. Decks are shot concurrently to keep this fast.
+// Chromium and expect zero errors, zero external requests and zero blocking pre-check findings. Decks are shot
+// concurrently to keep this fast.
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -36,6 +37,10 @@ describe.concurrent("shoot every slide and step", () => {
     const r = await shootDeck({ deckFile: deckFile(name), browser });
     expect(r.externalRequests).toEqual([]);
     expect(Object.values(r.errors).flat()).toEqual([]);
+    // Calibration of the deterministic pre-check (measure.ts): known-good slides must not trip a single blocking check.
+    const blocking = Object.values(r.findings ?? {}).flat().filter((f) => f.severity === "error");
+    expect(blocking.map((f) => `${f.kind} ${f.selector}: ${f.detail}`)).toEqual([]);
+    expect(Object.keys(r.findings ?? {}).sort()).toEqual(project.config.slides.map((s) => s.id).sort());
     for (const s of project.config.slides) {
       const steps = r.steps[s.id] ?? 0;
       expect(steps, s.id).toBeGreaterThan(0);

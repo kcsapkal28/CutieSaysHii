@@ -43,7 +43,7 @@ A deck is built in stages. You approve each one, and any stage can be re-run.
 | 6 | Build | Builder (Sonnet) and Critic (Opus, vision) | `slides/sNN.html`, then `versions/<n>/deck.html` |
 | 7 | Refine | Builder | per-slide chat edits; every build is a saved version |
 
-The build stage writes up to 6 slides concurrently. Each slide goes through draft → screenshot every step in Chromium → critique → fix, for up to 2 rounds. The last fix escalates to Opus if the critic still reports a high-severity issue. Models and limits live in [`packages/forge/src/pipeline/config.ts`](packages/forge/src/pipeline/config.ts).
+The build stage writes up to 6 slides concurrently. Each slide goes through draft → screenshot every step in Chromium → pre-check → critique → fix, for up to 2 rounds. The pre-check measures the rendered page without a model: clipped, off-canvas or overlapping text, blank renders, canvases that draw nothing and console errors go straight back to the builder as measured facts and skip the critic (up to 2 such extra attempts per slide don't use up a round); tiny text, low contrast and steps that change nothing are passed to the critic as measurements. The last fix escalates to Opus if the critic still reports a high-severity issue. Models and limits live in [`packages/forge/src/pipeline/config.ts`](packages/forge/src/pipeline/config.ts).
 
 Presenter features (pacing timer, speaker notes, step navigation, PDF/print) are an opt-in checklist in the Studio.
 
@@ -55,6 +55,7 @@ packages/forge/     the engine
   src/shell/        runtime for the final HTML: navigation, scaling, step lifecycle, Three.js kit
   src/bundle.ts     inlines shell, slides, Three.js, GSAP and fonts into one file
   src/shoot.ts      Playwright screenshots of every slide step, plus console and network errors
+  src/measure.ts    the deterministic pre-check after each step (layout in the page, pixels from the screenshot)
   src/check.ts      static check of the slide contract
   src/agents/       the agents; their prompts are in packages/forge/prompts/
   src/pipeline/     stage runner: runStage, reviseSlide, versions, events

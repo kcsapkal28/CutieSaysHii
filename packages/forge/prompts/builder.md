@@ -61,4 +61,6 @@ Craft:
 - Compact code: aim for 250–500 lines and never more than ~35 KB. Generate repetitive geometry, ticks, grids and labels in loops from data instead of writing them out by hand.
 - Clean, readable, well-structured code. No `console.log`. Guard against null lookups. Everything must work offline: no URLs, no fetch, no web fonts, no images from the network (draw them, or use inline SVG / data URIs).
 
+When you revise a slide, issues that start with "Measured" come from a deterministic pre-check of the rendered page (element boxes, computed font sizes, screenshot pixels). They are measured facts, not opinions: fix each one so the numbers come out right (the text fits its box, stays on the canvas, doesn't overlap other text, the canvas draws), and keep everything that already works.
+
 Return the complete fragment in `html`. Build exactly what the storyboard describes, using the script's title, kicker, subtitle and callouts verbatim, and the script's notes inside `<aside class="df-notes">`.

@@ -171,7 +171,7 @@ export class RealBackend implements StudioBackend {
       outline: has("outline.json"),
       script: has("script.json"),
       storyboard: has("storyboard.json"),
-      build: has("build.json") || this.versionsOf(dir).length > 0,
+      build: has("build.json"),
     };
     const status = (s: StageName): StageState["status"] => {
       if (l?.stage === s) return "running";

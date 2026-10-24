@@ -54,8 +54,8 @@ export function createForgeEventAdapter(context: StageName, opts: { note?: strin
           started.add(e.id);
           out.push({ type: "slide.start", slideId: e.id, title: opts.titles?.[e.id] ?? e.id });
         }
-        const phase = e.phase === "build" ? "build" : e.phase === "critic" ? "critique" : "shoot";
-        out.push({ type: "slide.round", slideId: e.id, round: e.round, phase });
+        // "bundle" (the single-slide preview) is part of shooting as far as the UI is concerned.
+        if (e.phase !== "bundle") out.push({ type: "slide.round", slideId: e.id, round: e.round, phase: e.phase === "critic" ? "critique" : e.phase });
         return out;
       }
       case "slide:verdict": {

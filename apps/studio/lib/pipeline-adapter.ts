@@ -18,6 +18,11 @@ function cost(model: string, u: ForgeUsage): number {
   return (u.input * p[1] + u.cacheRead * p[1] * 0.1 + u.cacheWrite * p[1] * 1.25 + u.output * p[2]) / 1e6;
 }
 
+/** One LLM call's forge usage as the Studio shows it (cache tokens count as input). */
+export function studioUsage(model: string, u: ForgeUsage): Usage {
+  return { inputTokens: u.input + u.cacheRead + u.cacheWrite, outputTokens: u.output, costUsd: cost(model, u) };
+}
+
 const isStage = (s: string): s is StageName => (STAGES as readonly string[]).includes(s);
 
 /**

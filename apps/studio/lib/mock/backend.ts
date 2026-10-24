@@ -13,6 +13,8 @@ import {
   type Outline,
   type Project,
   type ProjectSummary,
+  type ResearchRefineRequest,
+  type ResearchRefineResult,
   type Script,
   type SlideBuildState,
   type StageFileName,
@@ -333,8 +335,16 @@ export class MockBackend implements StudioBackend {
       p.brief = JSON.parse(content) as Brief;
       p.title = titleFrom(p.brief.topic);
     }
-    p.files[file] = content;
     const stage = (Object.entries(STAGE_FILE) as [StageName, StageFileName][]).find(([, f]) => f === file)?.[0];
+    // Like the real pipeline: a changed stage file clears every later stage's output (deck versions stay).
+    if (stage && p.files[file] !== content) {
+      for (const s of STAGES.slice(STAGES.indexOf(stage) + 1)) {
+        p.stageState[s] = stageState("idle");
+        if (s !== "build") delete p.files[STAGE_FILE[s]];
+      }
+      p.build = null;
+    }
+    p.files[file] = content;
     if (stage && p.stageState[stage].status === "idle") p.stageState[stage].status = "review";
     p.updatedAt = now();
     return full(p);
@@ -357,6 +367,30 @@ export class MockBackend implements StudioBackend {
     const style = cloneStyle(look.style);
     style.features = { timer: brief.minutes >= 15, notes: true, stepNav: brief.minutes >= 15, print: false };
     return { style, rationale: why };
+  }
+
+  async refineResearch(id: string, req: ResearchRefineRequest): Promise<ResearchRefineResult> {
+    need(id);
+    const { markdown, start, end, question } = req;
+    if (!(Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end <= markdown.length && start < end)) throw new Error("The selected passage is out of range. Select the text again.");
+    if (!question.trim()) throw new Error("Type a question or an instruction first.");
+    await sleep(1200);
+    const passage = markdown.slice(start, end);
+    if (/#fail/.test(question)) throw new Error("researcher:refine (claude-sonnet-5): HTTP 529 overloaded after 5 attempts");
+    // A fake but well-formed suggestion: "simplify/shorten" keeps the first sentence; anything else adds a caveat.
+    const first = /^[\s\S]*?[.!?](?=\s|$)/.exec(passage)?.[0];
+    const simplify = /simpl|short|plain/i.test(question) && first && first.length < passage.length;
+    const replacement = simplify ? first : passage.includes("\n") ? passage : `${passage} (model knowledge; not verified against a current source)`;
+    return {
+      answer: simplify
+        ? "Kept the first sentence, which carries the point; the rest repeats it. (Mock backend.)"
+        : "I can’t verify this against a current source: research uses model knowledge, so I marked it as unverified. (Mock backend.)",
+      passage,
+      replacement,
+      changed: replacement !== passage,
+      model: TEXT_MODEL,
+      usage: { inputTokens: 1_850, outputTokens: 140, costUsd: 0.0077 },
+    };
   }
 
   async *runStage(id: string, stage: StageName, opts: RunOptions = {}): AsyncIterable<PipelineEvent> {

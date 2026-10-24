@@ -1,7 +1,7 @@
 // The one seam between the Studio UI and whatever builds decks. The route handlers in app/api call only this.
 // MockBackend (lib/mock/backend.ts) implements it with fake timed events; the real pipeline adapter replaces it.
 import type { PipelineEvent } from "./events";
-import type { Brief, Project, ProjectSummary, StageFileName, StageName, Style, VersionInfo } from "./types";
+import type { Brief, Project, ProjectSummary, ResearchRefineRequest, ResearchRefineResult, StageFileName, StageName, Style, VersionInfo } from "./types";
 
 export type { PipelineEvent };
 
@@ -32,6 +32,9 @@ export interface StudioBackend {
 
   /** The Stylist agent: a complete Style for the brief, with a one-paragraph rationale. */
   recommendStyle(brief: Brief): Promise<{ style: Style; rationale: string }>;
+
+  /** The researcher answers a question about one passage of research.md and suggests a replacement for it. Writes nothing. */
+  refineResearch(id: string, req: ResearchRefineRequest): Promise<ResearchRefineResult>;
 
   /** Chat edit of one slide. Streams slide.round / critic.verdict / slide.done, then `version`. */
   reviseSlide(id: string, slideId: string, instruction: string, opts?: RunOptions): AsyncIterable<PipelineEvent>;

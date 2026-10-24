@@ -78,6 +78,25 @@ export interface Usage {
   costUsd: number;
 }
 
+/** Ask about one passage of research.md: the document as the user sees it, the passage's range in it, the question. */
+export interface ResearchRefineRequest {
+  markdown: string;
+  start: number;
+  end: number;
+  question: string;
+}
+
+/** The researcher's answer and a replacement for just that passage. Nothing is saved until the user accepts it. */
+export interface ResearchRefineResult {
+  answer: string;
+  passage: string;
+  replacement: string;
+  /** false when the researcher left the passage as it was. */
+  changed: boolean;
+  model: string;
+  usage: Usage;
+}
+
 export interface StageState {
   status: StageStatus;
   updatedAt: string | null;

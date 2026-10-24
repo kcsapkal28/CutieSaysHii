@@ -1,7 +1,7 @@
 "use client";
 // Browser-side calls to the route handlers, plus an SSE reader for POST streams (EventSource is GET-only).
 import type { PipelineEvent } from "../events";
-import type { Brief, Project, ProjectSummary, StageFileName, StageName, Style, VersionInfo } from "../types";
+import type { Brief, Project, ProjectSummary, ResearchRefineRequest, ResearchRefineResult, StageFileName, StageName, Style, VersionInfo } from "../types";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -24,6 +24,10 @@ export const api = {
   recommendStyle: (brief: Brief) =>
     fetch("/api/style/recommend", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(brief) }).then((r) =>
       json<{ style: Style; rationale: string }>(r),
+    ),
+  refineResearch: (id: string, req: ResearchRefineRequest) =>
+    fetch(`/api/projects/${id}/research/refine`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(req) }).then((r) =>
+      json<ResearchRefineResult>(r),
     ),
   listVersions: (id: string) => fetch(`/api/projects/${id}/versions`, { cache: "no-store" }).then((r) => json<VersionInfo[]>(r)),
   restore: (id: string, version: number) => fetch(`/api/projects/${id}/versions/${version}/restore`, { method: "POST" }).then((r) => json<VersionInfo>(r)),

@@ -3,14 +3,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/client/api";
-import { STAGE_FILE, STAGES, type Outline, type Script, type StageName, type Storyboard } from "@/lib/types";
+import { STAGE_FILE, STAGES, type Outline, type Script, type StageName, type Storyboard, type Usage } from "@/lib/types";
 import { ActivityPanel } from "./activity-panel";
 import { IconArrowRight, IconCheck, IconEdit, IconPlay, IconRefresh, IconStop } from "./icons";
-import { Markdown } from "./markdown";
 import { STAGE_BLURB, STAGE_LABEL, useProject } from "./project-shell";
+import { ResearchDoc } from "./research-doc";
 import { OutlineEditor, ScriptEditor, StoryboardEditor } from "./stage-editors";
 import { Button, EmptyState, ErrorNote, Kbd, Spinner, StatusPill } from "./ui";
-import { useStageRun } from "./use-stage-run";
+import { useStageRun, type LogLine } from "./use-stage-run";
 
 type DocStage = Exclude<StageName, "build">;
 
@@ -20,6 +20,14 @@ const RUN_EMPTY: Record<DocStage, string> = {
   script: "Narration progress will stream here.",
   storyboard: "The creative’s decisions will stream here.",
 };
+
+const ZERO: Usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+
+/** "outline, script and build" */
+function listOf(stages: StageName[]): string {
+  const names = stages.map((s) => STAGE_LABEL[s].toLowerCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+}
 
 function parse<T>(raw: string | undefined | null): T | null {
   if (!raw) return null;
@@ -43,6 +51,13 @@ export function StageView({ stage }: { stage: DocStage }) {
   const [busy, setBusy] = useState<null | "save" | "approve">(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const autoRan = useRef(false);
+  // Research is edited in place and autosaved; questions to the researcher add lines and spend to the activity panel.
+  const isResearch = stage === "research";
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const saving = useRef<Promise<void>>(Promise.resolve());
+  const [extraLog, setExtraLog] = useState<LogLine[]>([]);
+  const [extraUsage, setExtraUsage] = useState<{ usage: Usage; model: string | null }>({ usage: ZERO, model: null });
+  const [asking, setAsking] = useState(false);
 
   const idx = STAGES.indexOf(stage);
   const prev = idx > 0 ? STAGES[idx - 1]! : null;
@@ -50,7 +65,12 @@ export function StageView({ stage }: { stage: DocStage }) {
   const blocked = prev !== null && project.stages[prev] !== "approved";
   const content = run.local && run.partial !== null ? run.partial : (draft ?? saved);
   const dirty = draft !== null && draft !== saved;
-  const canApprove = !run.running && !!saved && (st.status === "review" || st.status === "approved" || dirty);
+  // Saving research.md clears every later stage's output (the pipeline's rule), so with later work on disk an edit is
+  // held until the user confirms; otherwise it autosaves.
+  const later = STAGES.slice(idx + 1).filter((s) => project.stages[s] === "review" || project.stages[s] === "approved");
+  const held = isResearch && dirty && later.length > 0;
+  const otherRunning = STAGES.some((s) => s !== stage && project.stages[s] === "running");
+  const canApprove = !run.running && !!saved && !held && (st.status === "review" || st.status === "approved" || dirty);
 
   useEffect(() => {
     if (autoRan.current) return;
@@ -77,6 +97,38 @@ export function StageView({ stage }: { stage: DocStage }) {
       setBusy(null);
     }
   }
+
+  function autosave(text: string) {
+    setSaveState("saving");
+    saving.current = saving.current.then(async () => {
+      try {
+        await api.saveFile(project.id, file, text);
+        await refresh();
+        setDraft((d) => (d === text ? null : d));
+        setSaveState("saved");
+        setActionError(null);
+      } catch (e) {
+        setSaveState("error");
+        setActionError(`Couldn’t save: ${(e as Error).message}`);
+      }
+    });
+  }
+
+  useEffect(() => {
+    if (!isResearch || draft === null || draft === saved || later.length > 0) return;
+    const t = setTimeout(() => autosave(draft), 700);
+    return () => clearTimeout(t);
+  }, [isResearch, draft, saved, later.length]);
+
+  useEffect(() => {
+    if (!run.local) return;
+    setExtraLog([]);
+    setExtraUsage({ usage: ZERO, model: null });
+  }, [run.local]);
+
+  const addLog = (message: string, tone?: LogLine["tone"]) => setExtraLog((l) => [...l, { at: new Date().toISOString(), message, ...(tone ? { tone } : {}) }]);
+  const addUsage = (u: Usage, model: string) =>
+    setExtraUsage((x) => ({ model, usage: { inputTokens: x.usage.inputTokens + u.inputTokens, outputTokens: x.usage.outputTokens + u.outputTokens, costUsd: x.usage.costUsd + u.costUsd } }));
 
   async function approve() {
     if (!(await saveDraft())) return;
@@ -145,18 +197,27 @@ export function StageView({ stage }: { stage: DocStage }) {
         }
       />
     );
-  } else if (stage === "research") {
-    body = editing ? (
-      <textarea
-        aria-label="research.md"
-        value={content}
-        onChange={(e) => setDraft(e.target.value)}
-        spellCheck={false}
-        className="field min-h-[70vh] w-full resize-y p-4 font-mono text-[13px] leading-[1.65]"
-      />
-    ) : (
+  } else if (isResearch) {
+    const readOnly = run.running || otherRunning;
+    body = (
       <article className="max-w-[72ch]">
-        <Markdown source={content} />
+        <p className="mb-5 text-[12px] text-dim">
+          {readOnly
+            ? run.running
+              ? "The researcher is writing. You can edit once it finishes."
+              : "Another stage is running. You can edit once it finishes."
+            : "Click any text to edit it. Select a passage to ask the researcher about it."}
+        </p>
+        <ResearchDoc
+          projectId={project.id}
+          source={content}
+          readOnly={readOnly}
+          onChange={(next) => setDraft(next === saved ? null : next)}
+          onLog={addLog}
+          onUsage={addUsage}
+          onAsking={setAsking}
+          acceptNote={later.length ? `Saving this change clears the ${listOf(later)}; you’ll be asked first.` : null}
+        />
       </article>
     );
   } else {
@@ -173,7 +234,11 @@ export function StageView({ stage }: { stage: DocStage }) {
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-6">
           <h1 className="font-display text-[22px] tracking-[-0.01em]">{STAGE_LABEL[stage]}</h1>
           <StatusPill status={run.local ? "running" : st.status} />
-          {dirty && <span className="text-[12px] text-ember">Unsaved edits</span>}
+          {isResearch ? (
+            <SaveIndicator state={held ? "held" : dirty ? "saving" : saveState} />
+          ) : (
+            dirty && <span className="text-[12px] text-ember">Unsaved edits</span>
+          )}
           <div className="ml-auto flex items-center gap-2">
             {run.running ? (
               <Button variant="secondary" onClick={run.stop} disabled={!run.local}>
@@ -185,7 +250,7 @@ export function StageView({ stage }: { stage: DocStage }) {
                   <Button variant="ghost" onClick={() => void run.start()} disabled={blocked || busy !== null} title="Run the agent again; replaces the current output">
                     <IconRefresh size={14} /> Re-run
                   </Button>
-                  {editing ? (
+                  {isResearch ? null : editing ? (
                     <Button
                       variant="secondary"
                       onClick={async () => {
@@ -226,12 +291,56 @@ export function StageView({ stage }: { stage: DocStage }) {
                 />
               </div>
             )}
+            {held && (
+              // Sticky: the edit that triggered it is usually further down the page.
+              <div
+                role="status"
+                className="sticky top-3 z-10 mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-ember/30 bg-[color-mix(in_oklab,var(--color-ember)_7%,var(--color-bg))] px-3.5 py-3 text-[13px] shadow-lg shadow-black/30"
+              >
+                <p className="min-w-[30ch] flex-1 text-fg">
+                  Your edit isn’t saved yet. The {listOf(later)} {later.length > 1 ? "were" : "was"} made from this research, and saving it clears{" "}
+                  {later.length > 1 ? "them" : "it"} so {later.length > 1 ? "they" : "it"} can be re-run. Saved deck versions are kept.
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ember" onClick={() => autosave(draft!)} disabled={saveState === "saving"}>
+                    {saveState === "saving" && <Spinner size={12} />} Save and clear {listOf(later)}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+                    Discard edit
+                  </Button>
+                </div>
+              </div>
+            )}
             {editing && <p className="mb-4 rounded-lg bg-raised px-3 py-2 text-[12.5px] text-sub">Editing {file}. Your changes are saved when you press Done editing or approve. Esc discards them.</p>}
             {body}
           </div>
         </div>
       </div>
-      <ActivityPanel log={run.log} usage={run.usage} model={run.model} running={run.running} empty={RUN_EMPTY[stage]} />
+      <ActivityPanel
+        log={extraLog.length ? [...run.log, ...extraLog] : run.log}
+        usage={extraUsage.model ? { inputTokens: run.usage.inputTokens + extraUsage.usage.inputTokens, outputTokens: run.usage.outputTokens + extraUsage.usage.outputTokens, costUsd: run.usage.costUsd + extraUsage.usage.costUsd } : run.usage}
+        model={run.model ?? extraUsage.model}
+        running={run.running || asking}
+        empty={RUN_EMPTY[stage]}
+      />
     </div>
   );
+}
+
+function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" | "error" | "held" }) {
+  if (state === "idle") return null;
+  if (state === "saving")
+    return (
+      <span className="flex items-center gap-1.5 text-[12px] text-dim">
+        <Spinner size={11} /> Saving…
+      </span>
+    );
+  if (state === "saved")
+    return (
+      <span className="flex items-center gap-1 text-[12px] text-dim">
+        <IconCheck size={12} className="text-ok" /> Saved
+      </span>
+    );
+  if (state === "held") return <span className="text-[12px] text-ember">Not saved yet</span>;
+  return <span className="text-[12px] text-bad">Couldn’t save</span>;
 }
